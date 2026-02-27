@@ -1,0 +1,318 @@
+name: Build and Release
+
+# Runs automatically when you push a tag like v2.1.10
+# Usage:
+#   git tag v2.1.10
+#   git push origin v2.1.10
+# GitHub will build Linux + Windows packages and publish a Release.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Linux — AppImage, RPM, DEB, tar.gz
+  # ────────────────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version (strip leading v)
+        id: ver
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            rpm rpmbuild fakeroot libglib2.0-0 libgl1
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v2.spec
+
+      # ── tar.gz ──────────────────────────────────────────────────────────
+      - name: Create tar.gz
+        run: |
+          tar -czf "SpeechBubbleEditor-${{ github.ref_name }}-linux.tar.gz" \
+              -C dist SpeechBubbleEditor
+
+      # ── AppImage ─────────────────────────────────────────────────────────
+      - name: Create AppImage
+        run: |
+          curl -sL \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -o appimagetool
+          chmod +x appimagetool
+
+          mkdir -p AppDir/usr/bin
+          cp dist/SpeechBubbleEditor AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/SpeechBubbleEditor
+          cp icons/icon.png AppDir/icon.png
+
+          cat > AppDir/SpeechBubbleEditor.desktop << 'EOF'
+          [Desktop Entry]
+          Name=Speech Bubble Editor
+          Exec=SpeechBubbleEditor
+          Icon=icon
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/bash
+          exec "$(dirname "$0")/usr/bin/SpeechBubbleEditor" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool \
+            --no-appstream AppDir \
+            "SpeechBubbleEditor-${{ github.ref_name }}-x86_64.AppImage"
+
+      # ── DEB ──────────────────────────────────────────────────────────────
+      - name: Create DEB
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+          DEBDIR="_deb/${PKG}_${VER}_amd64"
+          mkdir -p "${DEBDIR}/DEBIAN"
+          mkdir -p "${DEBDIR}/usr/local/bin"
+          mkdir -p "${DEBDIR}/usr/share/applications"
+          mkdir -p "${DEBDIR}/usr/share/pixmaps"
+
+          cp dist/SpeechBubbleEditor "${DEBDIR}/usr/local/bin/"
+          chmod 755 "${DEBDIR}/usr/local/bin/SpeechBubbleEditor"
+          cp icons/icon.png "${DEBDIR}/usr/share/pixmaps/${PKG}.png"
+
+          cat > "${DEBDIR}/usr/share/applications/${PKG}.desktop" << EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Annotate photos and videos with speech bubbles
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${PKG}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          cat > "${DEBDIR}/DEBIAN/control" << EOF
+          Package: ${PKG}
+          Version: ${VER}
+          Architecture: amd64
+          Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
+          Description: Speech Bubble Editor
+           Annotate photos and videos with speech bubbles.
+          EOF
+
+          dpkg-deb --build "$DEBDIR" \
+            "${PKG}_${VER}_amd64.deb"
+
+      # ── RPM ───────────────────────────────────────────────────────────────
+      - name: Create RPM
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+          STAGE="_rpm_stage"
+          mkdir -p "${STAGE}/usr/local/bin"
+          mkdir -p "${STAGE}/usr/share/applications"
+          mkdir -p "${STAGE}/usr/share/pixmaps"
+
+          cp dist/SpeechBubbleEditor "${STAGE}/usr/local/bin/"
+          cp icons/icon.png "${STAGE}/usr/share/pixmaps/${PKG}.png"
+
+          cat > "${STAGE}/usr/share/applications/${PKG}.desktop" << EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${PKG}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+          {
+            echo "Name:           ${PKG}"
+            echo "Version:        ${VER}"
+            echo "Release:        1"
+            echo "Summary:        Speech Bubble Editor"
+            echo "License:        Proprietary"
+            echo "BuildArch:      x86_64"
+            echo "%description"
+            echo "Annotate photos and videos with speech bubbles."
+            echo "%install"
+            echo "mkdir -p %{buildroot}/usr/local/bin"
+            echo "mkdir -p %{buildroot}/usr/share/applications"
+            echo "mkdir -p %{buildroot}/usr/share/pixmaps"
+            echo "cp %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/"
+            echo "cp %{_app_src}/usr/share/applications/${PKG}.desktop %{buildroot}/usr/share/applications/"
+            echo "cp %{_app_src}/usr/share/pixmaps/${PKG}.png %{buildroot}/usr/share/pixmaps/"
+            echo "%files"
+            echo "/usr/local/bin/SpeechBubbleEditor"
+            echo "/usr/share/applications/${PKG}.desktop"
+            echo "/usr/share/pixmaps/${PKG}.png"
+            echo "%changelog"
+            echo "* $(date '+%a %b %d %Y') Long Weekend Labs - ${VER}-1"
+            echo "- Release v${VER}"
+          } > ~/rpmbuild/SPECS/${PKG}.spec
+
+          # No spaces in CI path — --define works directly
+          rpmbuild -bb \
+            --define "_app_src $(pwd)/${STAGE}" \
+            --define "__strip /bin/true" \
+            ~/rpmbuild/SPECS/${PKG}.spec
+
+          find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
+
+      # ── Upload all Linux artifacts ────────────────────────────────────────
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            SpeechBubbleEditor-*-linux.tar.gz
+            SpeechBubbleEditor-*-x86_64.AppImage
+            speech-bubble-editor_*.deb
+            speech-bubble-editor-*.rpm
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Windows — portable zip + Inno Setup installer
+  # ────────────────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version (strip leading v)
+        id: ver
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v2.spec
+
+      - name: Create portable zip
+        shell: powershell
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
+            -DestinationPath "SpeechBubbleEditor-${tag}-win64-portable.zip" -Force
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Create installer
+        shell: powershell
+        run: |
+          $ver = "${{ steps.ver.outputs.VERSION }}"
+          $tag = "${{ github.ref_name }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$ver `
+            /F"SpeechBubbleEditor-${tag}-win64-Setup" `
+            installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: |
+            SpeechBubbleEditor-*-win64-portable.zip
+            Output\SpeechBubbleEditor-*-win64-Setup.exe
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Publish — collect all artifacts and create GitHub Release
+  # ────────────────────────────────────────────────────────────────────────
+  publish:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # needed to create releases
+
+    steps:
+      - name: Download Linux packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-packages
+          path: packages/
+
+      - name: Download Windows packages
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-packages
+          path: packages/
+
+      - name: List packages
+        run: ls -lh packages/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Speech Bubble Editor ${{ github.ref_name }}"
+          body: |
+            ## Speech Bubble Editor ${{ github.ref_name }}
+
+            ### Downloads
+
+            | Platform | File |
+            |---|---|
+            | Linux (any distro) | `SpeechBubbleEditor-*-x86_64.AppImage` — double-click to run |
+            | Fedora / RHEL | `speech-bubble-editor-*.rpm` |
+            | Ubuntu / Mint / Debian | `speech-bubble-editor_*.deb` |
+            | Linux archive | `SpeechBubbleEditor-*-linux.tar.gz` |
+            | Windows installer | `SpeechBubbleEditor-*-win64-Setup.exe` |
+            | Windows portable | `SpeechBubbleEditor-*-win64-portable.zip` |
+
+            ### Install
+
+            **Linux AppImage** (universal):
+            ```bash
+            chmod +x SpeechBubbleEditor-*.AppImage
+            ./SpeechBubbleEditor-*.AppImage
+            ```
+
+            **Fedora / RHEL:**
+            ```bash
+            sudo dnf install ./speech-bubble-editor-*.rpm
+            ```
+
+            **Ubuntu / Mint:**
+            ```bash
+            sudo dpkg -i speech-bubble-editor_*.deb
+            ```
+          files: packages/*
+          generate_release_notes: false
+          fail_on_unmatched_files: false
