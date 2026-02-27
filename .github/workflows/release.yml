@@ -244,13 +244,19 @@ jobs:
             installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Move installer to workspace root
+        shell: powershell
+        run: |
+          $f = Get-Item "Output\SpeechBubbleEditor-*-win64-Setup.exe"
+          Move-Item $f.FullName "."
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-packages
           path: |
             SpeechBubbleEditor-*-win64-portable.zip
-            Output/SpeechBubbleEditor-*-win64-Setup.exe
+            SpeechBubbleEditor-*-win64-Setup.exe
 
   # ────────────────────────────────────────────────────────────────────────
   # Publish — collect all artifacts and create GitHub Release
