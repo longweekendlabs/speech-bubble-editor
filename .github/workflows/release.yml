@@ -250,7 +250,7 @@ jobs:
           name: windows-packages
           path: |
             SpeechBubbleEditor-*-win64-portable.zip
-            Output\SpeechBubbleEditor-*-win64-Setup.exe
+            Output/SpeechBubbleEditor-*-win64-Setup.exe
 
   # ────────────────────────────────────────────────────────────────────────
   # Publish — collect all artifacts and create GitHub Release
