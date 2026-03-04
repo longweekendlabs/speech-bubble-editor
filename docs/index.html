@@ -280,6 +280,30 @@
       opacity: 0.7;
     }
 
+    /* MORE FROM LONG WEEKEND LABS */
+    .more-section {
+      max-width: 700px; margin: 0 auto; padding: 40px 24px 20px; text-align: center;
+    }
+    .more-section h2 {
+      font-size: 1rem; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .08em; margin-bottom: 18px;
+    }
+    .more-card {
+      display: flex; align-items: center; gap: 20px; text-align: left;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 12px;
+      padding: 22px 24px; text-decoration: none;
+      transition: border-color .2s, transform .15s;
+    }
+    .more-card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+    .more-icon { font-size: 2rem; flex-shrink: 0; }
+    .more-info { flex: 1; }
+    .more-info h3 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .more-info p  { font-size: .85rem; color: var(--muted); line-height: 1.5; }
+    .btn-more {
+      background: var(--bg2); color: var(--text); border: 1px solid var(--border);
+      padding: 8px 18px; border-radius: 7px; font-size: .85rem; white-space: nowrap; flex-shrink: 0;
+    }
+
     @media (max-width: 600px) {
       nav { padding: 12px 16px; }
       .nav-links { display: none; }
@@ -481,6 +505,19 @@
     </div>
   </div>
 </section>
+
+<!-- MORE FROM LONG WEEKEND LABS -->
+<div class="more-section">
+  <h2>More from Long Weekend Labs</h2>
+  <a class="more-card" href="https://longweekendlabs.github.io/bg-remover/" target="_blank">
+    <div class="more-icon">✂</div>
+    <div class="more-info">
+      <h3>BG Remover</h3>
+      <p>AI-powered batch background removal — 100% offline. Drop your character sprites; get clean transparent PNGs without cloud APIs, subscriptions, or watermarks.</p>
+    </div>
+    <span class="btn-more">Learn more →</span>
+  </a>
+</div>
 
 <!-- FOOTER -->
 <footer>
