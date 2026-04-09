@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsTextItem,
     QWidget, QHBoxLayout, QLabel, QPushButton, QSlider,
 )
-from PyQt6.QtCore import Qt, QRectF, pyqtSignal
+from PyQt6.QtCore import Qt, QRectF, QPointF, QEvent, pyqtSignal
 from PyQt6.QtGui import (
     QPixmap, QPainter, QColor, QUndoStack, QFont, QPen,
     QFontMetrics, QTransform, QBrush,
@@ -23,7 +23,7 @@ IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff')
 ALL_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 
 _BAR_FRACTION  = 0.065  # caption bar height as fraction of photo height
-_DUAL_GAP      = 4      # pixel gap between left and right media
+_DUAL_GAP      = 4      # pixel gap between left and right media (module-level fallback)
 _ZOOM_STEP_IN  = 1.25
 _ZOOM_STEP_OUT = 0.80
 _MIN_SCALE     = 0.05
@@ -59,7 +59,7 @@ class MemeBarItem(QGraphicsItem):
         self._center_text_item()
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsFocusable, True)
-        self.setZValue(0.5)
+        self.setZValue(50)
 
     @property
     def is_editing(self):
@@ -194,6 +194,72 @@ class RightMediaPlaceholder(QGraphicsItem):
 
 
 # ---------------------------------------------------------------------------
+# DualSeamItem
+# ---------------------------------------------------------------------------
+
+class DualSeamItem(QGraphicsItem):
+    """Draws the gap/border/feather between dual panels."""
+
+    def __init__(self, x, y, w, h):
+        super().__init__()
+        self._rect         = QRectF(x, y, w, h)
+        self._gap_color    = QColor(45, 45, 45)
+        self._border_color = QColor(90, 90, 90)
+        self._border_width = 0.0
+        self._feather      = 0
+        self.setZValue(-0.5)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,    False)
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsFocusable,  False)
+
+    def set_geometry(self, x, y, w, h):
+        self.prepareGeometryChange()
+        self._rect = QRectF(x, y, max(0.0, float(w)), float(h))
+        self.update()
+
+    def set_gap_color(self, color: QColor):
+        self._gap_color = color
+        self.update()
+
+    def set_border(self, color: QColor, width: float):
+        self._border_color = color
+        self._border_width = width
+        self.update()
+
+    def set_feather(self, px: int):
+        self._feather = max(0, px)
+        self.update()
+
+    def boundingRect(self):
+        return QRectF(self._rect)
+
+    def paint(self, painter, option, widget=None):
+        if self._rect.width() <= 0:
+            return
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.fillRect(self._rect, self._gap_color)
+        if self._border_width > 0:
+            pen = QPen(self._border_color, self._border_width)
+            painter.setPen(pen)
+            x, y, h = self._rect.x(), self._rect.y(), self._rect.height()
+            painter.drawLine(QPointF(x, y), QPointF(x, y + h))
+            rx = x + self._rect.width()
+            painter.drawLine(QPointF(rx, y), QPointF(rx, y + h))
+        if self._feather > 0:
+            from PyQt6.QtGui import QLinearGradient
+            f = self._feather
+            x, y, h = self._rect.x(), self._rect.y(), self._rect.height()
+            for gx, c0, c1 in [
+                (x,             QColor(0,0,0,0), QColor(0,0,0,100)),
+                (x + self._rect.width() - f, QColor(0,0,0,100), QColor(0,0,0,0)),
+            ]:
+                lg = QLinearGradient(gx, 0, gx + f, 0)
+                lg.setColorAt(0.0, c0)
+                lg.setColorAt(1.0, c1)
+                painter.fillRect(QRectF(gx, y, f, h), QBrush(lg))
+
+
+# ---------------------------------------------------------------------------
 # PhotoScene
 # ---------------------------------------------------------------------------
 
@@ -205,11 +271,15 @@ class PhotoScene(QGraphicsScene):
         double_clicked_on_canvas(float, float)  — add a bubble here
         bubble_changed(object)                  — bubble appearance changed
         open_right_media_requested()            — user wants to pick right media
+        overlay_added(object)                   — MediaItem added as overlay
+        overlay_removed(object)                 — MediaItem removed as overlay
     """
 
     double_clicked_on_canvas   = pyqtSignal(float, float)
     bubble_changed             = pyqtSignal(object)
     open_right_media_requested = pyqtSignal()
+    overlay_added              = pyqtSignal(object)   # MediaItem
+    overlay_removed            = pyqtSignal(object)   # MediaItem
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -224,6 +294,12 @@ class PhotoScene(QGraphicsScene):
         self._meme_bot:  MemeBarItem | None = None
         self._dual_mode  = False
         self._fitting    = False   # re-entrancy guard for fit_scene_to_media
+
+        self._overlay_layers: list = []            # list[MediaItem]
+        self._dual_gap = _DUAL_GAP                 # instance copy of gap
+        self._dual_seam: DualSeamItem | None = None
+        self._dual_border_color = QColor(90, 90, 90)
+        self._dual_border_width = 0.0
 
     # ------------------------------------------------------------------
     # Media loading
@@ -259,6 +335,7 @@ class PhotoScene(QGraphicsScene):
     def _reset_all(self):
         """Release all media and reset modes."""
         self._remove_meme_bars()
+        self._clear_overlays()
         self._clear_dual_state()
         if self._video_player is not None:
             self._video_player.release()
@@ -371,11 +448,17 @@ class PhotoScene(QGraphicsScene):
         ly = self._photo_item.pos().y()
         lw = self._left_width()
         lh = self._left_height()
-        snap_x = lx + lw + _DUAL_GAP
-        self.setSceneRect(QRectF(lx, ly, lw * 2 + _DUAL_GAP, lh))
+        snap_x = lx + lw + self._dual_gap
+        self.setSceneRect(QRectF(lx, ly, lw * 2 + self._dual_gap, lh))
         self._right_placeholder = RightMediaPlaceholder(
             snap_x, ly, lw, lh)
         self.addItem(self._right_placeholder)
+
+        # Create the seam item
+        self._dual_seam = DualSeamItem(lx + lw, ly, self._dual_gap, lh)
+        self._dual_seam.set_border(self._dual_border_color, self._dual_border_width)
+        self.addItem(self._dual_seam)
+
         # Expand meme bars to span both panels if meme mode is active
         self._update_meme_bar_layout()
 
@@ -399,6 +482,10 @@ class PhotoScene(QGraphicsScene):
         if self._video_player_right is not None:
             self._video_player_right.release()
             self._video_player_right = None
+        if self._dual_seam is not None:
+            if self._dual_seam.scene() is self:
+                self.removeItem(self._dual_seam)
+            self._dual_seam = None
 
     def is_dual_mode(self): return self._dual_mode
     def toggle_dual_mode(self):
@@ -452,15 +539,128 @@ class PhotoScene(QGraphicsScene):
 
         media = MediaItem(pixmap)
         media.set_display_size(right_w, right_h)
-        media.setPos(lx + lw + _DUAL_GAP, ly)
+        media.setPos(lx + lw + self._dual_gap, ly)
         self._photo_item_right = media
         self.addItem(self._photo_item_right)
 
         # Expand scene to fit both sides
-        self.setSceneRect(QRectF(lx, ly, lw + _DUAL_GAP + right_w, lh))
+        self.setSceneRect(QRectF(lx, ly, lw + self._dual_gap + right_w, lh))
+
+        # Update seam position
+        if self._dual_seam is not None:
+            self._dual_seam.set_geometry(lx + lw, ly, self._dual_gap, lh)
+
         # Expand meme bars if active
         self._update_meme_bar_layout()
         return True
+
+    # ------------------------------------------------------------------
+    # Dual seam controls
+    # ------------------------------------------------------------------
+
+    def set_dual_gap(self, gap: int):
+        self._dual_gap = max(0, int(gap))
+        if self._dual_mode:
+            self._relayout_dual()
+
+    def set_dual_border(self, color: QColor, width: float):
+        self._dual_border_color = color
+        self._dual_border_width = width
+        if self._dual_seam:
+            self._dual_seam.set_border(color, width)
+
+    def set_dual_feather(self, px: int):
+        if self._dual_seam:
+            self._dual_seam.set_feather(px)
+
+    def _relayout_dual(self):
+        """Recompute dual layout after gap change."""
+        if not self._dual_mode or not self._photo_item:
+            return
+        lx = self._photo_item.pos().x()
+        ly = self._photo_item.pos().y()
+        lw = self._left_width()
+        lh = self._left_height()
+        snap_x = lx + lw + self._dual_gap
+        if self._photo_item_right:
+            self._photo_item_right.setPos(snap_x, ly)
+            rw = self._photo_item_right.display_w
+            self.setSceneRect(QRectF(lx, ly, lw + self._dual_gap + rw, lh))
+        elif self._right_placeholder:
+            ph = self._right_placeholder
+            pw = ph._rect.width()
+            ph.prepareGeometryChange()
+            ph._rect = QRectF(snap_x, ly, pw, lh)
+            ph.update()
+            self.setSceneRect(QRectF(lx, ly, lw + self._dual_gap + pw, lh))
+        # Update seam item
+        if self._dual_seam:
+            self._dual_seam.set_geometry(lx + lw, ly, self._dual_gap, lh)
+        self._update_meme_bar_layout()
+
+    # ------------------------------------------------------------------
+    # Overlay layers
+    # ------------------------------------------------------------------
+
+    def create_overlay_item(self, file_path: str):
+        """Create a configured overlay MediaItem (not yet added to scene).
+
+        Returns a MediaItem ready to be pushed via AddOverlayCommand, or None
+        if the file cannot be opened.
+        """
+        import os as _os
+        ext = _os.path.splitext(file_path)[1].lower()
+        if ext in VIDEO_EXTENSIONS:
+            p = VideoPlayer()
+            if not p.load(file_path):
+                return None
+            px = p.get_frame_pixmap(0)
+            p.release()
+            if px is None:
+                return None
+        else:
+            px = QPixmap(file_path)
+            if px.isNull():
+                return None
+
+        item = MediaItem(px, is_overlay=True)
+        # Scale to ~35% of scene width
+        sr = self.sceneRect()
+        target_w = max(120.0, sr.width() * 0.35)
+        scale = target_w / max(1, px.width())
+        item.set_display_size(px.width() * scale, px.height() * scale)
+        # Centre in scene
+        cx = sr.center().x() - item.display_w / 2
+        cy = sr.center().y() - item.display_h / 2
+        item.setPos(cx, cy)
+        # z-value above all existing overlays
+        z = 1
+        for layer in self._overlay_layers:
+            if layer.zValue() >= z:
+                z = int(layer.zValue()) + 1
+        item.setZValue(float(z))
+        return item
+
+    def remove_overlay(self, item):
+        """Remove an overlay layer from the scene and the tracking list."""
+        if item in self._overlay_layers:
+            self._overlay_layers.remove(item)
+            if item.scene() is self:
+                self.removeItem(item)
+            self.overlay_removed.emit(item)
+
+    def get_overlay_layers(self) -> list:
+        return list(self._overlay_layers)
+
+    def _clear_overlays(self):
+        for item in list(self._overlay_layers):
+            if item.scene() is self:
+                self.removeItem(item)
+        self._overlay_layers.clear()
+        if self._dual_seam is not None:
+            if self._dual_seam.scene() is self:
+                self.removeItem(self._dual_seam)
+            self._dual_seam = None
 
     # ------------------------------------------------------------------
     # Helpers / properties
@@ -486,7 +686,7 @@ class PhotoScene(QGraphicsScene):
         self._fitting = True
         try:
             snap_x = (self._photo_item.pos().x()
-                      + self._photo_item.display_w + _DUAL_GAP)
+                      + self._photo_item.display_w + self._dual_gap)
             snap_y = self._photo_item.pos().y()
             if self._photo_item_right:
                 self._photo_item_right.setPos(snap_x, snap_y)
@@ -517,7 +717,7 @@ class PhotoScene(QGraphicsScene):
 
             if self._dual_mode and self._photo_item_right:
                 # Snap right item flush to the left item (no gap drift)
-                snap_x = lx + lw + _DUAL_GAP
+                snap_x = lx + lw + self._dual_gap
                 self._photo_item_right.setPos(snap_x, ly)
 
                 rw = self._photo_item_right.display_w
@@ -526,7 +726,7 @@ class PhotoScene(QGraphicsScene):
                 total_h = max(lh, rh)
             elif self._dual_mode and self._right_placeholder:
                 # No right media yet — keep placeholder snapped to left image
-                snap_x = lx + lw + _DUAL_GAP
+                snap_x = lx + lw + self._dual_gap
                 ph = self._right_placeholder
                 pw = ph._rect.width()
                 ph.prepareGeometryChange()
@@ -539,6 +739,11 @@ class PhotoScene(QGraphicsScene):
                 total_h = ly + lh
 
             self.setSceneRect(QRectF(lx, ly, total_w - lx, total_h - ly))
+
+            # Update seam position if dual seam is active
+            if self._dual_seam and self._dual_mode:
+                self._dual_seam.set_geometry(lx + lw, ly, self._dual_gap, lh)
+
             # Keep meme bars spanning the full canvas if meme mode is active
             self._update_meme_bar_layout()
         finally:
@@ -614,12 +819,26 @@ class PhotoView(QGraphicsView):
         self.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.setBackgroundBrush(QColor(45, 45, 45))
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setAcceptDrops(True)
         self._photo_scene   = scene
         self._fit_to_window = True
         self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        # Set background brush using palette-aware logic
+        self._update_background_brush()
+
+    def _update_background_brush(self):
+        """Set the view background colour based on the current palette."""
+        dark = self.palette().window().color().lightness() < 128
+        if dark:
+            self.setBackgroundBrush(QColor(45, 45, 45))
+        else:
+            self.setBackgroundBrush(QColor(200, 200, 200))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self._update_background_brush()
 
     def fit_photo(self):
         if self._photo_scene.has_photo():
@@ -681,6 +900,21 @@ class PhotoView(QGraphicsView):
         super().drawBackground(painter, rect)
         if not self._photo_scene.has_photo():
             # Welcome screen — draw in viewport coordinates so it's always centered
+            dark = self.palette().window().color().lightness() < 128
+
+            if dark:
+                icon_bg_color    = QColor(70, 70, 70)
+                icon_border_color = QColor(110, 110, 110)
+                icon_plus_color  = QColor(170, 170, 170)
+                main_text_color  = QColor(200, 200, 200)
+                sub_text_color   = QColor(130, 130, 130)
+            else:
+                icon_bg_color    = QColor(200, 200, 200)
+                icon_border_color = QColor(150, 150, 150)
+                icon_plus_color  = QColor(80, 80, 80)
+                main_text_color  = QColor(60, 60, 60)
+                sub_text_color   = QColor(100, 100, 100)
+
             painter.save()
             painter.resetTransform()
             vr = self.viewport().rect()
@@ -689,10 +923,10 @@ class PhotoView(QGraphicsView):
             icon_size = 64
             ix = vr.center().x() - icon_size // 2
             iy = vr.center().y() - icon_size // 2 - 40
-            painter.setBrush(QBrush(QColor(70, 70, 70)))
-            painter.setPen(QPen(QColor(110, 110, 110), 2))
+            painter.setBrush(QBrush(icon_bg_color))
+            painter.setPen(QPen(icon_border_color, 2))
             painter.drawRoundedRect(ix, iy, icon_size, icon_size, 12, 12)
-            painter.setPen(QPen(QColor(170, 170, 170), 3))
+            painter.setPen(QPen(icon_plus_color, 3))
             painter.setFont(QFont("sans-serif", 28))
             painter.drawText(
                 ix, iy, icon_size, icon_size,
@@ -700,7 +934,7 @@ class PhotoView(QGraphicsView):
             )
 
             # Main message
-            painter.setPen(QPen(QColor(200, 200, 200)))
+            painter.setPen(QPen(main_text_color))
             f1 = QFont()
             f1.setPixelSize(18)
             f1.setBold(True)
@@ -711,7 +945,7 @@ class PhotoView(QGraphicsView):
             )
 
             # Sub-message
-            painter.setPen(QPen(QColor(130, 130, 130)))
+            painter.setPen(QPen(sub_text_color))
             f2 = QFont()
             f2.setPixelSize(13)
             painter.setFont(f2)
@@ -796,6 +1030,7 @@ class ZoomBar(QWidget):
         self._updating = False
         self.setFixedHeight(34)
         self._build()
+        self.setVisible(False)   # hidden until media is loaded
 
     def _build(self):
         layout = QHBoxLayout(self)

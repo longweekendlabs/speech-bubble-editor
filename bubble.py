@@ -174,6 +174,7 @@ class BubbleItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsFocusable,          True)
         self.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
+        self.setZValue(100)   # always float above overlay layers (z 1–99)
         self.setPos(scene_x, scene_y)
 
         # Undo tracking state

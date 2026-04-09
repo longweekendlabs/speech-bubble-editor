@@ -19,6 +19,7 @@ class MainToolbar(QToolBar):
     undo_requested        = pyqtSignal()
     redo_requested        = pyqtSignal()
     add_bubble_requested  = pyqtSignal()
+    add_layer_requested   = pyqtSignal()
     meme_toggled          = pyqtSignal(bool)
     dual_toggled          = pyqtSignal(bool)
     about_requested       = pyqtSignal()
@@ -80,6 +81,19 @@ class MainToolbar(QToolBar):
 
         self.addSeparator()
 
+        # Add Layer
+        self.act_add_layer = QAction("+ Layer", self)
+        self.act_add_layer.setShortcut("Ctrl+L")
+        self.act_add_layer.setToolTip(
+            "Add a photo or video as an overlay layer (Ctrl+L)\n"
+            "Layers can be freely positioned and resized on the canvas"
+        )
+        self.act_add_layer.setEnabled(False)
+        self.act_add_layer.triggered.connect(self.add_layer_requested)
+        self.addAction(self.act_add_layer)
+
+        self.addSeparator()
+
         # Meme
         self.act_meme = QAction("Meme", self)
         self.act_meme.setCheckable(True)
@@ -123,8 +137,12 @@ class MainToolbar(QToolBar):
     def set_media_loaded(self, loaded: bool):
         self.act_export.setEnabled(loaded)
         self.act_add_bubble.setEnabled(loaded)
+        self.act_add_layer.setEnabled(loaded)
         self.act_meme.setEnabled(loaded)
         self.act_dual.setEnabled(loaded)
+
+    def set_layer_enabled(self, enabled: bool):
+        self.act_add_layer.setEnabled(enabled)
 
     def set_meme_checked(self, checked: bool):
         self.act_meme.blockSignals(True)

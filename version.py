@@ -19,9 +19,15 @@ History:
              trim selection range; reverse playback live in GUI (not just
              export); meme bar position fixed after resize; dual mode right
              pane layout fixed (placeholder tracked through all moves).
+  v3.0.0 — Single instance enforcement; macOS support; overlay layers
+            (add photo/video as freely-positioned layer, z-order controls,
+            undo/redo); dual mode seam settings (gap, border, feather) in
+            Properties Panel; theme-aware welcome screen; GitHub link in
+            About dialog; zoom bar and video controls hidden until media
+            is loaded.
 """
 
-__version__  = "2.1.10"
+__version__  = "3.0.0"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

@@ -3,6 +3,11 @@ properties_panel.py — Bottom panel: style, font, and bubble appearance control
 
 Shows context-sensitive controls for the currently selected bubble.
 When no bubble is selected, shows a hint label.
+
+Page 0 = hint
+Page 1 = bubble controls
+Page 2 = media item controls
+Page 3 = dual mode seam settings
 """
 
 from PyQt6.QtWidgets import (
@@ -11,7 +16,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup, QFontComboBox, QSizePolicy, QStackedWidget, QCheckBox
 )
 from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +71,14 @@ STYLE_LABELS = {
 class PropertiesPanel(QWidget):
     """
     Bottom strip showing controls for the selected item.
-    Page 0 = hint, Page 1 = bubble controls, Page 2 = media item controls.
-    Directly writes to the item — no signal indirection needed.
+    Page 0 = hint, Page 1 = bubble controls, Page 2 = media item controls,
+    Page 3 = dual mode seam settings.
+    Directly writes to the item — no signal indirection needed (except dual seam).
     """
+
+    dual_gap_changed     = pyqtSignal(int)
+    dual_border_changed  = pyqtSignal(QColor, float)
+    dual_feather_changed = pyqtSignal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -87,7 +97,8 @@ class PropertiesPanel(QWidget):
         outer.setContentsMargins(4, 4, 4, 4)
         outer.setSpacing(0)
 
-        # Stacked: index 0 = hint, index 1 = controls
+        # Stacked: index 0 = hint, index 1 = bubble controls,
+        #          index 2 = media controls, index 3 = dual seam settings
         self._stack = QStackedWidget()
         outer.addWidget(self._stack)
 
@@ -101,7 +112,7 @@ class PropertiesPanel(QWidget):
         hint_layout.addWidget(hint)
         self._stack.addWidget(hint_page)    # index 0
 
-        # --- Page 1: controls ---
+        # --- Page 1: bubble controls ---
         ctrl_page = QWidget()
         row = QHBoxLayout(ctrl_page)
         row.setContentsMargins(6, 2, 6, 2)
@@ -275,7 +286,82 @@ class PropertiesPanel(QWidget):
         media_row.addStretch()
         self._stack.addWidget(media_page)  # index 2
 
+        # --- Page 3: dual mode seam settings ---
+        dual_page = QWidget()
+        dual_outer = QVBoxLayout(dual_page)
+        dual_outer.setContentsMargins(12, 4, 12, 4)
+        dual_outer.setSpacing(4)
+
+        dual_title = QLabel("Dual Mode Settings")
+        dual_title.setStyleSheet("font-weight: bold; font-size: 12px;")
+        dual_outer.addWidget(dual_title)
+
+        dual_controls = QHBoxLayout()
+        dual_controls.setSpacing(12)
+
+        # Gap
+        dual_controls.addWidget(QLabel("Gap:"))
+        self._dual_gap_slider = QSlider(Qt.Orientation.Horizontal)
+        self._dual_gap_slider.setRange(0, 60)
+        self._dual_gap_slider.setValue(4)
+        self._dual_gap_slider.setFixedWidth(100)
+        self._dual_gap_slider.setToolTip("Gap width between the two panels")
+        self._dual_gap_slider.valueChanged.connect(self._on_dual_gap)
+        dual_controls.addWidget(self._dual_gap_slider)
+        self._dual_gap_label = QLabel("4 px")
+        self._dual_gap_label.setFixedWidth(34)
+        dual_controls.addWidget(self._dual_gap_label)
+
+        dual_controls.addWidget(_sep())
+
+        # Divider border
+        dual_controls.addWidget(QLabel("Divider:"))
+        self._chk_dual_border = QCheckBox()
+        self._chk_dual_border.setToolTip("Show a border line at the seam")
+        self._chk_dual_border.setChecked(False)
+        self._chk_dual_border.toggled.connect(self._on_dual_border_toggle)
+        dual_controls.addWidget(self._chk_dual_border)
+
+        self._btn_dual_border_color = _color_btn(QColor(90, 90, 90), "Divider line colour")
+        self._btn_dual_border_color.clicked.connect(self._on_dual_border_color)
+        dual_controls.addWidget(self._btn_dual_border_color)
+
+        dual_controls.addWidget(QLabel("Width:"))
+        self._dual_border_width = QDoubleSpinBox()
+        self._dual_border_width.setRange(0.0, 8.0)
+        self._dual_border_width.setSingleStep(0.5)
+        self._dual_border_width.setValue(1.0)
+        self._dual_border_width.setFixedWidth(58)
+        self._dual_border_width.setFixedHeight(28)
+        self._dual_border_width.setSuffix(" px")
+        self._dual_border_width.setToolTip("Divider line thickness")
+        self._dual_border_width.valueChanged.connect(self._on_dual_border_width)
+        dual_controls.addWidget(self._dual_border_width)
+
+        dual_controls.addWidget(_sep())
+
+        # Feather
+        dual_controls.addWidget(QLabel("Feather:"))
+        self._dual_feather_slider = QSlider(Qt.Orientation.Horizontal)
+        self._dual_feather_slider.setRange(0, 40)
+        self._dual_feather_slider.setValue(0)
+        self._dual_feather_slider.setFixedWidth(80)
+        self._dual_feather_slider.setToolTip("Feather (shadow gradient) at the seam edges")
+        self._dual_feather_slider.valueChanged.connect(self._on_dual_feather)
+        dual_controls.addWidget(self._dual_feather_slider)
+        self._dual_feather_label = QLabel("0 px")
+        self._dual_feather_label.setFixedWidth(34)
+        dual_controls.addWidget(self._dual_feather_label)
+
+        dual_controls.addStretch()
+        dual_outer.addLayout(dual_controls)
+
+        self._stack.addWidget(dual_page)   # index 3
+
         self._stack.setCurrentIndex(0)     # start with hint
+
+        # Internal state for dual border
+        self._dual_border_color_val = QColor(90, 90, 90)
 
     # ------------------------------------------------------------------
     # Public API — called from MainWindow on selection change
@@ -322,6 +408,12 @@ class PropertiesPanel(QWidget):
         finally:
             self._updating = False
         self._stack.setCurrentIndex(2)
+
+    def show_dual_settings(self):
+        """Switch to the dual mode seam settings page."""
+        self._bubble = None
+        self._media  = None
+        self._stack.setCurrentIndex(3)
 
     def clear(self):
         """No item selected — show the hint page."""
@@ -431,3 +523,35 @@ class PropertiesPanel(QWidget):
             sc = self._media.scene()
             if sc and hasattr(sc, 'fit_scene_to_media'):
                 sc.fit_scene_to_media()
+
+    # ------------------------------------------------------------------
+    # Dual seam callbacks
+    # ------------------------------------------------------------------
+
+    def _on_dual_gap(self, value: int):
+        self._dual_gap_label.setText(f"{value} px")
+        if not self._updating:
+            self.dual_gap_changed.emit(value)
+
+    def _on_dual_border_toggle(self, checked: bool):
+        if not self._updating:
+            width = self._dual_border_width.value() if checked else 0.0
+            self.dual_border_changed.emit(self._dual_border_color_val, width)
+
+    def _on_dual_border_color(self):
+        color = QColorDialog.getColor(
+            self._dual_border_color_val, self, "Divider Colour")
+        if color.isValid():
+            self._dual_border_color_val = color
+            _set_btn_color(self._btn_dual_border_color, color)
+            if self._chk_dual_border.isChecked():
+                self.dual_border_changed.emit(color, self._dual_border_width.value())
+
+    def _on_dual_border_width(self, value: float):
+        if not self._updating and self._chk_dual_border.isChecked():
+            self.dual_border_changed.emit(self._dual_border_color_val, value)
+
+    def _on_dual_feather(self, value: int):
+        self._dual_feather_label.setText(f"{value} px")
+        if not self._updating:
+            self.dual_feather_changed.emit(value)

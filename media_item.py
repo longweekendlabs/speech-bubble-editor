@@ -161,13 +161,14 @@ class MediaItem(QGraphicsObject):
     Instead, scene updates happen only on mouse release (via undo commands).
     """
 
-    def __init__(self, pixmap: QPixmap):
+    def __init__(self, pixmap: QPixmap, is_overlay: bool = False):
         super().__init__()
         self._pixmap    = pixmap
         self._display_w = float(pixmap.width())
         self._display_h = float(pixmap.height())
         self._native_w  = float(pixmap.width())
         self._native_h  = float(pixmap.height())
+        self._is_overlay = is_overlay
 
         # Drag-state
         self._resizing:       bool           = False   # True while handle active
@@ -177,7 +178,12 @@ class MediaItem(QGraphicsObject):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, True)
         # NOTE: ItemSendsGeometryChanges deliberately omitted — see class docstring
-        self.setZValue(-1)
+        if is_overlay:
+            # Overlay z-value is set by the scene based on existing layers;
+            # default to 1 so it appears above the background (-1).
+            self.setZValue(1)
+        else:
+            self.setZValue(-1)
 
         self._handles = {
             c: MediaResizeHandle(c, self) for c in ("TL", "TR", "BL", "BR")
@@ -263,7 +269,7 @@ class MediaItem(QGraphicsObject):
         super().mouseMoveEvent(event)   # Qt moves the item
         # Live snap in dual mode — position only, no sceneRect update
         sc = self.scene()
-        if sc and hasattr(sc, "_snap_right_to_left"):
+        if sc and hasattr(sc, "_snap_right_to_left") and not self._is_overlay:
             sc._snap_right_to_left()
 
     def mouseReleaseEvent(self, event):
@@ -276,16 +282,22 @@ class MediaItem(QGraphicsObject):
             if old is not None and (old - new).manhattanLength() > 1:
                 sc = self.scene()
                 if sc and hasattr(sc, 'undo_stack'):
-                    from undo_commands import MoveMediaCommand
-                    sc.undo_stack.push(MoveMediaCommand(sc, self, old, new))
-                    # push() calls redo() immediately → fit_scene_to_media()
-                    return
-                elif sc and hasattr(sc, 'fit_scene_to_media'):
+                    if self._is_overlay:
+                        # For overlays, just record the move (no fit_scene_to_media)
+                        from undo_commands import MoveMediaCommand
+                        sc.undo_stack.push(MoveMediaCommand(sc, self, old, new))
+                        return
+                    else:
+                        from undo_commands import MoveMediaCommand
+                        sc.undo_stack.push(MoveMediaCommand(sc, self, old, new))
+                        # push() calls redo() immediately → fit_scene_to_media()
+                        return
+                elif sc and hasattr(sc, 'fit_scene_to_media') and not self._is_overlay:
                     sc.fit_scene_to_media()
             else:
-                # Click without move — still refresh scene rect
+                # Click without move — still refresh scene rect (non-overlay only)
                 sc = self.scene()
-                if sc and hasattr(sc, 'fit_scene_to_media'):
+                if sc and hasattr(sc, 'fit_scene_to_media') and not self._is_overlay:
                     sc.fit_scene_to_media()
 
     def contextMenuEvent(self, event: QGraphicsSceneContextMenuEvent):
@@ -294,9 +306,65 @@ class MediaItem(QGraphicsObject):
         act_lock.setCheckable(True)
         act_lock.setChecked(self._lock_ratio)
         act_lock.setToolTip("Hold Shift while dragging a corner to lock ratio temporarily")
+
+        act_front    = None
+        act_forward  = None
+        act_backward = None
+        act_back     = None
+        act_remove   = None
+
+        if self._is_overlay:
+            menu.addSeparator()
+            act_front    = menu.addAction("Bring to Front")
+            act_forward  = menu.addAction("Bring Forward")
+            act_backward = menu.addAction("Send Backward")
+            act_back     = menu.addAction("Send to Back")
+            menu.addSeparator()
+            act_remove = menu.addAction("Remove Layer")
+
         chosen = menu.exec(event.screenPos())
+        sc = self.scene()
+
         if chosen == act_lock:
             self._lock_ratio = not self._lock_ratio
+
+        elif self._is_overlay and sc:
+            layers = sc.get_overlay_layers() if hasattr(sc, 'get_overlay_layers') else []
+            cur_z = self.zValue()
+
+            if chosen == act_remove:
+                if hasattr(sc, 'undo_stack'):
+                    from undo_commands import RemoveOverlayCommand
+                    sc.undo_stack.push(RemoveOverlayCommand(sc, self))
+                else:
+                    sc.remove_overlay(self)
+
+            elif chosen == act_front:
+                max_z = max((l.zValue() for l in layers), default=1)
+                self.setZValue(max_z + 1)
+
+            elif chosen == act_back:
+                min_z = min((l.zValue() for l in layers), default=1)
+                self.setZValue(max(1.0, min_z - 1))
+
+            elif chosen == act_forward:
+                above = sorted(
+                    [l for l in layers if l is not self and l.zValue() > cur_z],
+                    key=lambda l: l.zValue())
+                if above:
+                    nxt = above[0]
+                    self.setZValue(nxt.zValue())
+                    nxt.setZValue(cur_z)
+
+            elif chosen == act_backward:
+                below = sorted(
+                    [l for l in layers if l is not self and l.zValue() < cur_z],
+                    key=lambda l: l.zValue(), reverse=True)
+                if below:
+                    prv = below[0]
+                    self.setZValue(prv.zValue())
+                    prv.setZValue(cur_z)
+
         event.accept()
 
     # ------------------------------------------------------------------

@@ -7,6 +7,7 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QFileDialog, QMessageBox,
+    QUndoCommand,
 )
 from PyQt6.QtCore import Qt
 
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         tb.undo_requested.connect(sc.undo_stack.undo)
         tb.redo_requested.connect(sc.undo_stack.redo)
         tb.add_bubble_requested.connect(self._on_add_bubble_clicked)
+        tb.add_layer_requested.connect(self._on_add_layer)
         tb.meme_toggled.connect(self._on_meme_toggled)
         tb.dual_toggled.connect(self._on_dual_toggled)
         tb.about_requested.connect(self._on_about)
@@ -97,6 +99,11 @@ class MainWindow(QMainWindow):
         vc.cut_requested.connect(self._on_cut)
         vc.cuts_cleared.connect(self._on_clear_cuts)
         vc.reverse_toggled.connect(self._on_reverse)
+
+        # Dual seam signals
+        self.props.dual_gap_changed.connect(self.scene.set_dual_gap)
+        self.props.dual_border_changed.connect(self.scene.set_dual_border)
+        self.props.dual_feather_changed.connect(self.scene.set_dual_feather)
 
     # ------------------------------------------------------------------
     # Media loading — universal (photo or video, auto-detected)
@@ -130,6 +137,9 @@ class MainWindow(QMainWindow):
         self.toolbar.set_dual_checked(False)
         self.toolbar.set_meme_enabled(True)
         self.toolbar.set_dual_enabled(True)
+
+        # Show zoom bar now that media is loaded
+        self.zoom_bar.setVisible(True)
 
         if is_video:
             self.video_controls.set_player(self.scene.video_player)
@@ -173,6 +183,28 @@ class MainWindow(QMainWindow):
             self.view.fit_photo()
 
     # ------------------------------------------------------------------
+    # Overlay layers
+    # ------------------------------------------------------------------
+
+    def _on_add_layer(self):
+        if not self.scene.has_photo():
+            return
+        ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Add Layer", "",
+            f"All supported media ({ext_list})"
+        )
+        if not path:
+            return
+        item = self.scene.create_overlay_item(path)
+        if item is None:
+            QMessageBox.warning(self, "Add Layer", f"Cannot open:\n{path}")
+            return
+        # Push onto undo stack; AddOverlayCommand.redo() adds it to the scene
+        from undo_commands import AddOverlayCommand
+        self.scene.undo_stack.push(AddOverlayCommand(self.scene, item))
+
+    # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
 
@@ -213,6 +245,8 @@ class MainWindow(QMainWindow):
     def _on_dual_toggled(self, enabled: bool):
         if enabled:
             self.scene.enable_dual_mode()
+            if not self.scene.selectedItems():
+                self.props.show_dual_settings()
         else:
             self.scene.disable_dual_mode()
             # Unbind right player from controls when leaving dual mode
@@ -321,6 +355,8 @@ class MainWindow(QMainWindow):
             self.props.update_for_bubble(bubbles[0])
         elif media:
             self.props.update_for_media(media[0])
+        elif self.scene.is_dual_mode():
+            self.props.show_dual_settings()
         else:
             self.props.clear()
 

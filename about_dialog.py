@@ -1,5 +1,5 @@
 """
-about_dialog.py — About dialog for Speech Bubble Editor v2.
+about_dialog.py — About dialog for Speech Bubble Editor v3.
 """
 
 import os
@@ -74,6 +74,16 @@ class AboutDialog(QDialog):
         line.setFrameShape(QFrame.Shape.HLine)
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
+
+        # ── GitHub link ──────────────────────────────────────────────────
+        github_label = QLabel(
+            '<a href="https://github.com/longweekendlabs/speech-bubble-editor">'
+            'github.com/longweekendlabs/speech-bubble-editor</a>'
+        )
+        github_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        github_label.setOpenExternalLinks(True)
+        github_label.setStyleSheet("font-size: 11px;")
+        layout.addWidget(github_label)
 
         # ── License ──────────────────────────────────────────────────────
         license_text = (

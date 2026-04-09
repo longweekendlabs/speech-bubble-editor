@@ -7,6 +7,10 @@ Commands implemented:
   MoveBubbleCommand   — redo = move to new_pos, undo = move to old_pos
                         (consecutive moves of the same bubble are merged)
   TextChangeCommand   — redo = new text, undo = old text
+  MoveMediaCommand    — redo = move media to new_pos, undo = move to old_pos
+  ResizeMediaCommand  — redo = resize + reposition, undo = restore original
+  AddOverlayCommand   — redo = add overlay layer, undo = remove it
+  RemoveOverlayCommand — redo = remove overlay layer, undo = add it back
 """
 
 from PyQt6.QtGui import QUndoCommand
@@ -120,12 +124,12 @@ class MoveMediaCommand(QUndoCommand):
 
     def redo(self):
         self._item.setPos(self._new_pos)
-        if hasattr(self._scene, 'fit_scene_to_media'):
+        if not self._item._is_overlay and hasattr(self._scene, 'fit_scene_to_media'):
             self._scene.fit_scene_to_media()
 
     def undo(self):
         self._item.setPos(self._old_pos)
-        if hasattr(self._scene, 'fit_scene_to_media'):
+        if not self._item._is_overlay and hasattr(self._scene, 'fit_scene_to_media'):
             self._scene.fit_scene_to_media()
 
 
@@ -146,11 +150,61 @@ class ResizeMediaCommand(QUndoCommand):
     def redo(self):
         self._item.set_display_size(self._new_w, self._new_h)
         self._item.setPos(self._new_pos)
-        if hasattr(self._scene, 'fit_scene_to_media'):
+        if not self._item._is_overlay and hasattr(self._scene, 'fit_scene_to_media'):
             self._scene.fit_scene_to_media()
 
     def undo(self):
         self._item.set_display_size(self._old_w, self._old_h)
         self._item.setPos(self._old_pos)
-        if hasattr(self._scene, 'fit_scene_to_media'):
+        if not self._item._is_overlay and hasattr(self._scene, 'fit_scene_to_media'):
             self._scene.fit_scene_to_media()
+
+
+class AddOverlayCommand(QUndoCommand):
+    """Undo/redo for adding an overlay layer to the scene."""
+
+    def __init__(self, scene, item):
+        super().__init__("Add Layer")
+        self._scene = scene
+        self._item  = item
+
+    def redo(self):
+        if self._item not in self._scene._overlay_layers:
+            self._scene._overlay_layers.append(self._item)
+        if self._item.scene() is None:
+            self._scene.addItem(self._item)
+        self._scene.clearSelection()
+        self._item.setSelected(True)
+        self._scene.overlay_added.emit(self._item)
+
+    def undo(self):
+        if self._item in self._scene._overlay_layers:
+            self._scene._overlay_layers.remove(self._item)
+        if self._item.scene() is self._scene:
+            self._scene.removeItem(self._item)
+        self._scene.overlay_removed.emit(self._item)
+
+
+class RemoveOverlayCommand(QUndoCommand):
+    """Undo/redo for removing an overlay layer from the scene."""
+
+    def __init__(self, scene, item):
+        super().__init__("Remove Layer")
+        self._scene = scene
+        self._item  = item
+
+    def redo(self):
+        if self._item in self._scene._overlay_layers:
+            self._scene._overlay_layers.remove(self._item)
+        if self._item.scene() is self._scene:
+            self._scene.removeItem(self._item)
+        self._scene.overlay_removed.emit(self._item)
+
+    def undo(self):
+        if self._item not in self._scene._overlay_layers:
+            self._scene._overlay_layers.append(self._item)
+        if self._item.scene() is None:
+            self._scene.addItem(self._item)
+        self._scene.clearSelection()
+        self._item.setSelected(True)
+        self._scene.overlay_added.emit(self._item)
