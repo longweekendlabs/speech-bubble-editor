@@ -12,6 +12,11 @@ import sys as _sys
 
 _app_dir = os.path.dirname(os.path.abspath(SPEC))
 
+# Collect ALL PyQt6 submodules + data + binaries so Qt platform plugins
+# (libqcocoa.dylib on macOS, qwindows.dll on Windows) are never missing.
+from PyInstaller.utils.hooks import collect_all as _collect_all
+_qt_datas, _qt_binaries, _qt_hidden = _collect_all('PyQt6')
+
 _hidden = [
     'cv2',
     'numpy',
@@ -21,16 +26,17 @@ _hidden = [
     'PyQt6.QtGui',
     'PyQt6.QtWidgets',
     'PyQt6.QtNetwork',   # QLocalServer / QLocalSocket for single-instance guard
-]
+    'PyQt6.sip',
+] + _qt_hidden
 
 a = Analysis(
     ['main.py'],
     pathex=[_app_dir],
-    binaries=[],
+    binaries=_qt_binaries,
     datas=[
         (os.path.join(_app_dir, 'fonts'), 'fonts'),
         (os.path.join(_app_dir, 'icons'), 'icons'),
-    ],
+    ] + _qt_datas,
     hiddenimports=_hidden,
     hookspath=[],
     hooksconfig={},

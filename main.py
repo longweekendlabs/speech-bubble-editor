@@ -4,6 +4,23 @@ main.py — Entry point for Speech Bubble Editor v3.
 
 import os
 import sys
+import traceback
+
+# ── Early crash log (macOS windowed builds suppress all stdout/stderr) ────────
+_LOG = os.path.expanduser("~/speechbubble_debug.log")
+
+def _log(msg: str):
+    try:
+        with open(_LOG, "a") as f:
+            import datetime
+            f.write(f"{datetime.datetime.now():%H:%M:%S}  {msg}\n")
+            f.flush()
+    except Exception:
+        pass
+
+_log("=== Speech Bubble Editor starting ===")
+_log(f"Python {sys.version}  platform={sys.platform}")
+_log(f"executable={sys.executable}")
 
 _singleton_server = None  # module-level — prevents GC of the QLocalServer
 
@@ -125,39 +142,57 @@ def _setup_single_instance(window) -> bool:
 
 
 def main():
-    from PyQt6.QtWidgets import QApplication
-    from PyQt6.QtGui import QIcon, QFont, QFontDatabase
+    try:
+        _log("importing QApplication…")
+        from PyQt6.QtWidgets import QApplication
+        from PyQt6.QtGui import QIcon, QFont, QFontDatabase
+        _log("QApplication imported OK")
 
-    app = QApplication(sys.argv)
-    app.setApplicationName("Speech Bubble Editor")
-    app.setOrganizationName("Long Weekend Labs")
+        app = QApplication(sys.argv)
+        app.setApplicationName("Speech Bubble Editor")
+        app.setOrganizationName("Long Weekend Labs")
+        _log("QApplication created OK")
 
-    _apply_system_theme(app)
+        _apply_system_theme(app)
+        _log("theme applied")
 
-    # Load bundled fonts
-    fonts_dir = _resource_path("fonts")
-    if os.path.isdir(fonts_dir):
-        for fname in os.listdir(fonts_dir):
-            if fname.lower().endswith((".ttf", ".otf")):
-                QFontDatabase.addApplicationFont(
-                    os.path.join(fonts_dir, fname))
+        # Load bundled fonts
+        fonts_dir = _resource_path("fonts")
+        if os.path.isdir(fonts_dir):
+            for fname in os.listdir(fonts_dir):
+                if fname.lower().endswith((".ttf", ".otf")):
+                    QFontDatabase.addApplicationFont(
+                        os.path.join(fonts_dir, fname))
+        _log("fonts loaded")
 
-    # App icon
-    icon_path = _resource_path(os.path.join("icons", "icon.png"))
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
+        # App icon
+        icon_path = _resource_path(os.path.join("icons", "icon.png"))
+        if os.path.exists(icon_path):
+            app.setWindowIcon(QIcon(icon_path))
+        _log("icon set")
 
-    from main_window import MainWindow
-    window = MainWindow()
+        _log("importing MainWindow…")
+        from main_window import MainWindow
+        _log("MainWindow imported OK")
 
-    if not _setup_single_instance(window):
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(None, "Already Running",
-                                "Speech Bubble Editor is already open.")
-        sys.exit(0)
+        _log("creating MainWindow…")
+        window = MainWindow()
+        _log("MainWindow created OK")
 
-    window.show()
-    sys.exit(app.exec())
+        if not _setup_single_instance(window):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(None, "Already Running",
+                                    "Speech Bubble Editor is already open.")
+            sys.exit(0)
+        _log("single-instance check passed")
+
+        window.show()
+        _log("window.show() called — entering event loop")
+        sys.exit(app.exec())
+    except Exception:
+        _log("EXCEPTION in main():")
+        _log(traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":
