@@ -10,12 +10,14 @@ Built by [Long Weekend Labs](https://longweekendlabs.github.io/speech-bubble-edi
 - **7 bubble styles** — Oval, Cloud, Rectangle, Spiky, Text-only, Scrim, and Caption (stroke text)
 - **Video support** — MP4, AVI, WebM, MOV, MKV with frame-accurate scrubbing
 - **Trim & cut** — select a clip range, cut sections, reverse playback
-- **Dual mode** — side-by-side before/after layout
+- **Dual mode** — side-by-side before/after layout with configurable gap and border
+- **Overlay layers** — stack multiple photos or videos on the canvas; right-click to control z-order
 - **Meme mode** — Impact/Anton-style top and bottom caption bars
 - **Full-resolution export** — PNG, JPEG, WebP; video export via FFmpeg (audio preserved)
-- **Drag & resize** — 8-anchor handles, draggable tail, undo/redo
+- **Drag & resize** — 8-anchor handles, draggable tail, undo/redo for everything
 - **Font controls** — family, size, bold, italic, colour; auto-shrink to fit
-- **Windows dark/light mode** — follows your OS theme automatically
+- **Truly cross-platform** — Linux, Windows and macOS; follows OS light/dark theme on all three
+- **Single instance** — re-activates the existing window instead of opening a second copy
 
 ---
 
@@ -31,6 +33,7 @@ Head to the **[Releases page](https://github.com/longweekendlabs/speech-bubble-e
 | Linux (archive) | `SpeechBubbleEditor-*-linux.tar.gz` | Extract and run |
 | Windows | `SpeechBubbleEditor-*-win64-Setup.exe` | Installer |
 | Windows portable | `SpeechBubbleEditor-*-win64-portable.zip` | No install needed |
+| macOS | `SpeechBubbleEditor-*.dmg` | Drag to Applications |
 
 ---
 
@@ -61,6 +64,9 @@ bash build_linux.sh
 
 # Windows — run on a Windows machine
 build_windows.bat
+
+# macOS — run on a Mac
+bash build_mac.sh
 ```
 
 ---
