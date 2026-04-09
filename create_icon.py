@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 BG_COLOUR   = (79,  70, 229)   # #4F46E5
 TAIL_COLOUR = (255, 255, 255)
 
-SIZES = [16, 32, 48, 64, 128, 256]
+SIZES = [16, 32, 48, 64, 128, 256, 512]
 
 
 def _draw_bubble(draw: ImageDraw.ImageDraw, size: int):

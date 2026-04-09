@@ -1,10 +1,10 @@
 name: Build and Release
 
-# Runs automatically when you push a tag like v2.1.10
+# Runs automatically when you push a tag like v3.0.0
 # Usage:
-#   git tag v2.1.10
-#   git push origin v2.1.10
-# GitHub will build Linux + Windows packages and publish a Release.
+#   git tag v3.0.0
+#   git push origin v3.0.0
+# GitHub will build Linux + Windows + macOS packages and publish a Release.
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
         run: python create_icon.py
 
       - name: Build binary (PyInstaller)
-        run: python -m PyInstaller --clean --noconfirm speech_bubble_v2.spec
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
 
       # ── tar.gz ──────────────────────────────────────────────────────────
       - name: Create tar.gz
@@ -221,7 +221,7 @@ jobs:
         run: python create_icon.py
 
       - name: Build binary (PyInstaller)
-        run: python -m PyInstaller --clean --noconfirm speech_bubble_v2.spec
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
 
       - name: Create portable zip
         shell: powershell
@@ -259,10 +259,69 @@ jobs:
             SpeechBubbleEditor-*-win64-Setup.exe
 
   # ────────────────────────────────────────────────────────────────────────
+  # macOS — .app bundle + DMG
+  # ────────────────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version (strip leading v)
+        id: ver
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons (PNG + ICO)
+        run: python create_icon.py
+
+      - name: Build .icns for macOS
+        run: |
+          mkdir -p icons/icon.iconset
+          cp icons/icon_16.png   icons/icon.iconset/icon_16x16.png
+          cp icons/icon_32.png   icons/icon.iconset/icon_16x16@2x.png
+          cp icons/icon_32.png   icons/icon.iconset/icon_32x32.png
+          cp icons/icon_64.png   icons/icon.iconset/icon_32x32@2x.png
+          cp icons/icon_128.png  icons/icon.iconset/icon_128x128.png
+          cp icons/icon_256.png  icons/icon.iconset/icon_128x128@2x.png
+          cp icons/icon_256.png  icons/icon.iconset/icon_256x256.png
+          cp icons/icon_512.png  icons/icon.iconset/icon_256x256@2x.png
+          cp icons/icon_512.png  icons/icon.iconset/icon_512x512.png
+          iconutil -c icns icons/icon.iconset -o icons/icon.icns
+
+      - name: Build .app bundle (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+
+      - name: Create DMG
+        run: |
+          TAG="${{ github.ref_name }}"
+          DMG_NAME="SpeechBubbleEditor-${TAG}-mac.dmg"
+          hdiutil create \
+            -volname "Speech Bubble Editor" \
+            -srcfolder "dist/Speech Bubble Editor.app" \
+            -ov -format UDZO \
+            "${DMG_NAME}"
+          echo "DMG_NAME=${DMG_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages
+          path: SpeechBubbleEditor-*-mac.dmg
+
+  # ────────────────────────────────────────────────────────────────────────
   # Publish — collect all artifacts and create GitHub Release
   # ────────────────────────────────────────────────────────────────────────
   publish:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
 
     permissions:
@@ -281,6 +340,12 @@ jobs:
           name: windows-packages
           path: packages/
 
+      - name: Download macOS packages
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-packages
+          path: packages/
+
       - name: List packages
         run: ls -lh packages/
 
@@ -295,6 +360,7 @@ jobs:
 
             | Platform | File |
             |---|---|
+            | macOS (12+) | `SpeechBubbleEditor-*-mac.dmg` — drag to Applications |
             | Linux (any distro) | `SpeechBubbleEditor-*-x86_64.AppImage` — double-click to run |
             | Fedora / RHEL | `speech-bubble-editor-*.rpm` |
             | Ubuntu / Mint / Debian | `speech-bubble-editor_*.deb` |
@@ -303,6 +369,8 @@ jobs:
             | Windows portable | `SpeechBubbleEditor-*-win64-portable.zip` |
 
             ### Install
+
+            **macOS:** Open the `.dmg`, drag **Speech Bubble Editor** to your Applications folder.
 
             **Linux AppImage** (universal):
             ```bash
