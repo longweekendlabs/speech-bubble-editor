@@ -262,7 +262,7 @@ jobs:
   # macOS — .app bundle + DMG
   # ────────────────────────────────────────────────────────────────────────
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
 
     steps:
       - name: Checkout
