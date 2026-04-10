@@ -1,0 +1,132 @@
+name: Build ARM64 RPM
+
+# Trigger manually from the Actions tab (no tag needed)
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string (e.g. 2.1.10)'
+        required: false
+        default: ''
+
+jobs:
+  build-arm-rpm:
+    runs-on: ubuntu-22.04-arm   # Native ARM64 runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VER="${{ github.event.inputs.version }}"
+          if [ -z "$VER" ]; then
+            # Fall back to version.py
+            VER=$(python3 -c "import re, sys; m=re.search(r'[\"\\']([0-9]+\\.[0-9]+\\.[0-9]+)[\"\\']', open('version.py').read()); print(m.group(1) if m else '0.0.0')")
+          fi
+          echo "VERSION=$VER" >> "$GITHUB_OUTPUT"
+          echo "Building ARM64 RPM for v$VER"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            rpm fakeroot libglib2.0-0 libgl1 libglib2.0-dev \
+            libxcb1 libxcb-util1 libxkbcommon-x11-0
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+
+      - name: Verify binary architecture
+        run: file dist/SpeechBubbleEditor
+
+      - name: Stage RPM files
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+          STAGE="_rpm_stage"
+
+          mkdir -p "${STAGE}/usr/local/bin"
+          mkdir -p "${STAGE}/usr/share/applications"
+          mkdir -p "${STAGE}/usr/share/pixmaps"
+
+          cp dist/SpeechBubbleEditor "${STAGE}/usr/local/bin/"
+          chmod 755 "${STAGE}/usr/local/bin/SpeechBubbleEditor"
+          cp icons/icon.png "${STAGE}/usr/share/pixmaps/${PKG}.png"
+
+          cat > "${STAGE}/usr/share/applications/${PKG}.desktop" << EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Annotate photos and videos with speech bubbles
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${PKG}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+      - name: Build RPM
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+          cat > ~/rpmbuild/SPECS/${PKG}.spec << EOF
+          Name:           ${PKG}
+          Version:        ${VER}
+          Release:        1
+          Summary:        Speech Bubble Editor — annotate photos and videos
+          License:        Proprietary
+          BuildArch:      aarch64
+
+          %description
+          Speech Bubble Editor v2 — add speech bubbles to photos and videos.
+          Supports trim, cut, reverse, dual-media mode, and meme mode.
+          Developed by Long Weekend Labs.
+
+          %install
+          mkdir -p %{buildroot}/usr/local/bin
+          mkdir -p %{buildroot}/usr/share/applications
+          mkdir -p %{buildroot}/usr/share/pixmaps
+          cp %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/
+          cp %{_app_src}/usr/share/applications/${PKG}.desktop %{buildroot}/usr/share/applications/
+          cp %{_app_src}/usr/share/pixmaps/${PKG}.png %{buildroot}/usr/share/pixmaps/
+
+          %files
+          /usr/local/bin/SpeechBubbleEditor
+          /usr/share/applications/${PKG}.desktop
+          /usr/share/pixmaps/${PKG}.png
+
+          %changelog
+          * $(date '+%a %b %d %Y') Long Weekend Labs <longweekendlabs@users.noreply.github.com> - ${VER}-1
+          - ARM64 build of v${VER}
+          EOF
+
+          rpmbuild -bb \
+            --define "_app_src $(pwd)/_rpm_stage" \
+            --define "__strip /bin/true" \
+            ~/rpmbuild/SPECS/${PKG}.spec
+
+          # Locate and copy the RPM to the workspace
+          find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
+          ls -lh *.rpm
+
+      - name: Upload ARM64 RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arm64-rpm
+          path: "*.rpm"
