@@ -41,6 +41,8 @@ jobs:
             qt6-base-dev qt6-tools-dev-tools \
             libxcb1 libxcb-util1 libxkbcommon-x11-0 \
             python3-dev
+          # PyQt-builder looks for 'qmake'; Ubuntu 22.04 installs it as 'qmake6'
+          sudo ln -sf /usr/bin/qmake6 /usr/bin/qmake
 
       - name: Install Python dependencies
         run: |
