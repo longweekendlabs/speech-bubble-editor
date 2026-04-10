@@ -44,11 +44,10 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          # Provide the build-time deps PyQt6 needs when compiling from source
-          pip install sipbuild pyqtbuild PyQt6-sip pyinstaller
-          # qmake6 lives in /usr/bin on Ubuntu 22.04 after qt6-base-dev install
-          export PATH="/usr/bin:$PATH"
-          # Build PyQt6 from source using the system Qt6/qmake6
+          # sip provides sipbuild; PyQt-builder provides pyqtbuild — both needed
+          # by PyQt6's build system when compiling from source (no ARM64 wheel)
+          pip install sip PyQt-builder PyQt6-sip pyinstaller
+          # Build PyQt6 from source against the system Qt6/qmake6
           pip install --no-build-isolation PyQt6
           # Install remaining runtime deps
           pip install Pillow opencv-python numpy
