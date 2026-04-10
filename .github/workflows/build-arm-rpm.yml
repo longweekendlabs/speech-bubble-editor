@@ -37,11 +37,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            rpm fakeroot libglib2.0-0 libgl1 libglib2.0-dev \
-            libxcb1 libxcb-util1 libxkbcommon-x11-0
+            rpm fakeroot libglib2.0-0 libgl1 \
+            qt6-base-dev qt6-tools-dev-tools \
+            libxcb1 libxcb-util1 libxkbcommon-x11-0 \
+            python3-dev
 
       - name: Install Python dependencies
-        run: pip install -r requirements.txt pyinstaller
+        run: |
+          # Install PyQt6-sip and pyinstaller first (have ARM64 wheels)
+          pip install PyQt6-sip pyinstaller
+          # Build PyQt6 from source using the system Qt6/qmake6
+          export PATH="/usr/lib/qt6/bin:$PATH"
+          pip install --no-build-isolation PyQt6
+          # Install remaining deps
+          pip install Pillow opencv-python numpy
 
       - name: Generate icons
         run: python create_icon.py
