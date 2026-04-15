@@ -1,0 +1,483 @@
+name: Build and Release v3.1
+
+# Trigger by pushing a tag: git tag v3.1.0 && git push origin v3.1.0
+# Or run manually from the Actions tab.
+on:
+  push:
+    tags:
+      - 'v3.1*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version string (e.g. 3.1.0)'
+        required: false
+        default: '3.1.0'
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Linux ARM64 — binary, tar.gz portable, AppImage, RPM (aarch64), DEB (arm64)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-linux-arm64:
+    runs-on: ubuntu-22.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "TAG=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            rpm fakeroot \
+            libglib2.0-0 libgl1 libfontconfig1 libdbus-1-3 \
+            libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+
+      - name: Verify binary
+        run: |
+          ls -lh dist/SpeechBubbleEditor
+          file dist/SpeechBubbleEditor
+
+      # ── Portable tar.gz ────────────────────────────────────────────────────
+      - name: Create portable tar.gz
+        run: |
+          TAG="${{ steps.ver.outputs.TAG }}"
+          tar -czf "SpeechBubbleEditor-${TAG}-linux-arm64.tar.gz" \
+              -C dist SpeechBubbleEditor
+          echo "Created: SpeechBubbleEditor-${TAG}-linux-arm64.tar.gz"
+
+      # ── AppImage ───────────────────────────────────────────────────────────
+      - name: Create AppImage (aarch64)
+        run: |
+          TAG="${{ steps.ver.outputs.TAG }}"
+
+          # Download aarch64 appimagetool
+          curl -sL \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage" \
+            -o appimagetool
+          chmod +x appimagetool
+
+          mkdir -p AppDir/usr/bin
+          cp dist/SpeechBubbleEditor AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/SpeechBubbleEditor
+          cp icons/icon.png AppDir/icon.png
+
+          cat > AppDir/SpeechBubbleEditor.desktop << 'EOF'
+          [Desktop Entry]
+          Name=Speech Bubble Editor
+          Exec=SpeechBubbleEditor
+          Icon=icon
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          cat > AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "${HERE}/usr/bin/SpeechBubbleEditor" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool \
+            --no-appstream AppDir \
+            "SpeechBubbleEditor-${TAG}-aarch64.AppImage" || \
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool \
+            AppDir \
+            "SpeechBubbleEditor-${TAG}-aarch64.AppImage"
+
+          chmod +x "SpeechBubbleEditor-${TAG}-aarch64.AppImage"
+          echo "Created: SpeechBubbleEditor-${TAG}-aarch64.AppImage"
+
+      # ── DEB (arm64) ────────────────────────────────────────────────────────
+      - name: Create DEB (arm64)
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+          DEBDIR="_deb/${PKG}_${VER}_arm64"
+          mkdir -p "${DEBDIR}/DEBIAN"
+          mkdir -p "${DEBDIR}/usr/local/bin"
+          mkdir -p "${DEBDIR}/usr/share/applications"
+          mkdir -p "${DEBDIR}/usr/share/pixmaps"
+
+          cp dist/SpeechBubbleEditor "${DEBDIR}/usr/local/bin/"
+          chmod 755 "${DEBDIR}/usr/local/bin/SpeechBubbleEditor"
+          cp icons/icon.png "${DEBDIR}/usr/share/pixmaps/${PKG}.png"
+
+          cat > "${DEBDIR}/usr/share/applications/${PKG}.desktop" << EOF
+[Desktop Entry]
+Version=1.0
+Name=Speech Bubble Editor
+Comment=Add speech bubbles, captions and text overlays to photos and videos
+Exec=/usr/local/bin/SpeechBubbleEditor
+Icon=${PKG}
+Terminal=false
+Type=Application
+Categories=Graphics;Photography;
+EOF
+
+          cat > "${DEBDIR}/DEBIAN/control" << EOF
+Package: ${PKG}
+Version: ${VER}
+Architecture: arm64
+Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
+Description: Speech Bubble Editor
+ Add speech bubbles, captions and text overlays to photos and videos.
+ All dependencies are bundled — no system Python or Qt required.
+EOF
+
+          dpkg-deb --build "${DEBDIR}" "${PKG}_${VER}_arm64.deb"
+          echo "Created: ${PKG}_${VER}_arm64.deb"
+
+      # ── RPM (aarch64) ──────────────────────────────────────────────────────
+      - name: Create RPM (aarch64)
+        run: |
+          PKG="speech-bubble-editor"
+          VER="${{ steps.ver.outputs.VERSION }}"
+          STAGE="_rpm_stage"
+
+          mkdir -p "${STAGE}/usr/local/bin"
+          mkdir -p "${STAGE}/usr/share/applications"
+          mkdir -p "${STAGE}/usr/share/pixmaps"
+
+          cp dist/SpeechBubbleEditor "${STAGE}/usr/local/bin/"
+          chmod 755 "${STAGE}/usr/local/bin/SpeechBubbleEditor"
+          cp icons/icon.png "${STAGE}/usr/share/pixmaps/${PKG}.png"
+
+          cat > "${STAGE}/usr/share/applications/${PKG}.desktop" << EOF
+[Desktop Entry]
+Version=1.0
+Name=Speech Bubble Editor
+Comment=Add speech bubbles, captions and text overlays to photos and videos
+Exec=/usr/local/bin/SpeechBubbleEditor
+Icon=${PKG}
+Terminal=false
+Type=Application
+Categories=Graphics;Photography;
+EOF
+
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+
+          cat > ~/rpmbuild/SPECS/${PKG}.spec << EOF
+Name:           ${PKG}
+Version:        ${VER}
+Release:        1%{?dist}
+Summary:        Add speech bubbles, captions and text overlays to photos and videos
+License:        Proprietary
+BuildArch:      aarch64
+
+%description
+Speech Bubble Editor v${VER} — add speech bubbles, captions and text overlays
+to photos and videos. Supports overlay layers, dual-media mode, trim/cut/reverse,
+and meme mode. All dependencies are bundled — no system Python or Qt required.
+Developed by Long Weekend Labs.
+
+%install
+mkdir -p %{buildroot}/usr/local/bin
+mkdir -p %{buildroot}/usr/share/applications
+mkdir -p %{buildroot}/usr/share/pixmaps
+install -m 755 %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
+install -m 644 %{_app_src}/usr/share/applications/${PKG}.desktop %{buildroot}/usr/share/applications/${PKG}.desktop
+install -m 644 %{_app_src}/usr/share/pixmaps/${PKG}.png %{buildroot}/usr/share/pixmaps/${PKG}.png
+
+%files
+/usr/local/bin/SpeechBubbleEditor
+/usr/share/applications/${PKG}.desktop
+/usr/share/pixmaps/${PKG}.png
+
+%changelog
+* $(date '+%a %b %d %Y') Long Weekend Labs <longweekendlabs@users.noreply.github.com> - ${VER}-1
+- Release v${VER}
+EOF
+
+          rpmbuild -bb \
+            --define "_app_src $(pwd)/${STAGE}" \
+            --define "__strip /bin/true" \
+            ~/rpmbuild/SPECS/${PKG}.spec
+
+          find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
+          ls -lh ${PKG}-*.rpm
+          echo "RPM created successfully."
+
+      # ── Upload all Linux ARM64 artifacts ───────────────────────────────────
+      - name: Upload Linux ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-arm64-packages
+          path: |
+            SpeechBubbleEditor-*-linux-arm64.tar.gz
+            SpeechBubbleEditor-*-aarch64.AppImage
+            speech-bubble-editor_*_arm64.deb
+            speech-bubble-editor-*.aarch64.rpm
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Windows x64 — portable zip + Inno Setup installer
+  # ──────────────────────────────────────────────────────────────────────────
+  build-windows-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "TAG=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+
+      - name: Create portable zip (x64)
+        shell: powershell
+        run: |
+          $tag = "${{ steps.ver.outputs.TAG }}"
+          Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
+            -DestinationPath "SpeechBubbleEditor-${tag}-win64-portable.zip" -Force
+          Write-Host "Created: SpeechBubbleEditor-${tag}-win64-portable.zip"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Create installer (x64)
+        shell: powershell
+        run: |
+          $ver = "${{ steps.ver.outputs.VERSION }}"
+          $tag = "${{ steps.ver.outputs.TAG }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$ver `
+            /F"SpeechBubbleEditor-${tag}-win64-Setup" `
+            installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Move-Item "Output\SpeechBubbleEditor-${tag}-win64-Setup.exe" "."
+          Write-Host "Created: SpeechBubbleEditor-${tag}-win64-Setup.exe"
+
+      - name: Upload Windows x64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-packages
+          path: |
+            SpeechBubbleEditor-*-win64-portable.zip
+            SpeechBubbleEditor-*-win64-Setup.exe
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Windows ARM64 — portable zip + Inno Setup installer (native ARM64)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-windows-arm64:
+    runs-on: windows-11-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 (ARM64)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: 'arm64'
+
+      - name: Get version
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "TAG=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pyinstaller Pillow numpy
+          pip install PyQt6>=6.7.0
+          pip install opencv-python || pip install opencv-python-headless || echo "WARNING: opencv not available for ARM64, installing stub"
+
+      - name: Install requirements (full)
+        run: |
+          pip install -r requirements.txt || true
+
+      - name: Generate icons
+        run: python create_icon.py
+
+      - name: Build binary (PyInstaller ARM64)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+
+      - name: Verify binary architecture
+        shell: powershell
+        run: |
+          $exePath = "dist\SpeechBubbleEditor.exe"
+          $bytes = [System.IO.File]::ReadAllBytes($exePath)
+          # PE header machine type: 0xAA64 = ARM64
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          Write-Host "Machine type: 0x$($machine.ToString('X4'))"
+          if ($machine -eq 0xAA64) {
+            Write-Host "Confirmed: ARM64 native binary"
+          } else {
+            Write-Host "WARNING: Expected ARM64 (0xAA64), got 0x$($machine.ToString('X4'))"
+          }
+
+      - name: Create portable zip (ARM64)
+        shell: powershell
+        run: |
+          $tag = "${{ steps.ver.outputs.TAG }}"
+          Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
+            -DestinationPath "SpeechBubbleEditor-${tag}-winarm64-portable.zip" -Force
+          Write-Host "Created: SpeechBubbleEditor-${tag}-winarm64-portable.zip"
+
+      - name: Install Inno Setup (runs under x64 emulation)
+        run: choco install innosetup --no-progress -y
+
+      - name: Create installer (ARM64)
+        shell: powershell
+        run: |
+          $ver = "${{ steps.ver.outputs.VERSION }}"
+          $tag = "${{ steps.ver.outputs.TAG }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion=$ver `
+            /F"SpeechBubbleEditor-${tag}-winarm64-Setup" `
+            installer_arm64.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Move-Item "Output\SpeechBubbleEditor-${tag}-winarm64-Setup.exe" "."
+          Write-Host "Created: SpeechBubbleEditor-${tag}-winarm64-Setup.exe"
+
+      - name: Upload Windows ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64-packages
+          path: |
+            SpeechBubbleEditor-*-winarm64-portable.zip
+            SpeechBubbleEditor-*-winarm64-Setup.exe
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Publish — collect all artifacts and create GitHub Release
+  # ──────────────────────────────────────────────────────────────────────────
+  publish:
+    needs: [build-linux-arm64, build-windows-x64, build-windows-arm64]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download Linux ARM64 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-arm64-packages
+          path: packages/
+
+      - name: Download Windows x64 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64-packages
+          path: packages/
+
+      - name: Download Windows ARM64 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-arm64-packages
+          path: packages/
+
+      - name: List all packages
+        run: ls -lh packages/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Speech Bubble Editor ${{ github.ref_name }}"
+          body: |
+            ## Speech Bubble Editor ${{ github.ref_name }}
+
+            > macOS support has been removed in v3.1. All packages are self-contained — no system Python or Qt required.
+
+            ### Downloads
+
+            | Platform | File | Notes |
+            |---|---|---|
+            | **Windows 11 ARM** (installer) | `SpeechBubbleEditor-*-winarm64-Setup.exe` | Native ARM64 |
+            | **Windows 11 ARM** (portable) | `SpeechBubbleEditor-*-winarm64-portable.zip` | Extract & run |
+            | **Windows 10/11 x64** (installer) | `SpeechBubbleEditor-*-win64-Setup.exe` | |
+            | **Windows 10/11 x64** (portable) | `SpeechBubbleEditor-*-win64-portable.zip` | Extract & run |
+            | **Fedora / RHEL ARM** | `speech-bubble-editor-*.aarch64.rpm` | Fedora 38+, AlmaLinux 9 |
+            | **Ubuntu / Debian ARM** | `speech-bubble-editor_*_arm64.deb` | Ubuntu 22.04+ |
+            | **Linux ARM64 AppImage** | `SpeechBubbleEditor-*-aarch64.AppImage` | Any distro, just run |
+            | **Linux ARM64 portable** | `SpeechBubbleEditor-*-linux-arm64.tar.gz` | Extract & run |
+
+            ### Install
+
+            **Windows ARM64 / x64 — installer:**
+            Run the `-Setup.exe`, follow the wizard. A Start Menu shortcut and optional desktop shortcut are created.
+
+            **Windows portable:**
+            Extract the zip, double-click `SpeechBubbleEditor.exe`. No installation needed.
+
+            **Fedora / RHEL ARM64:**
+            ```bash
+            sudo dnf install ./speech-bubble-editor-*.aarch64.rpm
+            speech-bubble-editor
+            ```
+
+            **Ubuntu / Debian ARM64:**
+            ```bash
+            sudo dpkg -i speech-bubble-editor_*_arm64.deb
+            SpeechBubbleEditor
+            ```
+
+            **Linux ARM64 AppImage:**
+            ```bash
+            chmod +x SpeechBubbleEditor-*-aarch64.AppImage
+            ./SpeechBubbleEditor-*-aarch64.AppImage
+            ```
+          files: packages/*
+          generate_release_notes: false
+          fail_on_unmatched_files: false

@@ -91,11 +91,6 @@ def _apply_system_theme(app):
             # Light mode: native Windows chrome (respects accent colour, etc.)
             app.setStyle("windowsvista")
 
-    elif sys.platform == "darwin":
-        # Qt6 on macOS reads the system appearance automatically.
-        # Use Fusion style so custom colours render consistently.
-        app.setStyle("Fusion")
-
 
 def _setup_single_instance(window) -> bool:
     """Return True if this is the first instance. Side-effect: starts server."""
