@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Speech Bubble Editor — Long Weekend Labs</title>
-  <meta name="description" content="Add speech bubbles, captions, and text overlays to photos and videos. Free download for Linux, Windows and macOS." />
+  <meta name="description" content="Add speech bubbles, captions, and text overlays to photos and videos. Native builds for Windows x64, Windows ARM64, and Linux ARM64." />
   <meta property="og:title" content="Speech Bubble Editor" />
-  <meta property="og:description" content="Add speech bubbles to photos and videos. Free for Linux, Windows and macOS." />
+  <meta property="og:description" content="Add speech bubbles to photos and videos. Native builds for Windows and Linux ARM64." />
   <meta property="og:image" content="https://longweekendlabs.github.io/speech-bubble-editor/screenshots/og.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -22,6 +22,7 @@
       --accent2:  #2a5fa0;
       --green:    #238636;
       --green2:   #1a6329;
+      --arm:      #d97706;   /* amber — used for ARM64 badges */
       --radius:   12px;
     }
 
@@ -123,7 +124,6 @@
     .btn:hover { opacity: 0.88; text-decoration: none; transform: translateY(-1px); }
     .btn-linux  { background: var(--accent);  color: #fff; }
     .btn-win    { background: #2d7d46;        color: #fff; }
-    .btn-mac    { background: #6e3dc6;        color: #fff; }
     .btn-github { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
     .version-badge {
       display: inline-block;
@@ -135,8 +135,22 @@
       border-radius: 20px;
       margin-bottom: 16px;
     }
+    .arm-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(217,119,6,0.15);
+      border: 1px solid rgba(217,119,6,0.4);
+      color: var(--arm);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.03em;
+      vertical-align: middle;
+    }
 
-    /* ── SCREENSHOT STRIP ── */
+    /* ── SCREENSHOTS ── */
     .screenshots {
       background: var(--bg2);
       border-top: 1px solid var(--border);
@@ -144,10 +158,7 @@
       padding: 48px 24px;
       text-align: center;
     }
-    .screenshots-inner {
-      max-width: 1000px;
-      margin: 0 auto;
-    }
+    .screenshots-inner { max-width: 1000px; margin: 0 auto; }
     .screenshots h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 24px; }
     .ss-grid {
       display: grid;
@@ -168,12 +179,7 @@
       gap: 8px;
     }
     .ss-placeholder svg { opacity: 0.4; }
-    .ss-img {
-      width: 100%;
-      border-radius: var(--radius);
-      border: 1px solid var(--border);
-      display: block;
-    }
+    .ss-img { width: 100%; border-radius: var(--radius); border: 1px solid var(--border); display: block; }
 
     /* ── FEATURES ── */
     .features {
@@ -219,7 +225,7 @@
       border-bottom: 1px solid var(--border);
       padding: 80px 24px;
     }
-    .download-inner { max-width: 860px; margin: 0 auto; }
+    .download-inner { max-width: 960px; margin: 0 auto; }
     .platform-cards {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -239,6 +245,7 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 8px;
+      flex-wrap: wrap;
     }
     .platform-card .sub {
       font-size: 13px;
@@ -258,6 +265,7 @@
     }
     .dl-btn:hover { opacity: 0.82; text-decoration: none; }
     .dl-primary   { background: var(--accent); color: #fff; }
+    .dl-arm       { background: var(--arm);    color: #fff; }
     .dl-secondary { background: var(--bg2); border: 1px solid var(--border); color: var(--text); }
     .dl-btn small { font-weight: 400; opacity: 0.8; }
     .loading { color: var(--muted); font-size: 13px; font-style: italic; }
@@ -273,12 +281,8 @@
     footer a { color: var(--muted); }
     footer a:hover { color: var(--text); }
     .footer-logo {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      margin: 0 auto 12px;
-      display: block;
-      opacity: 0.7;
+      width: 32px; height: 32px; border-radius: 8px;
+      margin: 0 auto 12px; display: block; opacity: 0.7;
     }
 
     /* MORE FROM LONG WEEKEND LABS */
@@ -326,7 +330,6 @@
     <a href="#download">Download</a>
     <a href="https://github.com/longweekendlabs/speech-bubble-editor"
        class="nav-gh" target="_blank" rel="noopener">
-      <!-- GitHub mark -->
       <svg height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
         <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
           0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
@@ -352,25 +355,20 @@
     alt="Speech Bubble Editor icon"
   />
   <h1>Speech Bubble<br><span>Editor</span></h1>
-  <p>Add speech bubbles, captions, and text overlays to your photos and videos — in seconds.</p>
+  <p>Add speech bubbles, captions, and text overlays to your photos and videos — in seconds.
+     Native builds for Windows &amp; Linux, including <strong style="color:var(--arm)">ARM64</strong>.</p>
   <div class="hero-buttons">
     <a href="#download" class="btn btn-linux">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
       </svg>
-      Linux
+      Linux ARM64
     </a>
     <a href="#download" class="btn btn-win">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/>
       </svg>
       Windows
-    </a>
-    <a href="#download" class="btn btn-mac">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-      </svg>
-      macOS
     </a>
     <a href="https://github.com/longweekendlabs/speech-bubble-editor"
        class="btn btn-github" target="_blank" rel="noopener">
@@ -383,12 +381,7 @@
 <section class="screenshots" id="screenshots">
   <div class="screenshots-inner">
     <h2>Screenshots</h2>
-    <div class="ss-grid" id="ss-grid">
-      <!-- Replace these placeholders with real screenshots:
-           1. Add PNG/JPG files to docs/screenshots/
-           2. Replace each ss-placeholder div with:
-              <img src="screenshots/your-file.png" class="ss-img" alt="description" />
-      -->
+    <div class="ss-grid">
       <div class="ss-placeholder">
         <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor">
           <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
@@ -419,7 +412,7 @@
     <div class="feature-card">
       <div class="feature-icon">💬</div>
       <h3>7 Bubble Styles</h3>
-      <p>Oval, Cloud, Rectangle, Spiky, Text-only, Scrim, and Caption (stroke text) — switch styles in one click.</p>
+      <p>Oval, Cloud, Rectangle, Spiky, Text-only, Scrim, and Caption — switch styles in one click.</p>
     </div>
     <div class="feature-card">
       <div class="feature-icon">🎬</div>
@@ -462,9 +455,9 @@
       <p>Stack multiple photos or videos on the canvas. Control z-order with right-click — Bring to Front, Send to Back, Remove Layer.</p>
     </div>
     <div class="feature-card">
-      <div class="feature-icon">🍎</div>
-      <h3>Truly Cross-Platform</h3>
-      <p>Native builds for Linux, Windows and macOS. Follows your OS light/dark theme on all three platforms.</p>
+      <div class="feature-icon">💪</div>
+      <h3>Native ARM64 Builds</h3>
+      <p>Self-contained binaries for Windows 11 ARM and Linux aarch64. No system Python or Qt required — just download and run.</p>
     </div>
   </div>
 </section>
@@ -472,44 +465,46 @@
 <!-- DOWNLOAD -->
 <section class="download" id="download">
   <div class="download-inner">
-    <p class="section-label">Free download</p>
+    <p class="section-label">Free download · v3.1</p>
     <h2 class="section-title">Get Speech Bubble Editor</h2>
     <div class="platform-cards">
 
-      <!-- Linux -->
+      <!-- Linux ARM64 -->
       <div class="platform-card">
         <h3>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="var(--accent)">
             <path d="M12.5 2C9.48 2 7 4.48 7 7.5V9H5.5C4.12 9 3 10.12 3 11.5v7C3 19.88 4.12 21 5.5 21h13c1.38 0 2.5-1.12 2.5-2.5v-7C21 10.12 19.88 9 18.5 9H17V7.5C17 4.48 14.52 2 11.5 2H12.5zm-1 2h1C13.88 4 15 5.12 15 6.5V9H9V6.5C9 5.12 10.12 4 11.5 4zM9 11h6l1 2H8l1-2z"/>
           </svg>
           Linux
+          <span class="arm-badge">ARM64</span>
         </h3>
-        <p class="sub">Works on any distro. AppImage needs no installation — just double-click.</p>
-        <div id="linux-downloads"><span class="loading">Fetching latest release…</span></div>
+        <p class="sub">Fedora, Ubuntu, Debian, and any distro. AppImage needs no installation — just run it.</p>
+        <div id="linux-arm64-downloads"><span class="loading">Fetching latest release…</span></div>
       </div>
 
-      <!-- Windows -->
+      <!-- Windows x64 -->
+      <div class="platform-card">
+        <h3>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#4fc3f7">
+            <path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/>
+          </svg>
+          Windows x64
+        </h3>
+        <p class="sub">Windows 10 or 11 on Intel / AMD. Installer or portable — your choice.</p>
+        <div id="windows-x64-downloads"><span class="loading">Fetching latest release…</span></div>
+      </div>
+
+      <!-- Windows ARM64 -->
       <div class="platform-card">
         <h3>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="#4fc3f7">
             <path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/>
           </svg>
           Windows
+          <span class="arm-badge">ARM64</span>
         </h3>
-        <p class="sub">Installer or portable .exe. Respects your dark / light theme automatically.</p>
-        <div id="windows-downloads"><span class="loading">Fetching latest release…</span></div>
-      </div>
-
-      <!-- macOS -->
-      <div class="platform-card">
-        <h3>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="#a78bfa">
-            <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-          </svg>
-          macOS
-        </h3>
-        <p class="sub">macOS 12 Monterey or later. Respects system dark / light mode automatically.</p>
-        <div id="mac-downloads"><span class="loading">Fetching latest release…</span></div>
+        <p class="sub">Windows 11 on Snapdragon / ARM. Native ARM64 binary — runs without x64 emulation.</p>
+        <div id="windows-arm64-downloads"><span class="loading">Fetching latest release…</span></div>
       </div>
 
       <!-- Source -->
@@ -520,7 +515,7 @@
           </svg>
           Source Code
         </h3>
-        <p class="sub">Python 3 + PyQt6. Clone, pip install, and run. Build scripts included.</p>
+        <p class="sub">Python 3 + PyQt6. Clone, pip install, and run. Build scripts included for all platforms.</p>
         <a href="https://github.com/longweekendlabs/speech-bubble-editor"
            class="dl-btn dl-secondary" target="_blank" rel="noopener">
           View on GitHub
@@ -580,71 +575,77 @@
       const badge = document.getElementById('version-badge');
       if (badge && rel.tag_name) badge.textContent = `Latest: ${rel.tag_name}`;
 
-      const linux   = document.getElementById('linux-downloads');
-      const windows = document.getElementById('windows-downloads');
-      const mac     = document.getElementById('mac-downloads');
-      linux.innerHTML   = '';
-      windows.innerHTML = '';
-      mac.innerHTML     = '';
+      const linuxArm64   = document.getElementById('linux-arm64-downloads');
+      const windowsX64   = document.getElementById('windows-x64-downloads');
+      const windowsArm64 = document.getElementById('windows-arm64-downloads');
+
+      linuxArm64.innerHTML   = '';
+      windowsX64.innerHTML   = '';
+      windowsArm64.innerHTML = '';
 
       rel.assets.forEach(a => {
         const name = a.name;
         const url  = a.browser_download_url;
         const mb   = (a.size / 1048576).toFixed(0);
 
-        const btn = document.createElement('a');
-        btn.href      = url;
-        btn.className = 'dl-btn';
-        btn.target    = '_blank';
-        btn.rel       = 'noopener';
+        function makeBtn(label, cls) {
+          const btn = document.createElement('a');
+          btn.href      = url;
+          btn.className = `dl-btn ${cls}`;
+          btn.target    = '_blank';
+          btn.rel       = 'noopener';
+          btn.innerHTML = label;
+          return btn;
+        }
 
-        if (name.endsWith('.AppImage')) {
-          btn.className += ' dl-primary';
-          btn.innerHTML = `AppImage <small>· Universal · ${mb} MB</small>`;
-          linux.appendChild(btn);
-        } else if (name.endsWith('.rpm')) {
-          btn.className += ' dl-secondary';
-          btn.innerHTML = `RPM <small>· Fedora / RHEL · ${mb} MB</small>`;
-          linux.appendChild(btn);
-        } else if (name.endsWith('.deb')) {
-          btn.className += ' dl-secondary';
-          btn.innerHTML = `DEB <small>· Ubuntu / Mint · ${mb} MB</small>`;
-          linux.appendChild(btn);
-        } else if (name.endsWith('-linux.tar.gz')) {
-          btn.className += ' dl-secondary';
-          btn.innerHTML = `tar.gz <small>· Archive · ${mb} MB</small>`;
-          linux.appendChild(btn);
-        } else if (name.includes('-Setup.exe')) {
-          btn.className += ' dl-primary';
-          btn.innerHTML = `Installer (.exe) <small>· ${mb} MB</small>`;
-          windows.appendChild(btn);
-        } else if (name.includes('-portable.zip') && !name.includes('mac')) {
-          btn.className += ' dl-secondary';
-          btn.innerHTML = `Portable (.zip) <small>· No install · ${mb} MB</small>`;
-          windows.appendChild(btn);
-        } else if (name.endsWith('.dmg')) {
-          btn.className += ' dl-primary';
-          btn.innerHTML = `DMG <small>· Drag to Applications · ${mb} MB</small>`;
-          mac.appendChild(btn);
-        } else if (name.endsWith('-mac.zip') || name.includes('-macos')) {
-          btn.className += ' dl-secondary';
-          btn.innerHTML = `ZIP <small>· macOS · ${mb} MB</small>`;
-          mac.appendChild(btn);
+        // ── Linux ARM64 ──────────────────────────────────────────────────
+        if (name.includes('aarch64') && name.endsWith('.AppImage')) {
+          linuxArm64.appendChild(makeBtn(
+            `AppImage <small>· Any distro · ${mb} MB</small>`, 'dl-primary'));
+
+        } else if (name.endsWith('.aarch64.rpm')) {
+          linuxArm64.appendChild(makeBtn(
+            `RPM <small>· Fedora / RHEL / AlmaLinux · ${mb} MB</small>`, 'dl-secondary'));
+
+        } else if (name.endsWith('_arm64.deb')) {
+          linuxArm64.appendChild(makeBtn(
+            `DEB <small>· Ubuntu / Debian · ${mb} MB</small>`, 'dl-secondary'));
+
+        } else if (name.includes('linux-arm64') && name.endsWith('.tar.gz')) {
+          linuxArm64.appendChild(makeBtn(
+            `tar.gz <small>· Portable archive · ${mb} MB</small>`, 'dl-secondary'));
+
+        // ── Windows ARM64 ────────────────────────────────────────────────
+        } else if (name.includes('winarm64') && name.endsWith('-Setup.exe')) {
+          windowsArm64.appendChild(makeBtn(
+            `Installer (.exe) <small>· ${mb} MB</small>`, 'dl-arm'));
+
+        } else if (name.includes('winarm64') && name.endsWith('-portable.zip')) {
+          windowsArm64.appendChild(makeBtn(
+            `Portable (.zip) <small>· No install needed · ${mb} MB</small>`, 'dl-secondary'));
+
+        // ── Windows x64 ──────────────────────────────────────────────────
+        } else if (name.includes('win64') && name.endsWith('-Setup.exe')) {
+          windowsX64.appendChild(makeBtn(
+            `Installer (.exe) <small>· ${mb} MB</small>`, 'dl-primary'));
+
+        } else if (name.includes('win64') && name.endsWith('-portable.zip')) {
+          windowsX64.appendChild(makeBtn(
+            `Portable (.zip) <small>· No install needed · ${mb} MB</small>`, 'dl-secondary'));
         }
       });
 
-      // Fallback if no assets parsed
-      if (!linux.innerHTML)
-        linux.innerHTML = `<a href="${rel.html_url}" class="dl-btn dl-primary" target="_blank">View Release</a>`;
-      if (!windows.innerHTML)
-        windows.innerHTML = `<a href="${rel.html_url}" class="dl-btn dl-primary" target="_blank">View Release</a>`;
-      if (!mac.innerHTML)
-        mac.innerHTML = `<a href="${rel.html_url}" class="dl-btn dl-primary" target="_blank">View Release</a>`;
+      // Fallback buttons if no matching assets found
+      const fallback = `<a href="${rel.html_url}" class="dl-btn dl-primary" target="_blank" rel="noopener">View Release on GitHub</a>`;
+      if (!linuxArm64.innerHTML)   linuxArm64.innerHTML   = fallback;
+      if (!windowsX64.innerHTML)   windowsX64.innerHTML   = fallback;
+      if (!windowsArm64.innerHTML) windowsArm64.innerHTML = fallback;
     })
     .catch(() => {
-      const fallback = `<a href="https://github.com/${REPO}/releases/latest" class="dl-btn dl-primary" target="_blank">View Latest Release</a>`;
-      document.getElementById('linux-downloads').innerHTML   = fallback;
-      document.getElementById('windows-downloads').innerHTML = fallback;
+      const fallback = `<a href="https://github.com/${REPO}/releases/latest" class="dl-btn dl-primary" target="_blank" rel="noopener">View Latest Release</a>`;
+      document.getElementById('linux-arm64-downloads').innerHTML   = fallback;
+      document.getElementById('windows-x64-downloads').innerHTML   = fallback;
+      document.getElementById('windows-arm64-downloads').innerHTML = fallback;
       const badge = document.getElementById('version-badge');
       if (badge) badge.textContent = 'See releases for latest version';
     });
