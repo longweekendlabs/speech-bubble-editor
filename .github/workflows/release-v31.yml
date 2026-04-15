@@ -1,7 +1,7 @@
 name: Build and Release v3.1
 
 # Trigger by pushing a tag: git tag v3.1.0 && git push origin v3.1.0
-# Or run manually from the Actions tab.
+# Or run manually from the Actions tab (workflow_dispatch).
 on:
   push:
     tags:
@@ -16,7 +16,7 @@ on:
 jobs:
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Linux ARM64 — binary, tar.gz portable, AppImage, RPM (aarch64), DEB (arm64)
+  # Linux ARM64 — binary, tar.gz, AppImage, RPM (aarch64), DEB (arm64)
   # ──────────────────────────────────────────────────────────────────────────
   build-linux-arm64:
     runs-on: ubuntu-22.04-arm
@@ -73,14 +73,12 @@ jobs:
           TAG="${{ steps.ver.outputs.TAG }}"
           tar -czf "SpeechBubbleEditor-${TAG}-linux-arm64.tar.gz" \
               -C dist SpeechBubbleEditor
-          echo "Created: SpeechBubbleEditor-${TAG}-linux-arm64.tar.gz"
 
       # ── AppImage ───────────────────────────────────────────────────────────
       - name: Create AppImage (aarch64)
         run: |
           TAG="${{ steps.ver.outputs.TAG }}"
 
-          # Download aarch64 appimagetool
           curl -sL \
             "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-aarch64.AppImage" \
             -o appimagetool
@@ -109,13 +107,12 @@ jobs:
 
           APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool \
             --no-appstream AppDir \
-            "SpeechBubbleEditor-${TAG}-aarch64.AppImage" || \
-          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool \
+            "SpeechBubbleEditor-${TAG}-aarch64.AppImage" \
+          || APPIMAGE_EXTRACT_AND_RUN=1 ARCH=aarch64 ./appimagetool \
             AppDir \
             "SpeechBubbleEditor-${TAG}-aarch64.AppImage"
 
           chmod +x "SpeechBubbleEditor-${TAG}-aarch64.AppImage"
-          echo "Created: SpeechBubbleEditor-${TAG}-aarch64.AppImage"
 
       # ── DEB (arm64) ────────────────────────────────────────────────────────
       - name: Create DEB (arm64)
@@ -133,29 +130,28 @@ jobs:
           cp icons/icon.png "${DEBDIR}/usr/share/pixmaps/${PKG}.png"
 
           cat > "${DEBDIR}/usr/share/applications/${PKG}.desktop" << EOF
-[Desktop Entry]
-Version=1.0
-Name=Speech Bubble Editor
-Comment=Add speech bubbles, captions and text overlays to photos and videos
-Exec=/usr/local/bin/SpeechBubbleEditor
-Icon=${PKG}
-Terminal=false
-Type=Application
-Categories=Graphics;Photography;
-EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Add speech bubbles, captions and text overlays to photos and videos
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${PKG}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
 
           cat > "${DEBDIR}/DEBIAN/control" << EOF
-Package: ${PKG}
-Version: ${VER}
-Architecture: arm64
-Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
-Description: Speech Bubble Editor
- Add speech bubbles, captions and text overlays to photos and videos.
- All dependencies are bundled — no system Python or Qt required.
-EOF
+          Package: ${PKG}
+          Version: ${VER}
+          Architecture: arm64
+          Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
+          Description: Speech Bubble Editor
+           Add speech bubbles, captions and text overlays to photos and videos.
+           All dependencies are bundled — no system Python or Qt required.
+          EOF
 
           dpkg-deb --build "${DEBDIR}" "${PKG}_${VER}_arm64.deb"
-          echo "Created: ${PKG}_${VER}_arm64.deb"
 
       # ── RPM (aarch64) ──────────────────────────────────────────────────────
       - name: Create RPM (aarch64)
@@ -173,50 +169,50 @@ EOF
           cp icons/icon.png "${STAGE}/usr/share/pixmaps/${PKG}.png"
 
           cat > "${STAGE}/usr/share/applications/${PKG}.desktop" << EOF
-[Desktop Entry]
-Version=1.0
-Name=Speech Bubble Editor
-Comment=Add speech bubbles, captions and text overlays to photos and videos
-Exec=/usr/local/bin/SpeechBubbleEditor
-Icon=${PKG}
-Terminal=false
-Type=Application
-Categories=Graphics;Photography;
-EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Add speech bubbles, captions and text overlays to photos and videos
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${PKG}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
 
           mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
 
           cat > ~/rpmbuild/SPECS/${PKG}.spec << EOF
-Name:           ${PKG}
-Version:        ${VER}
-Release:        1%{?dist}
-Summary:        Add speech bubbles, captions and text overlays to photos and videos
-License:        Proprietary
-BuildArch:      aarch64
+          Name:           ${PKG}
+          Version:        ${VER}
+          Release:        1%{?dist}
+          Summary:        Add speech bubbles, captions and text overlays to photos and videos
+          License:        Proprietary
+          BuildArch:      aarch64
 
-%description
-Speech Bubble Editor v${VER} — add speech bubbles, captions and text overlays
-to photos and videos. Supports overlay layers, dual-media mode, trim/cut/reverse,
-and meme mode. All dependencies are bundled — no system Python or Qt required.
-Developed by Long Weekend Labs.
+          %description
+          Speech Bubble Editor v${VER} — add speech bubbles, captions and overlays
+          to photos and videos. Overlay layers, dual-media mode, trim/cut/reverse,
+          and meme mode. All dependencies are bundled; no system Python or Qt needed.
+          Developed by Long Weekend Labs.
 
-%install
-mkdir -p %{buildroot}/usr/local/bin
-mkdir -p %{buildroot}/usr/share/applications
-mkdir -p %{buildroot}/usr/share/pixmaps
-install -m 755 %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
-install -m 644 %{_app_src}/usr/share/applications/${PKG}.desktop %{buildroot}/usr/share/applications/${PKG}.desktop
-install -m 644 %{_app_src}/usr/share/pixmaps/${PKG}.png %{buildroot}/usr/share/pixmaps/${PKG}.png
+          %install
+          mkdir -p %{buildroot}/usr/local/bin
+          mkdir -p %{buildroot}/usr/share/applications
+          mkdir -p %{buildroot}/usr/share/pixmaps
+          install -m 755 %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
+          install -m 644 %{_app_src}/usr/share/applications/${PKG}.desktop %{buildroot}/usr/share/applications/${PKG}.desktop
+          install -m 644 %{_app_src}/usr/share/pixmaps/${PKG}.png %{buildroot}/usr/share/pixmaps/${PKG}.png
 
-%files
-/usr/local/bin/SpeechBubbleEditor
-/usr/share/applications/${PKG}.desktop
-/usr/share/pixmaps/${PKG}.png
+          %files
+          /usr/local/bin/SpeechBubbleEditor
+          /usr/share/applications/${PKG}.desktop
+          /usr/share/pixmaps/${PKG}.png
 
-%changelog
-* $(date '+%a %b %d %Y') Long Weekend Labs <longweekendlabs@users.noreply.github.com> - ${VER}-1
-- Release v${VER}
-EOF
+          %changelog
+          * $(date '+%a %b %d %Y') Long Weekend Labs <longweekendlabs@users.noreply.github.com> - ${VER}-1
+          - Release v${VER}
+          EOF
 
           rpmbuild -bb \
             --define "_app_src $(pwd)/${STAGE}" \
@@ -225,7 +221,6 @@ EOF
 
           find ~/rpmbuild/RPMS -name "*.rpm" -exec cp {} . \;
           ls -lh ${PKG}-*.rpm
-          echo "RPM created successfully."
 
       # ── Upload all Linux ARM64 artifacts ───────────────────────────────────
       - name: Upload Linux ARM64 artifacts
@@ -280,7 +275,6 @@ EOF
           $tag = "${{ steps.ver.outputs.TAG }}"
           Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
             -DestinationPath "SpeechBubbleEditor-${tag}-win64-portable.zip" -Force
-          Write-Host "Created: SpeechBubbleEditor-${tag}-win64-portable.zip"
 
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
@@ -296,7 +290,6 @@ EOF
             installer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Move-Item "Output\SpeechBubbleEditor-${tag}-win64-Setup.exe" "."
-          Write-Host "Created: SpeechBubbleEditor-${tag}-win64-Setup.exe"
 
       - name: Upload Windows x64 artifacts
         uses: actions/upload-artifact@v4
@@ -316,11 +309,10 @@ EOF
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11 (ARM64)
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          architecture: 'arm64'
 
       - name: Get version
         id: ver
@@ -335,14 +327,13 @@ EOF
           fi
 
       - name: Install Python dependencies
+        shell: bash
         run: |
           pip install --upgrade pip
-          pip install pyinstaller Pillow numpy
-          pip install PyQt6>=6.7.0
-          pip install opencv-python || pip install opencv-python-headless || echo "WARNING: opencv not available for ARM64, installing stub"
-
-      - name: Install requirements (full)
-        run: |
+          # Install core deps first; opencv may not have ARM64 wheels — fall back gracefully
+          pip install pyinstaller Pillow numpy "PyQt6>=6.7.0"
+          pip install opencv-python || pip install opencv-python-headless || \
+            echo "WARNING: no opencv ARM64 wheel found; build may still succeed if bundled"
           pip install -r requirements.txt || true
 
       - name: Generate icons
@@ -356,7 +347,6 @@ EOF
         run: |
           $exePath = "dist\SpeechBubbleEditor.exe"
           $bytes = [System.IO.File]::ReadAllBytes($exePath)
-          # PE header machine type: 0xAA64 = ARM64
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
           Write-Host "Machine type: 0x$($machine.ToString('X4'))"
@@ -372,9 +362,8 @@ EOF
           $tag = "${{ steps.ver.outputs.TAG }}"
           Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
             -DestinationPath "SpeechBubbleEditor-${tag}-winarm64-portable.zip" -Force
-          Write-Host "Created: SpeechBubbleEditor-${tag}-winarm64-portable.zip"
 
-      - name: Install Inno Setup (runs under x64 emulation)
+      - name: Install Inno Setup (runs under x64 emulation on ARM64)
         run: choco install innosetup --no-progress -y
 
       - name: Create installer (ARM64)
@@ -388,7 +377,6 @@ EOF
             installer_arm64.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Move-Item "Output\SpeechBubbleEditor-${tag}-winarm64-Setup.exe" "."
-          Write-Host "Created: SpeechBubbleEditor-${tag}-winarm64-Setup.exe"
 
       - name: Upload Windows ARM64 artifacts
         uses: actions/upload-artifact@v4
@@ -399,7 +387,7 @@ EOF
             SpeechBubbleEditor-*-winarm64-Setup.exe
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Publish — collect all artifacts and create GitHub Release
+  # Publish — collect artifacts and create GitHub Release
   # ──────────────────────────────────────────────────────────────────────────
   publish:
     needs: [build-linux-arm64, build-windows-x64, build-windows-arm64]
@@ -448,29 +436,25 @@ EOF
             | **Windows 11 ARM** (portable) | `SpeechBubbleEditor-*-winarm64-portable.zip` | Extract & run |
             | **Windows 10/11 x64** (installer) | `SpeechBubbleEditor-*-win64-Setup.exe` | |
             | **Windows 10/11 x64** (portable) | `SpeechBubbleEditor-*-win64-portable.zip` | Extract & run |
-            | **Fedora / RHEL ARM** | `speech-bubble-editor-*.aarch64.rpm` | Fedora 38+, AlmaLinux 9 |
-            | **Ubuntu / Debian ARM** | `speech-bubble-editor_*_arm64.deb` | Ubuntu 22.04+ |
-            | **Linux ARM64 AppImage** | `SpeechBubbleEditor-*-aarch64.AppImage` | Any distro, just run |
+            | **Fedora / RHEL ARM64** | `speech-bubble-editor-*.aarch64.rpm` | Fedora 38+, AlmaLinux 9+ |
+            | **Ubuntu / Debian ARM64** | `speech-bubble-editor_*_arm64.deb` | Ubuntu 22.04+ |
+            | **Linux ARM64 AppImage** | `SpeechBubbleEditor-*-aarch64.AppImage` | Any distro, double-click to run |
             | **Linux ARM64 portable** | `SpeechBubbleEditor-*-linux-arm64.tar.gz` | Extract & run |
 
             ### Install
 
-            **Windows ARM64 / x64 — installer:**
-            Run the `-Setup.exe`, follow the wizard. A Start Menu shortcut and optional desktop shortcut are created.
+            **Windows ARM64 / x64 installer:** Run the `-Setup.exe` and follow the wizard.
 
-            **Windows portable:**
-            Extract the zip, double-click `SpeechBubbleEditor.exe`. No installation needed.
+            **Windows portable:** Extract the zip and double-click `SpeechBubbleEditor.exe`.
 
             **Fedora / RHEL ARM64:**
             ```bash
             sudo dnf install ./speech-bubble-editor-*.aarch64.rpm
-            speech-bubble-editor
             ```
 
             **Ubuntu / Debian ARM64:**
             ```bash
             sudo dpkg -i speech-bubble-editor_*_arm64.deb
-            SpeechBubbleEditor
             ```
 
             **Linux ARM64 AppImage:**
