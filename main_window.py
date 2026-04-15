@@ -7,8 +7,8 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QFileDialog, QMessageBox,
-    QUndoCommand,
 )
+from PyQt6.QtGui import QUndoCommand
 from PyQt6.QtCore import Qt
 
 from canvas import PhotoScene, PhotoView, ZoomBar
