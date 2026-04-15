@@ -17,18 +17,18 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────────────────
   # Linux ARM64 — binary, tar.gz, AppImage, RPM (aarch64), DEB (arm64)
+  #
+  # PyQt6 has no pre-built Linux aarch64 wheels on PyPI, so we use the
+  # system python3-pyqt6 from apt (Ubuntu 24.04 ships 6.4.x which meets
+  # the >=6.4.0 requirement). All other deps are installed via pip into a
+  # --system-site-packages venv so PyInstaller can see everything.
   # ──────────────────────────────────────────────────────────────────────────
   build-linux-arm64:
-    runs-on: ubuntu-22.04-arm
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
 
       - name: Get version
         id: ver
@@ -41,20 +41,30 @@ jobs:
             echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Install system packages
+      - name: Install system packages (Qt6 + runtime libs)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             rpm fakeroot \
+            python3 python3-pip python3-venv \
+            python3-pyqt6 \
             libglib2.0-0 libgl1 libfontconfig1 libdbus-1-3 \
             libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
             libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
             libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
 
-      - name: Install Python dependencies
+      - name: Create build venv (system site-packages + pip deps)
         run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt pyinstaller
+          python3 -m venv --system-site-packages buildenv
+          buildenv/bin/pip install --upgrade pip
+          buildenv/bin/pip install \
+            "Pillow>=9.0.0" \
+            "numpy>=1.23.0" \
+            "opencv-python>=4.7.0" \
+            "pyinstaller>=6.0.0"
+
+      - name: Add buildenv to PATH
+        run: echo "${{ github.workspace }}/buildenv/bin" >> $GITHUB_PATH
 
       - name: Generate icons
         run: python create_icon.py
