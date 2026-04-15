@@ -25,9 +25,12 @@ History:
             Properties Panel; theme-aware welcome screen; GitHub link in
             About dialog; zoom bar and video controls hidden until media
             is loaded.
+  v3.1.0 — Dropped macOS support. Native ARM64 builds for Windows 11 ARM
+            and Linux aarch64 (RPM, DEB, AppImage, portable tar.gz).
+            All dependencies bundled — no system Python or Qt required.
 """
 
-__version__  = "3.0.0"
+__version__  = "3.1.0"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

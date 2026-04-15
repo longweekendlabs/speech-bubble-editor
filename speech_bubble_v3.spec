@@ -1,7 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for Speech Bubble Editor v3.
-Supports Linux, Windows and macOS from a single spec file.
+PyInstaller spec for Speech Bubble Editor v3.1.
+Supports Linux (x86_64, aarch64) and Windows (x64, ARM64).
+macOS support was removed in v3.1.
 
 Build:
     pyinstaller --clean --noconfirm speech_bubble_v3.spec
@@ -47,71 +48,30 @@ a = Analysis(
 
 pyz = PYZ(a.pure)
 
-if _sys.platform == 'darwin':
-    # ── macOS — directory-bundle EXE + COLLECT + BUNDLE (.app) ──────────────
-    exe = EXE(
-        pyz,
-        a.scripts,
-        [],
-        exclude_binaries=True,
-        name='SpeechBubbleEditor',
-        debug=False,
-        bootloader_ignore_signals=False,
-        strip=False,
-        upx=False,
-        console=False,
-        argv_emulation=False,
-        target_arch=None,
-        codesign_identity=None,
-        entitlements_file=None,
-        icon=os.path.join(_app_dir, 'icons', 'icon.icns'),
-    )
-    coll = COLLECT(
-        exe,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
-        strip=False,
-        upx=False,
-        name='SpeechBubbleEditor',
-    )
-    app = BUNDLE(
-        coll,
-        name='Speech Bubble Editor.app',
-        icon=os.path.join(_app_dir, 'icons', 'icon.icns'),
-        bundle_identifier='com.longweekendlabs.speechbubbleeditor',
-        info_plist={
-            'NSHighResolutionCapable': True,
-            'NSRequiresAquaSystemAppearance': False,   # support dark mode
-            'LSMinimumSystemVersion': '12.0',
-            'CFBundleShortVersionString': '3.0.0',
-            'CFBundleName': 'Speech Bubble Editor',
-            'NSPrincipalClass': 'NSApplication',
-            'NSAppleScriptEnabled': False,
-        },
-    )
+# ── Linux / Windows — single-file binary ────────────────────────────────────
+# UPX disabled for cross-arch compatibility (ARM64 Windows / Linux aarch64).
+_icon = os.path.join(_app_dir, 'icons', 'icon.ico') if _sys.platform == 'win32' \
+        else os.path.join(_app_dir, 'icons', 'icon.png')
 
-else:
-    # ── Linux / Windows — single-file binary ────────────────────────────────
-    exe = EXE(
-        pyz,
-        a.scripts,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
-        [],
-        name='SpeechBubbleEditor',
-        debug=False,
-        bootloader_ignore_signals=False,
-        strip=False,
-        upx=True,
-        upx_exclude=[],
-        runtime_tmpdir=None,
-        console=False,
-        disable_windowed_traceback=False,
-        argv_emulation=False,
-        target_arch=None,
-        codesign_identity=None,
-        entitlements_file=None,
-        icon=os.path.join(_app_dir, 'icons', 'icon.ico'),
-    )
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='SpeechBubbleEditor',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=_icon,
+)
