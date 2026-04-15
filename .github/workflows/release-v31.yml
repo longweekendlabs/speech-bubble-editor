@@ -646,6 +646,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "Speech Bubble Editor ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          make_latest: true
           body: |
             ## Speech Bubble Editor ${{ github.ref_name }}
 
