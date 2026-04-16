@@ -520,16 +520,20 @@ jobs:
   # Windows ARM64 — portable zip + Inno Setup installer (native ARM64)
   # ──────────────────────────────────────────────────────────────────────────
   build-windows-arm64:
+    # opencv-python has no ARM64 Windows wheels on PyPI, so we use x64 Python
+    # which lets all deps install normally. The resulting exe runs via Windows 11
+    # ARM's built-in x64 emulation — no user setup required, fully bundled.
     runs-on: windows-11-arm
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.11 (x64 — required for opencv bundling)
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          architecture: 'x64'
 
       - name: Get version
         id: ver
@@ -544,46 +548,25 @@ jobs:
           fi
 
       - name: Install Python dependencies
-        shell: bash
-        run: |
-          pip install --upgrade pip
-          # Install core deps first; opencv may not have ARM64 wheels — fall back gracefully
-          pip install pyinstaller Pillow numpy "PyQt6>=6.7.0"
-          pip install opencv-python || pip install opencv-python-headless || \
-            echo "WARNING: no opencv ARM64 wheel found; build may still succeed if bundled"
-          pip install -r requirements.txt || true
+        run: pip install -r requirements.txt pyinstaller
 
       - name: Generate icons
         run: python create_icon.py
 
-      - name: Build binary (PyInstaller ARM64)
+      - name: Build binary (PyInstaller — x64, runs via emulation on ARM64 Windows)
         run: python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
 
-      - name: Verify binary architecture
-        shell: powershell
-        run: |
-          $exePath = "dist\SpeechBubbleEditor.exe"
-          $bytes = [System.IO.File]::ReadAllBytes($exePath)
-          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
-          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          Write-Host "Machine type: 0x$($machine.ToString('X4'))"
-          if ($machine -eq 0xAA64) {
-            Write-Host "Confirmed: ARM64 native binary"
-          } else {
-            Write-Host "WARNING: Expected ARM64 (0xAA64), got 0x$($machine.ToString('X4'))"
-          }
-
-      - name: Create portable zip (ARM64)
+      - name: Create portable zip (winarm64)
         shell: powershell
         run: |
           $tag = "${{ steps.ver.outputs.TAG }}"
           Compress-Archive -Path "dist\SpeechBubbleEditor.exe" `
             -DestinationPath "SpeechBubbleEditor-${tag}-winarm64-portable.zip" -Force
 
-      - name: Install Inno Setup (runs under x64 emulation on ARM64)
+      - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
-      - name: Create installer (ARM64)
+      - name: Create installer (winarm64)
         shell: powershell
         run: |
           $ver = "${{ steps.ver.outputs.VERSION }}"
