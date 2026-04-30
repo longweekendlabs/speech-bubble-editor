@@ -289,6 +289,15 @@ class VideoControls(QWidget):
             self._scrubber.set_current_frame(frame)
             self._update_time_label(frame)
 
+    @property
+    def current_frame(self) -> int:
+        """Current playhead frame index."""
+        return self._current_frame
+
+    def stop(self):
+        """Public API: stop playback."""
+        self._stop_playback()
+
     def sync_markers(self):
         player = self._active_player
         if player:

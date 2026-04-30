@@ -2,19 +2,33 @@
 undo_commands.py — QUndoCommand subclasses for the undo/redo stack.
 
 Commands implemented:
-  AddBubbleCommand    — redo = add item,    undo = remove item
-  DeleteBubbleCommand — redo = remove item, undo = add item back
-  MoveBubbleCommand   — redo = move to new_pos, undo = move to old_pos
-                        (consecutive moves of the same bubble are merged)
-  TextChangeCommand   — redo = new text, undo = old text
-  MoveMediaCommand    — redo = move media to new_pos, undo = move to old_pos
-  ResizeMediaCommand  — redo = resize + reposition, undo = restore original
-  AddOverlayCommand   — redo = add overlay layer, undo = remove it
+  AddBubbleCommand     — redo = add item,    undo = remove item
+  DeleteBubbleCommand  — redo = remove item, undo = add item back
+  MoveBubbleCommand    — redo = move to new_pos, undo = move to old_pos
+                         (consecutive moves of the same bubble are merged)
+  ResizeBubbleCommand  — redo = resize to new_rect, undo = restore old_rect
+  TextChangeCommand    — redo = new text, undo = old text
+  StyleChangeCommand   — redo = new style, undo = old style
+  FontChangeCommand    — redo = new font, undo = old font
+  FillColorChangeCommand   — redo = new fill, undo = old fill
+  BorderColorChangeCommand — redo = new border color, undo = old border color
+  BorderWidthChangeCommand — redo = new width, undo = old width
+  TextColorChangeCommand   — redo = new text color, undo = old text color
+  MoveMediaCommand     — redo = move media to new_pos, undo = move to old_pos
+  ResizeMediaCommand   — redo = resize + reposition, undo = restore original
+  AddOverlayCommand    — redo = add overlay layer, undo = remove it
   RemoveOverlayCommand — redo = remove overlay layer, undo = add it back
 """
 
-from PyQt6.QtGui import QUndoCommand
+from PyQt6.QtGui import QUndoCommand, QFont, QColor
 from PyQt6.QtCore import QPointF, QRectF
+
+from constants import (
+    MERGE_ID_MOVE_BUBBLE, MERGE_ID_MOVE_MEDIA,
+    MERGE_ID_STYLE, MERGE_ID_FONT,
+    MERGE_ID_FILL_COLOR, MERGE_ID_BORDER_COLOR, MERGE_ID_BORDER_WIDTH,
+    MERGE_ID_TEXT_COLOR,
+)
 
 
 class AddBubbleCommand(QUndoCommand):
@@ -49,7 +63,7 @@ class DeleteBubbleCommand(QUndoCommand):
 
 class MoveBubbleCommand(QUndoCommand):
     # All move commands share the same id so Qt can merge consecutive moves
-    _ID = 42
+    _ID = MERGE_ID_MOVE_BUBBLE
 
     def __init__(self, bubble, old_pos: QPointF, new_pos: QPointF):
         super().__init__("Move Bubble")
@@ -104,7 +118,7 @@ class TextChangeCommand(QUndoCommand):
 
 class MoveMediaCommand(QUndoCommand):
     """Undo/redo for dragging a MediaItem to a new position."""
-    _ID = 43
+    _ID = MERGE_ID_MOVE_MEDIA
 
     def __init__(self, scene, item, old_pos: QPointF, new_pos: QPointF):
         super().__init__("Move Media")
@@ -208,3 +222,163 @@ class RemoveOverlayCommand(QUndoCommand):
         self._scene.clearSelection()
         self._item.setSelected(True)
         self._scene.overlay_added.emit(self._item)
+
+
+# ---------------------------------------------------------------------------
+# Bubble property commands — style, font, colors, border width
+# ---------------------------------------------------------------------------
+
+class StyleChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's style (oval, cloud, rect, …)."""
+    _ID = MERGE_ID_STYLE
+
+    def __init__(self, bubble, old_style: str, new_style: str):
+        super().__init__("Change Style")
+        self._bubble    = bubble
+        self._old_style = old_style
+        self._new_style = new_style
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, StyleChangeCommand) and other._bubble is self._bubble:
+            self._new_style = other._new_style
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_style(self._new_style)
+
+    def undo(self):
+        self._bubble.set_style(self._old_style)
+
+
+class FontChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's font (family, size, bold, italic)."""
+    _ID = MERGE_ID_FONT
+
+    def __init__(self, bubble, old_font: QFont, new_font: QFont):
+        super().__init__("Change Font")
+        self._bubble   = bubble
+        self._old_font = QFont(old_font)
+        self._new_font = QFont(new_font)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, FontChangeCommand) and other._bubble is self._bubble:
+            self._new_font = QFont(other._new_font)
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_font(self._new_font)
+
+    def undo(self):
+        self._bubble.set_font(self._old_font)
+
+
+class FillColorChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's fill color (includes alpha/opacity)."""
+    _ID = MERGE_ID_FILL_COLOR
+
+    def __init__(self, bubble, old_color: QColor, new_color: QColor):
+        super().__init__("Change Fill Color")
+        self._bubble    = bubble
+        self._old_color = QColor(old_color)
+        self._new_color = QColor(new_color)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, FillColorChangeCommand) and other._bubble is self._bubble:
+            self._new_color = QColor(other._new_color)
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_fill_color(self._new_color)
+
+    def undo(self):
+        self._bubble.set_fill_color(self._old_color)
+
+
+class BorderColorChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's border color."""
+    _ID = MERGE_ID_BORDER_COLOR
+
+    def __init__(self, bubble, old_color: QColor, new_color: QColor):
+        super().__init__("Change Border Color")
+        self._bubble    = bubble
+        self._old_color = QColor(old_color)
+        self._new_color = QColor(new_color)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, BorderColorChangeCommand) and other._bubble is self._bubble:
+            self._new_color = QColor(other._new_color)
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_border_color(self._new_color)
+
+    def undo(self):
+        self._bubble.set_border_color(self._old_color)
+
+
+class BorderWidthChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's border width."""
+    _ID = MERGE_ID_BORDER_WIDTH
+
+    def __init__(self, bubble, old_width: float, new_width: float):
+        super().__init__("Change Border Width")
+        self._bubble    = bubble
+        self._old_width = old_width
+        self._new_width = new_width
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, BorderWidthChangeCommand) and other._bubble is self._bubble:
+            self._new_width = other._new_width
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_border_width(self._new_width)
+
+    def undo(self):
+        self._bubble.set_border_width(self._old_width)
+
+
+class TextColorChangeCommand(QUndoCommand):
+    """Undo/redo for changing a bubble's text color."""
+    _ID = MERGE_ID_TEXT_COLOR
+
+    def __init__(self, bubble, old_color: QColor, new_color: QColor):
+        super().__init__("Change Text Color")
+        self._bubble    = bubble
+        self._old_color = QColor(old_color)
+        self._new_color = QColor(new_color)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TextColorChangeCommand) and other._bubble is self._bubble:
+            self._new_color = QColor(other._new_color)
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_text_color(self._new_color)
+
+    def undo(self):
+        self._bubble.set_text_color(self._old_color)

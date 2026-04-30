@@ -11,9 +11,6 @@ import shutil
 import subprocess
 from datetime import datetime
 
-import cv2
-import numpy as np
-
 from PyQt6.QtCore import Qt, QRectF
 from PyQt6.QtGui import QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QApplication
@@ -55,9 +52,9 @@ def export_photo(parent, scene, photo_item, right_photo_item=None, is_dual=False
 
 
 def _export_single_photo(parent, scene, photo_item, path):
-    # Use display dimensions (WYSIWYG)
-    W = int(photo_item.display_w)
-    H = int(photo_item.display_h)
+    # Use native pixmap dimensions for full-resolution export
+    W = photo_item.pixmap().width()
+    H = photo_item.pixmap().height()
 
     image = QImage(W, H, QImage.Format.Format_ARGB32_Premultiplied)
     image.fill(0)
@@ -73,10 +70,10 @@ def _export_single_photo(parent, scene, photo_item, path):
 
 
 def _export_dual_photo(parent, scene, left_item, right_item, path):
-    LW = int(left_item.display_w)
-    LH = int(left_item.display_h)
-    RW = int(right_item.display_w)
-    RH = int(right_item.display_h)
+    LW = left_item.pixmap().width()
+    LH = left_item.pixmap().height()
+    RW = right_item.pixmap().width()
+    RH = right_item.pixmap().height()
     W  = LW + RW
     H  = max(LH, RH)
 
@@ -149,7 +146,7 @@ def export_video(parent, scene, photo_item, player: VideoPlayer,
         return
 
 
-def _prerender_bubble_overlay(scene, photo_item, W: int, H: int) -> np.ndarray:
+def _prerender_bubble_overlay(scene, photo_item, W: int, H: int):
     """
     Render the bubble layer ONCE to a BGRA numpy array (H × W × 4, BGRA order).
 
@@ -157,6 +154,7 @@ def _prerender_bubble_overlay(scene, photo_item, W: int, H: int) -> np.ndarray:
     them a single time and reuse the result for every frame instead of calling
     QPainter+scene.render for every frame.
     """
+    import numpy as np
     photo_item.setVisible(False)
 
     overlay = QImage(W, H, QImage.Format.Format_ARGB32_Premultiplied)
@@ -175,24 +173,26 @@ def _prerender_bubble_overlay(scene, photo_item, W: int, H: int) -> np.ndarray:
     return np.frombuffer(ptr, dtype=np.uint8).reshape((H, W, 4)).copy()
 
 
-def _composite(frame_bgr: np.ndarray, overlay_bgra: np.ndarray) -> np.ndarray:
+def _composite(frame_bgr, overlay_bgra):
     """Alpha-composite a pre-rendered bubble overlay onto a BGR video frame."""
-    alpha      = overlay_bgra[:, :, 3:4] / 255.0
+    import numpy as np
+    alpha       = overlay_bgra[:, :, 3:4] / 255.0
     overlay_bgr = overlay_bgra[:, :, :3].astype(np.float32)
     base_bgr    = frame_bgr.astype(np.float32)
     return (base_bgr * (1 - alpha) + overlay_bgr * alpha).clip(0, 255).astype(np.uint8)
 
 
 def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_path: str):
+    import cv2
     frames = player.get_export_frames()
     if not frames:
         QMessageBox.warning(parent, "Export", "No frames to export after trimming/cuts.")
         return
 
-    # Use the canvas display dimensions for a WYSIWYG export.
+    # Use native video dimensions for full-resolution export.
     # Ensure codec-friendly even dimensions.
-    W   = int(photo_item.display_w)
-    H   = int(photo_item.display_h)
+    W   = player.width
+    H   = player.height
     W   = W if W % 2 == 0 else W + 1
     H   = H if H % 2 == 0 else H + 1
     fps = player.fps
@@ -239,11 +239,12 @@ def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_pat
     QMessageBox.information(parent, "Export", f"Video saved to:\n{out_path}")
 
 
-def _pixmap_to_bgr(pixmap, w: int, h: int) -> np.ndarray:
+def _pixmap_to_bgr(pixmap, w: int, h: int):
     """
     Scale a QPixmap to (w × h) and return as a BGR numpy array.
     Used when one side is a static photo during dual video export.
     """
+    import numpy as np
     img = pixmap.scaled(w, h,
                         Qt.AspectRatioMode.IgnoreAspectRatio,
                         Qt.TransformationMode.SmoothTransformation
@@ -261,6 +262,8 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
     Dual video export.  Either side may be a static photo (player=None).
     The video side (or left if both are video) drives the frame sequence.
     """
+    import cv2
+    import numpy as np
     left_has_video  = left_player is not None and left_player.is_loaded()
     right_has_video = right_player is not None and right_player.is_loaded()
 
@@ -275,18 +278,23 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
         QMessageBox.warning(parent, "Export", "No frames to export.")
         return
 
-    LW  = int(left_item.display_w)
-    LH  = int(left_item.display_h)
+    # Use native video dimensions for full-resolution export.
+    LW  = left_player.width  if left_has_video  else left_item.pixmap().width()
+    LH  = left_player.height if left_has_video  else left_item.pixmap().height()
     LW  = LW if LW % 2 == 0 else LW + 1
     LH  = LH if LH % 2 == 0 else LH + 1
     fps = driver.fps
 
-    # Determine output dimensions for the right panel (WYSIWYG: use canvas display size)
+    # Determine output dimensions for the right panel at native resolution
     if right_has_video:
-        RH_src = right_player.height   # only needed to fetch frames
+        RH_src = right_player.height
         RW_src = right_player.width
-    if right_item is not None:
-        RW_out = int(right_item.display_w)
+    if right_item is not None and not right_has_video:
+        RW_out = right_item.pixmap().width()
+        RH_out = right_item.pixmap().height()
+        # Scale right photo to match left panel height
+        scale  = LH / RH_out if RH_out else 1.0
+        RW_out = max(1, int(RW_out * scale))
         RW_out = RW_out if RW_out % 2 == 0 else RW_out + 1
     elif right_has_video:
         scale  = LH / RH_src if RH_src else 1.0
@@ -302,8 +310,8 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
     static_right_bgr = None
     if not right_has_video and right_item is not None:
         raw = _pixmap_to_bgr(right_item.pixmap(),
-                             int(right_item.display_w),
-                             int(right_item.display_h))
+                             right_item.pixmap().width(),
+                             right_item.pixmap().height())
         static_right_bgr = cv2.resize(raw, (RW_out, LH))
 
     # Pre-render bubble overlay for the left panel once (bubbles are static).

@@ -6,9 +6,7 @@ from PyQt6.QtWidgets import QToolBar, QFileDialog, QWidget, QSizePolicy
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtCore import pyqtSignal, QSize
 
-from video_player import VIDEO_EXTENSIONS
-
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff')
+from constants import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS
 ALL_EXTENSIONS   = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 
 

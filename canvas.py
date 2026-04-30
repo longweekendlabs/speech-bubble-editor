@@ -16,10 +16,10 @@ from PyQt6.QtGui import (
     QFontMetrics, QTransform, QBrush,
 )
 
-from video_player import VideoPlayer, VIDEO_EXTENSIONS
+from video_player import VideoPlayer
 from media_item import MediaItem
+from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff')
 ALL_MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS
 
 _BAR_FRACTION  = 0.065  # caption bar height as fraction of photo height
@@ -61,6 +61,9 @@ class MemeBarItem(QGraphicsItem):
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsFocusable, True)
         self.setZValue(50)
 
+        # Cache for the font-shrink result: (text, rect_w, rect_h) → pixel_size
+        self._font_size_cache: tuple | None = None
+
     @property
     def is_editing(self):
         return self._editing
@@ -88,6 +91,16 @@ class MemeBarItem(QGraphicsItem):
             Qt.TextInteractionFlag.NoTextInteraction)
         self._text_item.clearFocus()
         self._text_item.setVisible(False)
+        self._font_size_cache = None  # text may have changed
+        self.update()
+
+    def set_geometry(self, x: float, y: float, w: float, h: float):
+        """Update position and size, resetting the font-shrink cache."""
+        self.prepareGeometryChange()
+        self._rect = QRectF(x, y, w, h)
+        self._font_size_cache = None
+        self._text_item.setTextWidth(w - 32)
+        self._center_text_item()
         self.update()
 
     def boundingRect(self):
@@ -103,20 +116,26 @@ class MemeBarItem(QGraphicsItem):
             return
 
         text      = (self.text() or " ").upper()
-        # Tighter vertical padding so text fills the slim bar naturally
         text_rect = self._rect.adjusted(20, 4, -20, -4)
         flags     = (int(Qt.AlignmentFlag.AlignHCenter) |
                      int(Qt.AlignmentFlag.AlignVCenter) |
                      int(Qt.TextFlag.TextWordWrap))
 
-        font   = QFont(self._font)
-        min_px = max(10, font.pixelSize() // 4)
-        while font.pixelSize() > min_px:
-            fm = QFontMetrics(font)
-            if fm.boundingRect(text_rect.toRect(), flags, text).height() \
-                    <= text_rect.height():
-                break
-            font.setPixelSize(font.pixelSize() - 2)
+        # Use cached pixel size if the key matches, else recompute
+        cache_key = (text, text_rect.width(), text_rect.height())
+        if self._font_size_cache and self._font_size_cache[0] == cache_key:
+            font = QFont(self._font)
+            font.setPixelSize(self._font_size_cache[1])
+        else:
+            font   = QFont(self._font)
+            min_px = max(10, font.pixelSize() // 4)
+            while font.pixelSize() > min_px:
+                fm = QFontMetrics(font)
+                if fm.boundingRect(text_rect.toRect(), flags, text).height() \
+                        <= text_rect.height():
+                    break
+                font.setPixelSize(font.pixelSize() - 2)
+            self._font_size_cache = (cache_key, font.pixelSize())
 
         painter.setFont(font)
 
@@ -141,6 +160,7 @@ class MemeBarItem(QGraphicsItem):
             self._rect.left() + 10,
             self._rect.center().y() - th / 2,
         )
+
 
 
 # ---------------------------------------------------------------------------
@@ -414,11 +434,7 @@ class PhotoScene(QGraphicsScene):
         self.setSceneRect(QRectF(sr.x(), top_y, w, ph + 2 * bar_h))
         # Update each bar's geometry in place (preserves editing state and text)
         for bar, y in ((self._meme_top, top_y), (self._meme_bot, bot_y)):
-            bar.prepareGeometryChange()   # must precede rect change so Qt clears old area
-            bar._rect = QRectF(sr.x(), y, w, bar_h)
-            bar._text_item.setTextWidth(w - 32)
-            bar._center_text_item()
-            bar.update()
+            bar.set_geometry(sr.x(), y, w, bar_h)
 
     def disable_meme_mode(self):
         self._remove_meme_bars()

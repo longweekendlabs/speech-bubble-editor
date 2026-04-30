@@ -92,17 +92,14 @@ def _apply_system_theme(app):
             app.setStyle("windowsvista")
 
 
-def _setup_single_instance(window) -> bool:
-    """Return True if this is the first instance. Side-effect: starts server."""
-    global _singleton_server
+def _check_duplicate_instance() -> bool:
+    """Return True if another instance is already running (probe only, no server)."""
     try:
-        from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+        from PyQt6.QtNetwork import QLocalSocket
     except ImportError:
-        return True
+        return False
 
     SERVER_NAME = "SpeechBubbleEditorV3"
-
-    # Check for existing instance
     probe = QLocalSocket()
     probe.connectToServer(SERVER_NAME)
     if probe.waitForConnected(400):
@@ -110,10 +107,21 @@ def _setup_single_instance(window) -> bool:
         probe.flush()
         probe.waitForBytesWritten(1000)
         probe.disconnectFromServer()
-        return False   # another instance running
+        return True
+    return False
 
-    # First instance — start server
+
+def _start_single_instance_server(window) -> None:
+    """Start the local server that lets a second launch raise the first window."""
+    global _singleton_server
+    try:
+        from PyQt6.QtNetwork import QLocalServer
+    except ImportError:
+        return
+
     from PyQt6.QtCore import Qt
+
+    SERVER_NAME = "SpeechBubbleEditorV3"
     _singleton_server = QLocalServer()
     QLocalServer.removeServer(SERVER_NAME)
     _singleton_server.listen(SERVER_NAME)
@@ -133,7 +141,6 @@ def _setup_single_instance(window) -> bool:
             conn.readyRead.connect(_read)
 
     _singleton_server.newConnection.connect(_on_connection)
-    return True
 
 
 def main():
@@ -147,6 +154,15 @@ def main():
         app.setApplicationName("Speech Bubble Editor")
         app.setOrganizationName("Long Weekend Labs")
         _log("QApplication created OK")
+
+        # Fast-fail before building the window if another instance is running
+        if _check_duplicate_instance():
+            _log("duplicate instance detected — exiting")
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.information(None, "Already Running",
+                                    "Speech Bubble Editor is already open.")
+            sys.exit(0)
+        _log("single-instance check passed")
 
         _apply_system_theme(app)
         _log("theme applied")
@@ -174,12 +190,7 @@ def main():
         window = MainWindow()
         _log("MainWindow created OK")
 
-        if not _setup_single_instance(window):
-            from PyQt6.QtWidgets import QMessageBox
-            QMessageBox.information(None, "Already Running",
-                                    "Speech Bubble Editor is already open.")
-            sys.exit(0)
-        _log("single-instance check passed")
+        _start_single_instance_server(window)
 
         window.show()
         _log("window.show() called — entering event loop")

@@ -7,17 +7,17 @@ Provides:
   • Cut ranges (frame ranges excluded from export)
   • Reverse flag
   • Ordered export-frame list respecting all edits
+
+cv2 and numpy are imported lazily (inside methods) to avoid slowing startup.
 """
 
-import cv2
-import numpy as np
+from __future__ import annotations
+
 from collections import OrderedDict
 
 from PyQt6.QtGui import QImage, QPixmap
 
-# Video file extensions accepted by the open dialogs
-VIDEO_EXTENSIONS = ('.mp4', '.mov', '.avi', '.webm', '.mkv',
-                    '.m4v', '.flv', '.wmv', '.ts', '.mts')
+from constants import VIDEO_EXTENSIONS
 
 # Memory budget for the frame cache across all sizes of video
 _CACHE_BUDGET_MB = 256
@@ -41,17 +41,17 @@ class FrameCache:
         bytes_per_frame = max(1, frame_w * frame_h * 3)
         budget_bytes    = _CACHE_BUDGET_MB * 1024 * 1024
         self._max: int  = max(8, min(128, budget_bytes // bytes_per_frame))
-        self._store: OrderedDict[int, np.ndarray] = OrderedDict()
+        self._store: OrderedDict[int, object] = OrderedDict()
 
     # ------------------------------------------------------------------
 
-    def get(self, idx: int) -> "np.ndarray | None":
+    def get(self, idx: int) -> object | None:
         frame = self._store.get(idx)
         if frame is not None:
             self._store.move_to_end(idx)   # mark as recently used
         return frame
 
-    def put(self, idx: int, frame: np.ndarray):
+    def put(self, idx: int, frame: object):
         if idx in self._store:
             self._store.move_to_end(idx)
             return
@@ -93,6 +93,7 @@ class VideoPlayer:
 
     def load(self, path: str) -> bool:
         """Open a video file.  Returns False if the file cannot be opened."""
+        import cv2
         cap = cv2.VideoCapture(path)
         if not cap.isOpened():
             return False
@@ -142,11 +143,12 @@ class VideoPlayer:
             return None
         return self._bgr_to_pixmap(frame)
 
-    def get_frame_ndarray(self, frame_idx: int) -> np.ndarray | None:
+    def get_frame_ndarray(self, frame_idx: int) -> object | None:
         """Return frame_idx as a BGR numpy array, or None on error."""
         return self._read_frame(frame_idx)
 
-    def _read_frame(self, frame_idx: int) -> np.ndarray | None:
+    def _read_frame(self, frame_idx: int) -> object | None:
+        import cv2
         if not self.is_loaded():
             return None
         frame_idx = max(0, min(frame_idx, self._frame_count - 1))
@@ -195,6 +197,7 @@ class VideoPlayer:
     @property
     def original_fourcc(self) -> str:
         """Four-character codec string of the source video."""
+        import cv2
         if not self.is_loaded():
             return 'mp4v'
         v = int(self._cap.get(cv2.CAP_PROP_FOURCC))
@@ -257,7 +260,8 @@ class VideoPlayer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _bgr_to_pixmap(frame: np.ndarray) -> QPixmap:
+    def _bgr_to_pixmap(frame) -> QPixmap:
+        import cv2
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch  = frame_rgb.shape
         img = QImage(frame_rgb.tobytes(), w, h, ch * w,
@@ -265,8 +269,10 @@ class VideoPlayer:
         return QPixmap.fromImage(img)
 
     @staticmethod
-    def qimage_to_bgr(img: QImage) -> np.ndarray:
+    def qimage_to_bgr(img: QImage) -> object:
         """Convert a QImage to a BGR numpy array for OpenCV."""
+        import cv2
+        import numpy as np
         img = img.convertToFormat(QImage.Format.Format_RGB888)
         w, h = img.width(), img.height()
         ptr  = img.bits()

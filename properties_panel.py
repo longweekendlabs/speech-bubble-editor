@@ -15,8 +15,14 @@ from PyQt6.QtWidgets import (
     QSpinBox, QDoubleSpinBox, QSlider, QColorDialog, QFrame,
     QButtonGroup, QFontComboBox, QSizePolicy, QStackedWidget, QCheckBox
 )
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QColor, QFont, QUndoStack
 from PyQt6.QtCore import Qt, pyqtSignal
+
+from undo_commands import (
+    StyleChangeCommand, FontChangeCommand,
+    FillColorChangeCommand, BorderColorChangeCommand,
+    BorderWidthChangeCommand, TextColorChangeCommand,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +91,13 @@ class PropertiesPanel(QWidget):
         self._bubble = None      # currently selected BubbleItem
         self._media  = None      # currently selected MediaItem
         self._updating = False   # guard against recursive updates
+        self._undo_stack = None  # type: QUndoStack | None
         self.setFixedHeight(96)
         self._build_ui()
+
+    def set_undo_stack(self, stack):
+        """Bind the scene's undo stack so property changes are undoable."""
+        self._undo_stack = stack
 
     # ------------------------------------------------------------------
     # UI construction
@@ -426,51 +437,58 @@ class PropertiesPanel(QWidget):
     # ------------------------------------------------------------------
 
     def _on_style(self, style: str):
-        if self._bubble and not self._updating:
-            self._bubble.set_style(style)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = self._bubble.get_style()
+            if old != style:
+                self._undo_stack.push(StyleChangeCommand(self._bubble, old, style))
 
     def _on_font_family(self, font: QFont):
-        if self._bubble and not self._updating:
-            f = QFont(self._bubble.get_font())
-            f.setFamily(font.family())
-            self._bubble.set_font(f)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = QFont(self._bubble.get_font())
+            new = QFont(old)
+            new.setFamily(font.family())
+            self._undo_stack.push(FontChangeCommand(self._bubble, old, new))
 
     def _on_font_size(self, size: int):
-        if self._bubble and not self._updating:
-            f = QFont(self._bubble.get_font())
-            f.setPointSize(size)
-            self._bubble.set_font(f)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = QFont(self._bubble.get_font())
+            new = QFont(old)
+            new.setPointSize(size)
+            self._undo_stack.push(FontChangeCommand(self._bubble, old, new))
 
     def _on_bold(self, checked: bool):
-        if self._bubble and not self._updating:
-            f = QFont(self._bubble.get_font())
-            f.setBold(checked)
-            self._bubble.set_font(f)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = QFont(self._bubble.get_font())
+            new = QFont(old)
+            new.setBold(checked)
+            self._undo_stack.push(FontChangeCommand(self._bubble, old, new))
 
     def _on_italic(self, checked: bool):
-        if self._bubble and not self._updating:
-            f = QFont(self._bubble.get_font())
-            f.setItalic(checked)
-            self._bubble.set_font(f)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = QFont(self._bubble.get_font())
+            new = QFont(old)
+            new.setItalic(checked)
+            self._undo_stack.push(FontChangeCommand(self._bubble, old, new))
 
     def _on_text_color(self):
-        if not self._bubble:
+        if not self._bubble or not self._undo_stack:
             return
         color = QColorDialog.getColor(
             self._bubble.get_text_color(), self, "Text Colour")
         if color.isValid():
-            self._bubble.set_text_color(color)
+            old = self._bubble.get_text_color()
+            self._undo_stack.push(TextColorChangeCommand(self._bubble, old, color))
             _set_btn_color(self._btn_text_color, color)
 
     def _on_fill_color(self):
-        if not self._bubble:
+        if not self._bubble or not self._undo_stack:
             return
         current = self._bubble.get_fill_color()
         color = QColorDialog.getColor(
             current, self, "Fill Colour",
             QColorDialog.ColorDialogOption.ShowAlphaChannel)
         if color.isValid():
-            self._bubble.set_fill_color(color)
+            self._undo_stack.push(FillColorChangeCommand(self._bubble, current, color))
             _set_btn_color(self._btn_fill, color)
             pct = round(color.alpha() * 100 / 255)
             self._opacity_slider.blockSignals(True)
@@ -480,24 +498,27 @@ class PropertiesPanel(QWidget):
 
     def _on_opacity(self, value: int):
         self._opacity_label.setText(f"{value}%")
-        if self._bubble and not self._updating:
-            color = QColor(self._bubble.get_fill_color())
-            color.setAlpha(round(value * 255 / 100))
-            self._bubble.set_fill_color(color)
-            _set_btn_color(self._btn_fill, color)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = self._bubble.get_fill_color()
+            new = QColor(old)
+            new.setAlpha(round(value * 255 / 100))
+            self._undo_stack.push(FillColorChangeCommand(self._bubble, old, new))
+            _set_btn_color(self._btn_fill, new)
 
     def _on_border_color(self):
-        if not self._bubble:
+        if not self._bubble or not self._undo_stack:
             return
-        color = QColorDialog.getColor(
-            self._bubble.get_border_color(), self, "Border Colour")
+        old = self._bubble.get_border_color()
+        color = QColorDialog.getColor(old, self, "Border Colour")
         if color.isValid():
-            self._bubble.set_border_color(color)
+            self._undo_stack.push(BorderColorChangeCommand(self._bubble, old, color))
             _set_btn_color(self._btn_border_color, color)
 
     def _on_border_width(self, value: float):
-        if self._bubble and not self._updating:
-            self._bubble.set_border_width(value)
+        if self._bubble and not self._updating and self._undo_stack:
+            old = self._bubble.get_border_width()
+            if old != value:
+                self._undo_stack.push(BorderWidthChangeCommand(self._bubble, old, value))
 
     # ------------------------------------------------------------------
     # Media item callbacks

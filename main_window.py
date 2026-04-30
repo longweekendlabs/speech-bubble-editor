@@ -8,7 +8,6 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QFileDialog, QMessageBox,
 )
-from PyQt6.QtGui import QUndoCommand
 from PyQt6.QtCore import Qt
 
 from canvas import PhotoScene, PhotoView, ZoomBar
@@ -19,12 +18,10 @@ from bubble import BubbleItem
 from media_item import MediaItem
 from undo_commands import AddBubbleCommand, DeleteBubbleCommand
 from version import __version__, __app_name__
-from video_player import VIDEO_EXTENSIONS
+from constants import VIDEO_EXTENSIONS
 from about_dialog import AboutDialog
 
 import export as exporter
-
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.tiff')
 
 
 class MainWindow(QMainWindow):
@@ -49,6 +46,7 @@ class MainWindow(QMainWindow):
         self.zoom_bar = ZoomBar(self.view)
         self.video_controls = VideoControls()
         self.props = PropertiesPanel()
+        self.props.set_undo_stack(self.scene.undo_stack)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -209,7 +207,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_export(self):
-        self.video_controls._stop_playback()   # pause before export
+        self.video_controls.stop()   # pause before export
         has_left_video  = self.scene.has_video()
         has_right_video = (self.scene.video_player_right is not None
                            and self.scene.video_player_right.is_loaded())
@@ -288,7 +286,7 @@ class MainWindow(QMainWindow):
         player.set_trim_out(player.frame_count - 1)
         self.video_controls.sync_markers()
         # If the playhead is now inside the cut range, jump past it
-        cur = self.video_controls._current_frame
+        cur = self.video_controls.current_frame
         if s <= cur <= e:
             next_frame = e + 1
             if next_frame > player.frame_count - 1:
