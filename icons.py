@@ -301,6 +301,45 @@ ICON_REVERSE = """
 <path d="M10 4l4 4-4 4" stroke="{color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"/>
 """
 
+# Bubble style picker (inspector)
+ICON_STYLE_OVAL = """
+<ellipse cx="10" cy="9" rx="8" ry="5.5" fill="none" stroke="{color}" stroke-width="1.6"/>
+<path d="M8 14l-2 4 4-2" fill="{color}" stroke="{color}" stroke-width="1" stroke-linejoin="round"/>
+"""
+
+ICON_STYLE_CLOUD = """
+<path d="M5 14c-2.2 0-4-1.6-4-3.5 0-1.6 1.1-3 2.7-3.4C4 5.5 5.8 4 8 4c1.8 0 3.3.9 4.1 2.3
+         C12.7 6.1 13.3 6 14 6c1.7 0 3 1.2 3 2.7 0 1.5-1.3 2.8-3 2.8H5z"
+  fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round"/>
+<path d="M9 15l-2 3 4-1" fill="{color}" stroke="{color}" stroke-width="1" stroke-linejoin="round"/>
+"""
+
+ICON_STYLE_RECT = """
+<rect x="2" y="4" width="16" height="11" rx="2" fill="none" stroke="{color}" stroke-width="1.6"/>
+<path d="M8 15l-2 3 4-1" fill="{color}" stroke="{color}" stroke-width="1" stroke-linejoin="round"/>
+"""
+
+ICON_STYLE_SPIKY = """
+<path d="M10 2l1.8 4.2 4.5-.5-3 3.5 1.5 4.3L10 12l-4.8 1.5 1.5-4.3-3-3.5 4.5.5z"
+  fill="none" stroke="{color}" stroke-width="1.5" stroke-linejoin="round"/>
+"""
+
+ICON_STYLE_TEXT = """
+<path d="M4 5h12M10 5v10" stroke="{color}" stroke-width="2" stroke-linecap="round"/>
+<path d="M7 15h6" stroke="{color}" stroke-width="1.5" stroke-linecap="round"/>
+"""
+
+ICON_STYLE_SCRIM = """
+<rect x="1" y="6" width="18" height="8" rx="1" fill="{color}" opacity="0.2" stroke="{color}" stroke-width="1.5"/>
+<path d="M4 9.5h12M4 12h8" stroke="{color}" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+"""
+
+ICON_STYLE_CAPTION = """
+<rect x="1" y="3" width="18" height="12" rx="2" fill="none" stroke="{color}" stroke-width="1.5"/>
+<path d="M5 8h10M5 11h6" stroke="{color}" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M1 13h18" stroke="{color}" stroke-width="1" opacity="0.4"/>
+"""
+
 # Text alignment
 ICON_TEXT_LEFT = """
 <line x1="1" y1="4" x2="15" y2="4" stroke="{color}" stroke-width="1.5" stroke-linecap="round"/>

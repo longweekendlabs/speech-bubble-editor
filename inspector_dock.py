@@ -22,6 +22,11 @@ from PyQt6.QtCore import Qt, pyqtSignal, QTimer, QPointF
 
 from bubble import BubbleItem
 from media_item import MediaItem
+from icons import (
+    make_icon, FG, MUTED,
+    ICON_STYLE_OVAL, ICON_STYLE_CLOUD, ICON_STYLE_RECT, ICON_STYLE_SPIKY,
+    ICON_STYLE_TEXT, ICON_STYLE_SCRIM, ICON_STYLE_CAPTION,
+)
 from undo_commands import (
     TextChangeCommand, StyleChangeCommand, FontChangeCommand,
     FillColorChangeCommand, BorderColorChangeCommand,
@@ -42,14 +47,14 @@ STYLE_LABELS = {
     "caption": "Caption",
 }
 
-STYLE_SYMBOLS = {
-    "oval":    "○",
-    "cloud":   "☁",
-    "rect":    "▭",
-    "spiky":   "✸",
-    "text":    "T",
-    "scrim":   "▬",
-    "caption": "Aa",
+STYLE_ICONS = {
+    "oval":    ICON_STYLE_OVAL,
+    "cloud":   ICON_STYLE_CLOUD,
+    "rect":    ICON_STYLE_RECT,
+    "spiky":   ICON_STYLE_SPIKY,
+    "text":    ICON_STYLE_TEXT,
+    "scrim":   ICON_STYLE_SCRIM,
+    "caption": ICON_STYLE_CAPTION,
 }
 
 TAIL_POSITIONS = (
@@ -277,10 +282,12 @@ class InspectorDock(QWidget):
         self._style_btns = {}
         styles = list(STYLE_LABELS.keys())
         cols = 5
+        from PyQt6.QtCore import QSize
         for idx, key in enumerate(styles):
             btn = QToolButton()
             btn.setObjectName("StyleButton")
-            btn.setText(STYLE_SYMBOLS[key])
+            btn.setIcon(make_icon(STYLE_ICONS[key], 22, MUTED))
+            btn.setIconSize(QSize(22, 22))
             btn.setToolTip(STYLE_LABELS[key])
             btn.setCheckable(True)
             btn.setFixedSize(46, 46)

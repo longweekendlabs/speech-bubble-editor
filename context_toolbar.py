@@ -46,9 +46,8 @@ class ContextToolbar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ContextToolbar")
-        self.setFixedHeight(38)
         self._build_ui()
-        self.setVisible(False)
+        self.setFixedHeight(0)   # collapsed until selection — avoids layout shift
 
     # ------------------------------------------------------------------
 
@@ -140,11 +139,11 @@ class ContextToolbar(QWidget):
 
     def show_for_bubble(self):
         self._chip.setText("Bubble selected")
-        self.setVisible(True)
+        self.setFixedHeight(38)
 
     def show_for_media(self):
         self._chip.setText("Layer selected")
-        self.setVisible(True)
+        self.setFixedHeight(38)
 
     def hide_toolbar(self):
-        self.setVisible(False)
+        self.setFixedHeight(0)

@@ -7,7 +7,7 @@ import os
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
-    QMessageBox, QSplitter,
+    QMessageBox, QApplication,
 )
 from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -57,30 +57,25 @@ class MainWindow(QMainWindow):
         self.props.set_scene(self.scene)
         self.props.set_undo_stack(self.controller.undo_stack)
 
-        # Canvas area: view + zoom bar + video controls
+        # Canvas area: view + video controls
         canvas_widget = QWidget()
+        canvas_widget.setObjectName("CanvasArea")
         canvas_vbox = QVBoxLayout(canvas_widget)
         canvas_vbox.setContentsMargins(0, 0, 0, 0)
         canvas_vbox.setSpacing(0)
         canvas_vbox.addWidget(self.view, stretch=1)
-        canvas_vbox.addWidget(self.zoom_bar)
         canvas_vbox.addWidget(self.video_controls)
+        self.zoom_bar.setVisible(False)   # zoom lives in TopBar only
 
-        # Splitter: canvas | inspector
-        self._splitter = QSplitter(Qt.Orientation.Horizontal)
-        self._splitter.addWidget(canvas_widget)
-        self._splitter.addWidget(self.inspector)
-        self._splitter.setStretchFactor(0, 1)
-        self._splitter.setStretchFactor(1, 0)
-        self._splitter.setSizes([1040, 320])
-
-        # Content row: sidebar + splitter
+        # Content row: sidebar | canvas | inspector (no splitter — inspector is fixed width)
+        self.inspector.setFixedWidth(300)
         content = QWidget()
         content_hbox = QHBoxLayout(content)
         content_hbox.setContentsMargins(0, 0, 0, 0)
         content_hbox.setSpacing(0)
         content_hbox.addWidget(self.tool_sidebar)
-        content_hbox.addWidget(self._splitter, stretch=1)
+        content_hbox.addWidget(canvas_widget, stretch=1)
+        content_hbox.addWidget(self.inspector)
 
         # Main layout: TopBar → ContextToolbar → content
         central = QWidget()
@@ -112,6 +107,7 @@ class MainWindow(QMainWindow):
         tb.redo_requested.connect(self.controller.undo_stack.redo)
         tb.about_requested.connect(self._on_about)
         tb.zoom_changed.connect(self._on_zoom_level)
+        tb.theme_change_requested.connect(self._apply_theme)
 
         # ToolSidebar
         sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
@@ -182,8 +178,6 @@ class MainWindow(QMainWindow):
         self.tool_sidebar.set_dual_checked(False)
         self.tool_sidebar.set_meme_enabled(True)
         self.tool_sidebar.set_dual_enabled(True)
-
-        self.zoom_bar.setVisible(True)
 
         if is_video:
             self.video_controls.set_player(self.scene.video_player)
@@ -270,9 +264,9 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_zoom_level(self, key: str):
-        if key == "fit_width":
+        if key in ("fit_width", "fit-width"):
             self.view.fit_width()
-        elif key == "fit_window":
+        elif key in ("fit_window", "fit-window"):
             self.view.fit_photo()
         else:
             try:
@@ -469,6 +463,56 @@ class MainWindow(QMainWindow):
         elif isinstance(item, MediaItem) and getattr(item, "_is_overlay", False):
             from undo_commands import RemoveOverlayCommand
             self.controller.undo_stack.push(RemoveOverlayCommand(self.scene, item))
+
+    # ------------------------------------------------------------------
+    # Theme switching
+    # ------------------------------------------------------------------
+
+    _THEME_OVERRIDES = {
+        "dark": "",   # base QSS is the dark theme — no overrides needed
+        "oled": """
+            QWidget                  { background-color: #000000; }
+            QMainWindow, QDialog     { background-color: #000000; }
+            #TopBar                  { background-color: #0a0a0a; border-bottom: 1px solid #1a1a1a; }
+            #InspectorDock           { background-color: #0a0a0a; border-left: 1px solid #1a1a1a; }
+            #ToolSidebar             { background-color: #0a0a0a; border-right: 1px solid #1a1a1a; }
+            #CanvasArea, QGraphicsView { background-color: #000000; }
+            #InspectorPage, #InspectorSection, #InspectorSectionHeader,
+            #InspectorSectionBody    { background-color: #0a0a0a; }
+            QScrollArea              { background-color: #000000; }
+            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit,
+            QSlider::groove:horizontal { background-color: #111111; }
+            #StyleButton, #AlignButton, #ArrangeButton { background-color: #111111; }
+        """,
+        "blue": """
+            QWidget                  { background-color: #0f172a; color: #e2e8f0; }
+            QMainWindow, QDialog     { background-color: #0f172a; }
+            #TopBar                  { background-color: #1e293b; border-bottom: 1px solid #334155; }
+            #InspectorDock           { background-color: #1e293b; border-left: 1px solid #334155; }
+            #ToolSidebar             { background-color: #1e293b; border-right: 1px solid #334155; }
+            #CanvasArea, QGraphicsView { background-color: #0b1120; }
+            #InspectorPage, #InspectorSection, #InspectorSectionHeader,
+            #InspectorSectionBody    { background-color: #1e293b; }
+            QScrollArea              { background-color: #0f172a; }
+            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit { background-color: #334155; border-color: #475569; }
+            QSlider::groove:horizontal { background-color: #334155; }
+            QSlider::handle:horizontal { background-color: #38bdf8; }
+            QSlider::sub-page:horizontal { background-color: #38bdf8; }
+            #StyleButton, #AlignButton, #ArrangeButton { background-color: #334155; border-color: #475569; }
+            #StyleButton:checked { background-color: rgba(56,189,248,0.15); border-color: #38bdf8; color: #38bdf8; }
+            #ContextToolbar          { background-color: #1e293b; border-bottom: 1px solid rgba(56,189,248,0.3); }
+            #ContextChip             { background-color: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8; }
+            #BtnExport               { background-color: #0284c7; }
+            #BtnExport:hover         { background-color: #0ea5e9; }
+        """,
+    }
+
+    def _apply_theme(self, name: str):
+        base_path = os.path.join(os.path.dirname(__file__), "theme", "dark.qss")
+        with open(base_path) as f:
+            base_qss = f.read()
+        override = self._THEME_OVERRIDES.get(name, "")
+        QApplication.instance().setStyleSheet(base_qss + override)
 
     # ------------------------------------------------------------------
     # About

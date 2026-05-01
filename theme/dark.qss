@@ -241,6 +241,14 @@ QGraphicsView {
     border: none;
 }
 
+QGraphicsView > QWidget {
+    background-color: #0f1319;
+}
+
+#CanvasArea {
+    background-color: #0f1319;
+}
+
 /* ── Tooltips ─────────────────────────────────────────────────────── */
 QToolTip {
     background-color: #1e2535;
