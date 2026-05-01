@@ -111,12 +111,10 @@ class MainWindow(QMainWindow):
         tb.undo_requested.connect(self.controller.undo_stack.undo)
         tb.redo_requested.connect(self.controller.undo_stack.redo)
         tb.about_requested.connect(self._on_about)
-        tb.zoom_level_requested.connect(self._on_zoom_level)
+        tb.zoom_changed.connect(self._on_zoom_level)
 
         # ToolSidebar
         sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
-        sb.add_caption_requested.connect(lambda: self._on_add_bubble_with_style("caption"))
-        sb.add_text_requested.connect(lambda: self._on_add_bubble_with_style("text"))
         sb.add_layer_requested.connect(self._on_add_layer)
         sb.meme_toggled.connect(self._on_meme_toggled)
         sb.dual_toggled.connect(self._on_dual_toggled)

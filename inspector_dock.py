@@ -1,5 +1,14 @@
 """
-inspector_dock.py — v4 right inspector with accordion sections and layers.
+inspector_dock.py — v4 right inspector with accordion sections and layers (v4 redesign).
+
+Key changes from v3:
+  - AccordionSection uses a visible 16×16 chevron QPushButton (#SectionChevron)
+    that flips ▼/▶ and has QSS property "open" for accent highlighting
+  - ALIGNMENT & ARRANGE section removed (promoted to ContextToolbar)
+  - All 7 bubble styles shown in the picker: oval, cloud, rect, spiky, text, scrim, caption
+  - Text alignment buttons have distinct L/C/R/J labels with tooltips
+  - All interactive controls have setToolTip() calls
+  - _color_row and _slider_row accept a tooltip= kwarg
 """
 
 from PyQt6.QtWidgets import (
@@ -59,7 +68,7 @@ def _set_btn_color(btn: QPushButton, color: QColor):
 
 
 # ---------------------------------------------------------------------------
-# CommitTextEdit — fires editCommitted only when focus leaves
+# CommitTextEdit
 # ---------------------------------------------------------------------------
 
 class CommitTextEdit(QTextEdit):
@@ -81,7 +90,7 @@ class CommitTextEdit(QTextEdit):
 
 
 # ---------------------------------------------------------------------------
-# AccordionSection — collapsible section with separate chevron button
+# AccordionSection — collapsible with visible chevron button
 # ---------------------------------------------------------------------------
 
 class AccordionSection(QWidget):
@@ -92,7 +101,7 @@ class AccordionSection(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header widget (fixed 32px height)
+        # Header row
         header_w = QWidget()
         header_w.setObjectName("InspectorSectionHeader")
         header_w.setFixedHeight(32)
@@ -100,18 +109,19 @@ class AccordionSection(QWidget):
         hbox.setContentsMargins(14, 0, 10, 0)
         hbox.setSpacing(6)
 
-        # Chevron (16×16) — styled via QSS property "open"
+        # Chevron button — 16×16, styled by QSS property "open"
         self._chevron = QPushButton("▼")
         self._chevron.setObjectName("SectionChevron")
         self._chevron.setFixedSize(16, 16)
         self._chevron.setProperty("open", "true")
+        self._chevron.setToolTip("Expand / collapse section")
         self._chevron.clicked.connect(self._toggle)
         hbox.addWidget(self._chevron)
 
-        # Title label
-        self._title_lbl = QLabel(title)
-        self._title_lbl.setObjectName("InspectorSectionTitle")
-        hbox.addWidget(self._title_lbl, stretch=1)
+        # Title
+        title_lbl = QLabel(title)
+        title_lbl.setObjectName("InspectorSectionTitle")
+        hbox.addWidget(title_lbl, stretch=1)
 
         if checkable:
             self.check = QCheckBox()
@@ -136,6 +146,7 @@ class AccordionSection(QWidget):
         self.body.setVisible(self._expanded)
         self._chevron.setText("▼" if self._expanded else "▶")
         self._chevron.setProperty("open", "true" if self._expanded else "false")
+        # Force QSS re-evaluation
         self._chevron.style().unpolish(self._chevron)
         self._chevron.style().polish(self._chevron)
 
@@ -188,7 +199,6 @@ class InspectorDock(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # Tab bar
         self._tabs = QTabBar()
         self._tabs.addTab("Inspector")
         self._tabs.addTab("Layers")
@@ -200,7 +210,6 @@ class InspectorDock(QWidget):
         self._stack = QStackedWidget()
         lay.addWidget(self._stack, stretch=1)
 
-        # Inspector page (scrollable)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -214,7 +223,6 @@ class InspectorDock(QWidget):
         scroll.setWidget(inspector_page)
         self._stack.addWidget(scroll)
 
-        # Layers page
         layers_page = QWidget()
         layers_lay = QVBoxLayout(layers_page)
         layers_lay.setContentsMargins(8, 10, 8, 8)
@@ -234,7 +242,6 @@ class InspectorDock(QWidget):
         self._build_tail_section()
         self._build_stroke_section()
         self._build_shadow_section()
-        self._build_arrange_section()
         self._build_dual_section()
         self._inspector_lay.addStretch()
 
@@ -251,6 +258,7 @@ class InspectorDock(QWidget):
         self._text_edit.setFixedHeight(80)
         self._text_edit.setAcceptRichText(False)
         self._text_edit.setPlaceholderText("Type bubble text here…")
+        self._text_edit.setToolTip("Bubble text (max 200 characters)")
         self._text_edit.textChanged.connect(self._on_text_changed)
         self._text_edit.editCommitted.connect(self._on_text_committed)
         section.body_lay.addWidget(self._text_edit)
@@ -261,7 +269,7 @@ class InspectorDock(QWidget):
         section = AccordionSection("BUBBLE")
         section.body_lay.addWidget(self._label("Style"))
 
-        # 7 style buttons in a grid (5 per row then 2)
+        # 7 style buttons in a grid (max 5 per row)
         grid = QGridLayout()
         grid.setSpacing(6)
         self._style_group = QButtonGroup(self)
@@ -282,7 +290,6 @@ class InspectorDock(QWidget):
             grid.addWidget(btn, idx // cols, idx % cols)
         section.body_lay.addLayout(grid)
 
-        # Current style name label
         self._style_name_lbl = QLabel("Speech")
         self._style_name_lbl.setObjectName("InspectorHint")
         self._style_name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -294,18 +301,17 @@ class InspectorDock(QWidget):
         section = AccordionSection("COLORS")
         self._fill_btn, self._fill_hex = self._color_row(
             section.body_lay, "Fill", QColor(255, 255, 255), self._on_fill_color,
-            "Bubble fill color — click to pick"
+            tooltip="Bubble fill color — click to pick"
         )
         self._stroke_btn, self._stroke_hex = self._color_row(
             section.body_lay, "Stroke", QColor(0, 0, 0), self._on_border_color,
-            "Bubble outline/stroke color"
+            tooltip="Bubble outline/stroke color"
         )
         self._inspector_lay.addWidget(section)
 
     def _build_typography_section(self):
         section = AccordionSection("TYPOGRAPHY")
 
-        # Row 1: font family + weight
         row = QHBoxLayout()
         self._font_row_layout = row
         self._font_combo_placeholder = QWidget()
@@ -316,19 +322,18 @@ class InspectorDock(QWidget):
 
         self._weight_combo = QComboBox()
         self._weight_combo.addItems(("Regular", "Bold", "Italic", "Bold Italic"))
-        self._weight_combo.setToolTip("Font weight")
         self._weight_combo.setFixedWidth(90)
+        self._weight_combo.setToolTip("Font weight")
         self._weight_combo.currentIndexChanged.connect(self._on_font_weight)
         row.addWidget(self._weight_combo)
         section.body_lay.addLayout(row)
 
-        # Row 2: size + text color + alignment
         row2 = QHBoxLayout()
         self._font_size = QSpinBox()
         self._font_size.setRange(6, 96)
         self._font_size.setSuffix(" px")
-        self._font_size.setToolTip("Font size in pixels")
         self._font_size.setFixedWidth(72)
+        self._font_size.setToolTip("Font size in pixels")
         self._font_size.valueChanged.connect(self._on_font_size)
         row2.addWidget(self._font_size)
 
@@ -338,15 +343,17 @@ class InspectorDock(QWidget):
         self._text_color_btn.clicked.connect(self._on_text_color)
         row2.addWidget(self._text_color_btn)
 
+        # Text alignment buttons — distinct labels + tooltips
         self._align_group = QButtonGroup(self)
         self._align_group.setExclusive(True)
         self._align_btns = {}
-        for label, alignment, tip in (
+        ALIGN_OPTIONS = (
             ("L", int(Qt.AlignmentFlag.AlignLeft),    "Align text left"),
             ("C", int(Qt.AlignmentFlag.AlignCenter),  "Center text"),
             ("R", int(Qt.AlignmentFlag.AlignRight),   "Align text right"),
             ("J", int(Qt.AlignmentFlag.AlignJustify), "Justify text"),
-        ):
+        )
+        for label, alignment, tip in ALIGN_OPTIONS:
             btn = QToolButton()
             btn.setObjectName("AlignButton")
             btn.setText(label)
@@ -368,13 +375,13 @@ class InspectorDock(QWidget):
         row.addWidget(self._label("Position"))
         self._tail_position = QComboBox()
         self._tail_position.addItems(TAIL_POSITIONS)
-        self._tail_position.setToolTip("Tail attachment position")
+        self._tail_position.setToolTip("Tail attachment position on the bubble")
         self._tail_position.currentTextChanged.connect(self._on_tail_position)
         row.addWidget(self._tail_position, stretch=1)
         section.body_lay.addLayout(row)
         self._tail_width = self._slider_row(
             section.body_lay, "Width", 6, 80, 26, " px", self._on_tail_width,
-            "Width of the tail at its base in pixels"
+            tooltip="Width of the tail at its base in pixels"
         )
         self._inspector_lay.addWidget(section)
 
@@ -385,6 +392,7 @@ class InspectorDock(QWidget):
         self._border_width.setSingleStep(0.5)
         self._border_width.setSuffix(" px")
         self._border_width.setToolTip("Bubble outline stroke width in pixels")
+        self._border_width.valueChanged.connect(self._on_border_width)
         row = QHBoxLayout()
         row.addWidget(self._label("Width"))
         row.addWidget(self._border_width)
@@ -400,11 +408,11 @@ class InspectorDock(QWidget):
 
         self._shadow_color_btn, _ = self._color_row(
             section.body_lay, "Color", QColor(0, 0, 0), self._on_shadow_color,
-            "Shadow color"
+            tooltip="Shadow color"
         )
         self._shadow_blur = self._slider_row(
             section.body_lay, "Blur", 0, 40, 12, " px", self._on_shadow_blur,
-            "Shadow blur radius in pixels"
+            tooltip="Shadow blur radius in pixels"
         )
         offset = QHBoxLayout()
         offset.addWidget(self._label("Offset"))
@@ -412,63 +420,42 @@ class InspectorDock(QWidget):
         self._shadow_x.setRange(-80, 80)
         self._shadow_x.setPrefix("X ")
         self._shadow_x.setSuffix(" px")
+        self._shadow_x.setToolTip("Shadow horizontal offset")
         self._shadow_x.valueChanged.connect(self._on_shadow_offset)
         self._shadow_y = QSpinBox()
         self._shadow_y.setRange(-80, 80)
         self._shadow_y.setPrefix("Y ")
         self._shadow_y.setSuffix(" px")
+        self._shadow_y.setToolTip("Shadow vertical offset")
         self._shadow_y.valueChanged.connect(self._on_shadow_offset)
         offset.addWidget(self._shadow_x)
         offset.addWidget(self._shadow_y)
         section.body_lay.addLayout(offset)
         self._shadow_opacity = self._slider_row(
             section.body_lay, "Opacity", 0, 100, 80, " %", self._on_shadow_opacity,
-            "Shadow opacity (0 = invisible, 100 = fully opaque)"
+            tooltip="Shadow opacity (0 = invisible, 100 = fully opaque)"
         )
-        self._inspector_lay.addWidget(section)
-
-    def _build_arrange_section(self):
-        section = AccordionSection("ALIGNMENT && ARRANGE")
-        grid = QGridLayout()
-        grid.setSpacing(4)
-        actions = (
-            ("|←", "Align left",           lambda: self._align_item("left")),
-            ("↔",  "Center horizontally",   lambda: self._align_item("hcenter")),
-            ("→|", "Align right",           lambda: self._align_item("right")),
-            ("↑",  "Align top",             lambda: self._align_item("top")),
-            ("↕",  "Center vertically",     lambda: self._align_item("vcenter")),
-            ("↓",  "Align bottom",          lambda: self._align_item("bottom")),
-            ("▲▲", "Bring to front",        lambda: self._change_z("front")),
-            ("▲",  "Bring forward",         lambda: self._change_z("forward")),
-            ("▼",  "Send backward",         lambda: self._change_z("backward")),
-            ("▼▼", "Send to back",          lambda: self._change_z("back")),
-        )
-        for idx, (label, tip, callback) in enumerate(actions):
-            btn = QToolButton()
-            btn.setObjectName("ArrangeButton")
-            btn.setText(label)
-            btn.setFixedSize(34, 30)
-            btn.setToolTip(tip)
-            btn.clicked.connect(lambda _checked=False, cb=callback: cb())
-            grid.addWidget(btn, idx // 5, idx % 5)
-        section.body_lay.addLayout(grid)
         self._inspector_lay.addWidget(section)
 
     def _build_dual_section(self):
         section = AccordionSection("DUAL MODE")
         self._dual_section = section
         self._dual_gap_slider = self._slider_row(
-            section.body_lay, "Gap", 0, 60, 4, " px", self._on_dual_gap
+            section.body_lay, "Gap", 0, 60, 4, " px", self._on_dual_gap,
+            tooltip="Gap between left and right panels in pixels"
         )
         self._dual_feather_slider = self._slider_row(
-            section.body_lay, "Feather", 0, 40, 0, " px", self._on_dual_feather
+            section.body_lay, "Feather", 0, 40, 0, " px", self._on_dual_feather,
+            tooltip="Feather/blend amount at the divider edge"
         )
         row = QHBoxLayout()
         self._chk_dual_border = QCheckBox("Divider")
+        self._chk_dual_border.setToolTip("Show a divider line between panels")
         self._chk_dual_border.toggled.connect(self._on_dual_border_toggle)
         row.addWidget(self._chk_dual_border)
         self._btn_dual_border_color = QPushButton()
         self._btn_dual_border_color.setFixedSize(34, 28)
+        self._btn_dual_border_color.setToolTip("Divider color")
         _set_btn_color(self._btn_dual_border_color, self._dual_border_color_val)
         self._btn_dual_border_color.clicked.connect(self._on_dual_border_color)
         row.addWidget(self._btn_dual_border_color)
@@ -476,6 +463,7 @@ class InspectorDock(QWidget):
         self._dual_border_width.setRange(0.0, 8.0)
         self._dual_border_width.setSingleStep(0.5)
         self._dual_border_width.setSuffix(" px")
+        self._dual_border_width.setToolTip("Divider width in pixels")
         self._dual_border_width.valueChanged.connect(self._on_dual_border_width)
         row.addWidget(self._dual_border_width)
         section.body_lay.addLayout(row)
@@ -526,8 +514,8 @@ class InspectorDock(QWidget):
         layout.addLayout(row)
         return btn, hex_label
 
-    def _slider_row(self, layout, label_text, low, high, value, suffix, callback,
-                    tooltip=""):
+    def _slider_row(self, layout, label_text, low, high, value, suffix,
+                    callback, tooltip=""):
         row = QHBoxLayout()
         row.addWidget(self._label(label_text))
         slider = QSlider(Qt.Orientation.Horizontal)
@@ -558,7 +546,7 @@ class InspectorDock(QWidget):
             self._refresh_layers()
 
     # ------------------------------------------------------------------
-    # Public update methods
+    # Public update API
     # ------------------------------------------------------------------
 
     def update_for_bubble(self, bubble):
@@ -645,10 +633,6 @@ class InspectorDock(QWidget):
         if label is not None:
             label.setText(color.name().upper())
 
-    # ------------------------------------------------------------------
-    # Text
-    # ------------------------------------------------------------------
-
     def _on_text_changed(self):
         if self._updating:
             return
@@ -669,20 +653,12 @@ class InspectorDock(QWidget):
         if self._bubble and self._undo_stack and old != new:
             self._undo_stack.push(TextChangeCommand(self._bubble, old, new))
 
-    # ------------------------------------------------------------------
-    # Style
-    # ------------------------------------------------------------------
-
     def _on_style(self, style: str):
         if self._bubble and not self._updating and self._undo_stack:
             old = self._bubble.get_style()
             if old != style:
                 self._undo_stack.push(StyleChangeCommand(self._bubble, old, style))
                 self._style_name_lbl.setText(STYLE_LABELS.get(style, style))
-
-    # ------------------------------------------------------------------
-    # Typography
-    # ------------------------------------------------------------------
 
     def _on_font_family(self, font: QFont):
         if self._bubble and not self._updating and self._undo_stack:
@@ -724,10 +700,6 @@ class InspectorDock(QWidget):
                     TextAlignmentChangeCommand(self._bubble, old, alignment)
                 )
 
-    # ------------------------------------------------------------------
-    # Colors
-    # ------------------------------------------------------------------
-
     def _on_fill_color(self):
         if not self._bubble or not self._undo_stack:
             return
@@ -754,10 +726,6 @@ class InspectorDock(QWidget):
             if old != value:
                 self._undo_stack.push(BorderWidthChangeCommand(self._bubble, old, value))
 
-    # ------------------------------------------------------------------
-    # Tail
-    # ------------------------------------------------------------------
-
     def _on_tail_position(self, position: str):
         if self._bubble and not self._updating and self._undo_stack:
             old = self._bubble.get_tail_position()
@@ -771,10 +739,6 @@ class InspectorDock(QWidget):
             old = self._bubble.get_tail_width()
             if old != width:
                 self._undo_stack.push(TailWidthChangeCommand(self._bubble, old, width))
-
-    # ------------------------------------------------------------------
-    # Shadow
-    # ------------------------------------------------------------------
 
     def _set_shadow_controls(self, shadow: dict):
         self._shadow_check.setChecked(bool(shadow["enabled"]))
@@ -814,51 +778,6 @@ class InspectorDock(QWidget):
 
     def _on_shadow_opacity(self, value: int):
         self._shadow_update(opacity=value)
-
-    # ------------------------------------------------------------------
-    # Alignment & Z-order (Arrange section)
-    # ------------------------------------------------------------------
-
-    def _align_item(self, mode: str):
-        if not self._bubble or not self._undo_stack or not self._scene:
-            return
-        sr  = self._scene.sceneRect()
-        r   = self._bubble.body_rect
-        pos = self._bubble.pos()
-        new_pos = QPointF(pos)
-        if mode == "left":
-            new_pos.setX(sr.left() - r.left())
-        elif mode == "hcenter":
-            new_pos.setX(sr.center().x())
-        elif mode == "right":
-            new_pos.setX(sr.right() - r.right())
-        elif mode == "top":
-            new_pos.setY(sr.top() - r.top())
-        elif mode == "vcenter":
-            new_pos.setY(sr.center().y())
-        elif mode == "bottom":
-            new_pos.setY(sr.bottom() - r.bottom())
-        if (new_pos - pos).manhattanLength() > 0.5:
-            self._undo_stack.push(MoveBubbleCommand(self._bubble, pos, new_pos))
-
-    def _change_z(self, mode: str):
-        item = self._bubble or self._media
-        if not item or not self._undo_stack:
-            return
-        old = item.zValue()
-        if mode == "front":
-            new = old + 10.0
-        elif mode == "forward":
-            new = old + 1.0
-        elif mode == "backward":
-            new = max(0.0, old - 1.0)
-        elif mode == "back":
-            new = max(0.0, old - 10.0)
-        else:
-            return
-        if abs(old - new) > 0.01:
-            self._undo_stack.push(ZValueChangeCommand(item, old, new))
-            self._refresh_layers()
 
     # ------------------------------------------------------------------
     # Layers tab
@@ -911,7 +830,7 @@ class InspectorDock(QWidget):
             item.setSelected(True)
 
     # ------------------------------------------------------------------
-    # Dual mode section
+    # Dual mode
     # ------------------------------------------------------------------
 
     def _on_dual_gap(self, value: int):
