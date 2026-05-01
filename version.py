@@ -28,9 +28,15 @@ History:
   v3.1.0 — Dropped macOS support. Native ARM64 builds for Windows 11 ARM
             and Linux aarch64 (RPM, DEB, AppImage, portable tar.gz).
             All dependencies bundled — no system Python or Qt required.
+  v4.0.0 — Modern side-inspector UI (TopBar, ToolSidebar, InspectorDock);
+            undo coverage for all properties (style, color, font, etc.);
+            lazy-import cv2/numpy (2s cold startup); native-resolution
+            export fix; background-thread frame decoding with LRU cache;
+            single-instance fail-fast; Python logging module; dark theme
+            via theme/dark.qss.
 """
 
-__version__  = "3.1.0"
+__version__  = "4.0.0"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"
