@@ -36,9 +36,17 @@ History:
             via theme/dark.qss.
   v4.0.2 — Bundles theme/dark.qss in packaged builds and applies the v4
             dark UI consistently for Windows/Linux artifacts.
+  v4.0.3 — v4 UI redesign pass: ContextToolbar (selection-sensitive action
+            strip with align/z-order/delete); 7 bubble styles in Inspector
+            (adds Scrim + Caption); Justify text-alignment button; refactored
+            AccordionSection with teal/muted chevron button; TopBar height
+            fixed to 52px with zoom dropdown menu; ToolSidebar width fixed
+            to 80px; Caption and Text tools wired to add bubbles with correct
+            default style; Delete key bound to delete selected item; complete
+            dark.qss rewrite using exact v4 design tokens (accent #46ddcb).
 """
 
-__version__  = "4.0.2"
+__version__  = "4.0.3"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

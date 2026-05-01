@@ -90,6 +90,22 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 
 ---
 
+## Phase 4b — v4.0.3 Design Handoff Implementation `[Claude Code]`
+
+> Full UI redesign pass matching the design_handoff spec exactly.
+
+- [x] New `context_toolbar.py` — ContextToolbar shown on selection: chip + 6 align + 4 z-order + 2 flip (stub) + delete; wired to scene undo stack
+- [x] TopBar height fixed to 52px; button heights 32px; zoom label → QPushButton with 200/150/100/75/50/Fit Width/Fit Window dropdown
+- [x] ToolSidebar width fixed to 80px; button size 66×56px; Caption + Text tools emit signals; wired to add bubbles with correct default style
+- [x] InspectorDock: 7 bubble styles (added Scrim + Caption to picker with 5-per-row grid); Justify text-alignment button; style name label below picker
+- [x] AccordionSection refactored — separate 16×16 chevron QPushButton, teal when open / muted when closed; title label uses #InspectorSectionTitle
+- [x] `editor_controller.add_bubble` accepts optional `style` parameter
+- [x] Delete key (global shortcut) bound to delete selected bubble/overlay
+- [x] `theme/dark.qss` completely rewritten with exact v4 design tokens (accent #46ddcb, Export #00c4a0, bg #141820, panels #1a1f2e, inputs #252d3d, borders #2e3a50, danger #f87171); ContextToolbar, SectionChevron, ContextChip, ContextDeleteBtn styles added
+- [x] `version.py` bumped to 4.0.3
+
+---
+
 ## Phase 5 — Polish & Export `[Copilot]`
 
 - [x] Fix `VideoPlayer` frame decode to run on background thread — remove UI jank on scrubbing (V3)

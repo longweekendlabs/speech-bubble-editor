@@ -12,38 +12,40 @@ def _icon_btn(icon: str, label: str, tip: str, checkable: bool = False) -> QTool
     btn.setToolTip(tip)
     btn.setCheckable(checkable)
     btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
-    btn.setFixedSize(76, 64)
+    btn.setFixedSize(66, 56)
     return btn
 
 
 class ToolSidebar(QWidget):
 
-    add_bubble_requested = pyqtSignal()
-    add_layer_requested  = pyqtSignal()
-    meme_toggled         = pyqtSignal(bool)
-    dual_toggled         = pyqtSignal(bool)
+    add_bubble_requested  = pyqtSignal()
+    add_caption_requested = pyqtSignal()
+    add_text_requested    = pyqtSignal()
+    add_layer_requested   = pyqtSignal()
+    meme_toggled          = pyqtSignal(bool)
+    dual_toggled          = pyqtSignal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(96)
+        self.setFixedWidth(80)
         self.setObjectName("ToolSidebar")
         self._build_ui()
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(10, 18, 10, 12)
-        lay.setSpacing(8)
+        lay.setContentsMargins(7, 12, 7, 12)
+        lay.setSpacing(6)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._tool_group = QButtonGroup(self)
         self._tool_group.setExclusive(True)
 
-        self._btn_select = _icon_btn("⌁", "Select", "Select  (V)", checkable=True)
+        self._btn_select = _icon_btn("⌁", "Select", "Select tool  (V)", checkable=True)
         self._btn_select.setChecked(True)
         self._tool_group.addButton(self._btn_select)
         lay.addWidget(self._btn_select)
 
-        self._btn_move = _icon_btn("✣", "Move", "Move selected item", checkable=True)
+        self._btn_move = _icon_btn("✣", "Move", "Move selected item  (M)", checkable=True)
         self._tool_group.addButton(self._btn_move)
         lay.addWidget(self._btn_move)
 
@@ -53,12 +55,14 @@ class ToolSidebar(QWidget):
         self._btn_bubble.clicked.connect(self.add_bubble_requested)
         lay.addWidget(self._btn_bubble)
 
-        self._btn_caption = _icon_btn("▭", "Caption", "Caption style")
+        self._btn_caption = _icon_btn("▭", "Caption", "Add Caption Bubble  (C)")
         self._btn_caption.setEnabled(False)
+        self._btn_caption.clicked.connect(self.add_caption_requested)
         lay.addWidget(self._btn_caption)
 
-        self._btn_text = _icon_btn("T", "Text", "Text-only style")
+        self._btn_text = _icon_btn("T", "Text", "Add Text Overlay  (T)")
         self._btn_text.setEnabled(False)
+        self._btn_text.clicked.connect(self.add_text_requested)
         lay.addWidget(self._btn_text)
 
         self._btn_layer = _icon_btn("▤", "Layers", "Add Overlay Layer  (Ctrl+L)")
@@ -67,21 +71,29 @@ class ToolSidebar(QWidget):
         self._btn_layer.clicked.connect(self.add_layer_requested)
         lay.addWidget(self._btn_layer)
 
-        self._btn_meme = _icon_btn("☺", "Meme Mode", "Meme Mode — caption bars", checkable=True)
+        self._btn_meme = _icon_btn("☺", "Meme", "Meme Mode — top/bottom caption bars",
+                                   checkable=True)
         self._btn_meme.setEnabled(False)
         self._btn_meme.toggled.connect(self.meme_toggled)
         lay.addWidget(self._btn_meme)
 
-        self._btn_dual = _icon_btn("▥", "Dual Mode", "Dual Mode — side-by-side", checkable=True)
+        self._btn_dual = _icon_btn("▥", "Dual", "Dual Mode — side-by-side comparison",
+                                   checkable=True)
         self._btn_dual.setEnabled(False)
         self._btn_dual.toggled.connect(self.dual_toggled)
         lay.addWidget(self._btn_dual)
 
         lay.addStretch()
 
-        collapse = _icon_btn("≪", "", "Collapse sidebar")
-        collapse.setFixedSize(76, 36)
+        # Collapse hint button (stub)
+        collapse = QToolButton()
+        collapse.setText("«")
+        collapse.setToolTip("Collapse sidebar")
+        collapse.setFixedSize(66, 28)
+        collapse.setObjectName("SidebarCollapse")
         lay.addWidget(collapse)
+
+    # ------------------------------------------------------------------
 
     def set_media_loaded(self, loaded: bool):
         self._btn_bubble.setEnabled(loaded)

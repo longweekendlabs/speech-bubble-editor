@@ -1,6 +1,6 @@
 """
-main_window.py — MainWindow: v4 layout with TopBar, ToolSidebar,
-                 canvas area, InspectorDock, and StatusBar.
+main_window.py — MainWindow: v4 layout with TopBar, ContextToolbar,
+                 ToolSidebar, CanvasArea, InspectorDock, and StatusBar.
 """
 
 import os
@@ -9,12 +9,13 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
     QMessageBox, QSplitter,
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QPointF
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from canvas import PhotoScene, PhotoView, ZoomBar
 from top_bar import TopBar
 from tool_sidebar import ToolSidebar
+from context_toolbar import ContextToolbar
 from inspector_dock import InspectorDock
 from video_controls import VideoControls
 from bubble import BubbleItem
@@ -42,13 +43,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        self.scene      = PhotoScene()
-        self.controller = EditorController(self.scene)
-        self.view       = PhotoView(self.scene)
-        self.zoom_bar   = ZoomBar(self.view)
+        self.scene          = PhotoScene()
+        self.controller     = EditorController(self.scene)
+        self.view           = PhotoView(self.scene)
+        self.zoom_bar       = ZoomBar(self.view)
         self.video_controls = VideoControls()
 
         self.top_bar      = TopBar(self)
+        self.ctx_toolbar  = ContextToolbar(self)
         self.tool_sidebar = ToolSidebar(self)
         self.inspector    = InspectorDock(self)
         self.props        = self.inspector.props
@@ -70,7 +72,7 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self.inspector)
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 0)
-        self._splitter.setSizes([1040, 340])
+        self._splitter.setSizes([1040, 320])
 
         # Content row: sidebar + splitter
         content = QWidget()
@@ -80,13 +82,14 @@ class MainWindow(QMainWindow):
         content_hbox.addWidget(self.tool_sidebar)
         content_hbox.addWidget(self._splitter, stretch=1)
 
-        # Main layout: top bar + content
+        # Main layout: TopBar → ContextToolbar → content
         central = QWidget()
         self.setCentralWidget(central)
         vbox = QVBoxLayout(central)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
         vbox.addWidget(self.top_bar)
+        vbox.addWidget(self.ctx_toolbar)
         vbox.addWidget(content, stretch=1)
 
         self.statusBar().showMessage("Ready")
@@ -96,37 +99,55 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _connect_signals(self):
-        tb = self.top_bar
-        sb = self.tool_sidebar
-        sc = self.scene
-        vc = self.video_controls
+        tb  = self.top_bar
+        sb  = self.tool_sidebar
+        ctx = self.ctx_toolbar
+        sc  = self.scene
+        vc  = self.video_controls
 
+        # TopBar
         tb.open_media_requested.connect(self._on_open_media)
         tb.export_requested.connect(self._on_export)
         tb.undo_requested.connect(self.controller.undo_stack.undo)
         tb.redo_requested.connect(self.controller.undo_stack.redo)
         tb.about_requested.connect(self._on_about)
+        tb.zoom_level_requested.connect(self._on_zoom_level)
 
+        # ToolSidebar
         sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
+        sb.add_caption_requested.connect(lambda: self._on_add_bubble_with_style("caption"))
+        sb.add_text_requested.connect(lambda: self._on_add_bubble_with_style("text"))
         sb.add_layer_requested.connect(self._on_add_layer)
         sb.meme_toggled.connect(self._on_meme_toggled)
         sb.dual_toggled.connect(self._on_dual_toggled)
 
+        # ContextToolbar
+        ctx.align_requested.connect(self._on_context_align)
+        ctx.z_requested.connect(self._on_context_z)
+        ctx.delete_requested.connect(self._on_context_delete)
+        # flip signals are connected but have no-op handlers (unimplemented)
+        ctx.flip_h_requested.connect(lambda: None)
+        ctx.flip_v_requested.connect(lambda: None)
+
+        # Undo/Redo state
         self.controller.undo_stack.canUndoChanged.connect(tb.set_undo_enabled)
         self.controller.undo_stack.canRedoChanged.connect(tb.set_redo_enabled)
         self.controller.media_loaded.connect(self._on_media_loaded)
 
+        # Canvas
         sc.double_clicked_on_canvas.connect(self._on_canvas_double_click)
         sc.bubble_changed.connect(self.props.update_for_bubble)
         sc.open_right_media_requested.connect(self._on_open_right_media)
         sc.selectionChanged.connect(self._on_selection_changed)
 
+        # View
         self.view.zoom_changed.connect(self.zoom_bar.update_zoom)
         self.view.zoom_changed.connect(self.top_bar.update_zoom)
         self.view.open_media_requested.connect(self._show_open_dialog)
         self.view.photo_dropped.connect(self._on_open_media)
         self.view.right_media_dropped.connect(self._on_right_media_dropped)
 
+        # VideoControls
         vc.frame_changed.connect(self._on_frame_changed)
         vc.right_frame_changed.connect(self._on_right_frame_changed)
         vc.trim_in_changed.connect(self._on_trim_in)
@@ -135,13 +156,17 @@ class MainWindow(QMainWindow):
         vc.cuts_cleared.connect(self._on_clear_cuts)
         vc.reverse_toggled.connect(self._on_reverse)
 
+        # Inspector dual settings
         self.props.dual_gap_changed.connect(self.scene.set_dual_gap)
         self.props.dual_border_changed.connect(self.scene.set_dual_border)
         self.props.dual_feather_changed.connect(self.scene.set_dual_feather)
 
-        # Ctrl+Shift+Z as alternative redo (primary Ctrl+Y is on the button)
+        # Keyboard shortcuts
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(
             self.controller.undo_stack.redo
+        )
+        QShortcut(QKeySequence("Delete"), self).activated.connect(
+            self._on_context_delete
         )
 
     # ------------------------------------------------------------------
@@ -170,9 +195,9 @@ class MainWindow(QMainWindow):
             self.video_controls.set_right_player(None)
 
         self.props.clear()
+        self.ctx_toolbar.hide_toolbar()
         self.view.fit_photo()
         self.view.viewport().setCursor(Qt.CursorShape.ArrowCursor)
-
         self.statusBar().showMessage(os.path.basename(path))
 
     # ------------------------------------------------------------------
@@ -191,8 +216,7 @@ class MainWindow(QMainWindow):
     def _on_right_media_dropped(self, path: str):
         ok = self.controller.open_right_media(path)
         if not ok:
-            QMessageBox.warning(self, "Open Right Media",
-                                f"Cannot open:\n{path}")
+            QMessageBox.warning(self, "Open Right Media", f"Cannot open:\n{path}")
         else:
             if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
                 self.video_controls.set_right_player(self.scene.video_player_right)
@@ -242,6 +266,21 @@ class MainWindow(QMainWindow):
                 right_photo_item=self.scene._photo_item_right,
                 is_dual=self.scene.is_dual_mode(),
             )
+
+    # ------------------------------------------------------------------
+    # Zoom
+    # ------------------------------------------------------------------
+
+    def _on_zoom_level(self, key: str):
+        if key == "fit_width":
+            self.view.fit_width()
+        elif key == "fit_window":
+            self.view.fit_photo()
+        else:
+            try:
+                self.view.set_zoom_percent(int(key))
+            except ValueError:
+                pass
 
     # ------------------------------------------------------------------
     # Modes
@@ -319,7 +358,7 @@ class MainWindow(QMainWindow):
         return self.scene.video_player
 
     # ------------------------------------------------------------------
-    # Canvas double-click / open dialog
+    # Canvas interactions
     # ------------------------------------------------------------------
 
     def _show_open_dialog(self):
@@ -337,26 +376,101 @@ class MainWindow(QMainWindow):
         c = self.scene.sceneRect().center()
         self._on_canvas_double_click(c.x(), c.y())
 
+    def _on_add_bubble_with_style(self, style: str):
+        if not self.scene.has_photo():
+            return
+        c = self.scene.sceneRect().center()
+        bubble = self.controller.add_bubble(c.x(), c.y(), style=style)
+        self.props.update_for_bubble(bubble)
+        self.ctx_toolbar.show_for_bubble()
+
     def _on_canvas_double_click(self, x: float, y: float):
         bubble = self.controller.add_bubble(x, y)
         self.props.update_for_bubble(bubble)
+        self.ctx_toolbar.show_for_bubble()
 
     # ------------------------------------------------------------------
-    # Selection → inspector
+    # Selection → inspector + ContextToolbar
     # ------------------------------------------------------------------
 
     def _on_selection_changed(self):
         selected = self.scene.selectedItems()
-        bubbles = [i for i in selected if isinstance(i, BubbleItem)]
-        media   = [i for i in selected if isinstance(i, MediaItem)]
+        bubbles  = [i for i in selected if isinstance(i, BubbleItem)]
+        media    = [i for i in selected if isinstance(i, MediaItem)]
         if bubbles:
             self.props.update_for_bubble(bubbles[0])
+            self.ctx_toolbar.show_for_bubble()
         elif media:
             self.props.update_for_media(media[0])
+            self.ctx_toolbar.show_for_media()
         elif self.scene.is_dual_mode():
             self.props.show_dual_settings()
+            self.ctx_toolbar.hide_toolbar()
         else:
             self.props.clear()
+            self.ctx_toolbar.hide_toolbar()
+
+    # ------------------------------------------------------------------
+    # ContextToolbar actions
+    # ------------------------------------------------------------------
+
+    def _on_context_align(self, mode: str):
+        selected = self.scene.selectedItems()
+        if not selected:
+            return
+        item = selected[0]
+        if not isinstance(item, BubbleItem):
+            return
+        sr  = self.scene.sceneRect()
+        r   = item.body_rect
+        pos = item.pos()
+        new_pos = QPointF(pos)
+        if mode == "left":
+            new_pos.setX(sr.left() - r.left())
+        elif mode == "hcenter":
+            new_pos.setX(sr.center().x())
+        elif mode == "right":
+            new_pos.setX(sr.right() - r.right())
+        elif mode == "top":
+            new_pos.setY(sr.top() - r.top())
+        elif mode == "vcenter":
+            new_pos.setY(sr.center().y())
+        elif mode == "bottom":
+            new_pos.setY(sr.bottom() - r.bottom())
+        if (new_pos - pos).manhattanLength() > 0.5:
+            from undo_commands import MoveBubbleCommand
+            self.controller.undo_stack.push(MoveBubbleCommand(item, pos, new_pos))
+
+    def _on_context_z(self, mode: str):
+        selected = self.scene.selectedItems()
+        if not selected:
+            return
+        item = selected[0]
+        old  = item.zValue()
+        if mode == "front":
+            new = old + 10.0
+        elif mode == "forward":
+            new = old + 1.0
+        elif mode == "backward":
+            new = max(0.0, old - 1.0)
+        elif mode == "back":
+            new = max(0.0, old - 10.0)
+        else:
+            return
+        if abs(old - new) > 0.01:
+            from undo_commands import ZValueChangeCommand
+            self.controller.undo_stack.push(ZValueChangeCommand(item, old, new))
+
+    def _on_context_delete(self):
+        selected = self.scene.selectedItems()
+        if not selected:
+            return
+        item = selected[0]
+        if isinstance(item, BubbleItem):
+            item._delete()
+        elif isinstance(item, MediaItem) and getattr(item, "_is_overlay", False):
+            from undo_commands import RemoveOverlayCommand
+            self.controller.undo_stack.push(RemoveOverlayCommand(self.scene, item))
 
     # ------------------------------------------------------------------
     # About

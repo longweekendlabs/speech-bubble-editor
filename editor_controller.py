@@ -81,9 +81,9 @@ class EditorController(QObject):
     # Bubbles & overlays
     # ------------------------------------------------------------------
 
-    def add_bubble(self, x: float, y: float) -> BubbleItem:
+    def add_bubble(self, x: float, y: float, style: str = "oval") -> BubbleItem:
         """Create a bubble at (x, y) and push it onto the undo stack."""
-        bubble = BubbleItem(x, y)
+        bubble = BubbleItem(x, y, style=style)
         self._scene.undo_stack.push(AddBubbleCommand(self._scene, bubble))
         self._scene.clearSelection()
         bubble.setSelected(True)
