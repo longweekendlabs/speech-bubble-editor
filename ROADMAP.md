@@ -95,7 +95,7 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 - [x] Add Cancel button to export progress dialog (E2) — already present in export.py
 - [x] Add FFmpeg subprocess timeout (E3)
 - [x] Replace `logging._log` with Python `logging` module (M4)
-- [x] Validate all four build targets: Linux x86/ARM deb+rpm, Windows x86/ARM exe
+- [x] Validate all four build targets: Linux x86/ARM deb+rpm, Windows x86/ARM exe (v4.0.1 shipped)
 - Phase 5 implemented: `FrameDecodeWorker` (QThread, latest-wins, pause/resume) in `video_player.py`; wired into `PhotoScene` (canvas.py) for left+right players; `FrameCache` now tracks actual bytes; FFmpeg timeout scales from frame count; Python `logging` module replaces custom `_log`.
 
 ---
