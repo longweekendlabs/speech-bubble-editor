@@ -32,7 +32,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{__app_name__} v{__version__}")
-        self.setMinimumSize(960, 640)
+        self.setMinimumSize(1180, 720)
+        self.resize(1440, 900)
         self._build_ui()
         self._connect_signals()
 
@@ -69,7 +70,7 @@ class MainWindow(QMainWindow):
         self._splitter.addWidget(self.inspector)
         self._splitter.setStretchFactor(0, 1)
         self._splitter.setStretchFactor(1, 0)
-        self._splitter.setSizes([720, 280])
+        self._splitter.setSizes([1040, 340])
 
         # Content row: sidebar + splitter
         content = QWidget()

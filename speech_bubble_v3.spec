@@ -37,6 +37,7 @@ a = Analysis(
     datas=[
         (os.path.join(_app_dir, 'fonts'), 'fonts'),
         (os.path.join(_app_dir, 'icons'), 'icons'),
+        (os.path.join(_app_dir, 'theme'), 'theme'),
     ] + _qt_datas,
     hiddenimports=_hidden,
     hookspath=[],

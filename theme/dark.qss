@@ -443,3 +443,309 @@ QSplitter::handle:horizontal {
     background-color: #3a3a3a;
     width: 1px;
 }
+
+/* ── v4 reference-matching overrides ───────────────────────────────── */
+QWidget {
+    background-color: #071018;
+    color: #d8e0e7;
+    font-size: 13px;
+}
+
+QMainWindow {
+    background-color: #071018;
+}
+
+QPushButton,
+QToolButton,
+QComboBox,
+QFontComboBox,
+QSpinBox,
+QDoubleSpinBox,
+QTextEdit,
+QListWidget {
+    background-color: #111922;
+    color: #dbe5ec;
+    border: 1px solid #26333f;
+    border-radius: 6px;
+}
+
+QPushButton,
+QToolButton {
+    padding: 0 10px;
+}
+
+QPushButton:hover,
+QToolButton:hover,
+QComboBox:hover,
+QFontComboBox:hover,
+QSpinBox:hover,
+QDoubleSpinBox:hover {
+    background-color: #172431;
+    border-color: #395061;
+}
+
+QPushButton:disabled,
+QToolButton:disabled,
+QComboBox:disabled,
+QFontComboBox:disabled,
+QSpinBox:disabled,
+QDoubleSpinBox:disabled {
+    background-color: #10151b;
+    color: #65717c;
+    border-color: #202a33;
+}
+
+QSlider::groove:horizontal {
+    background-color: #23313b;
+    height: 3px;
+    border-radius: 1px;
+}
+
+QSlider::sub-page:horizontal {
+    background-color: #31c9e7;
+    border-radius: 1px;
+}
+
+QSlider::handle:horizontal {
+    background-color: #8edff0;
+    border: 1px solid #143844;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    margin: -5px 0;
+}
+
+QScrollArea {
+    background-color: #071018;
+    border: none;
+}
+
+QScrollBar:vertical {
+    background-color: #071018;
+    width: 8px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: #293744;
+    border-radius: 4px;
+    min-height: 32px;
+}
+
+QGraphicsView {
+    background-color: #0a121a;
+    border: none;
+}
+
+QStatusBar {
+    background-color: #09131c;
+    color: #aeb8c2;
+    border-top: 1px solid #1a2732;
+}
+
+#TopBar {
+    background-color: #071018;
+    border-bottom: 1px solid #172532;
+}
+
+#TopBarMark {
+    color: #b7d2ff;
+    font-size: 23px;
+    font-weight: 700;
+}
+
+#TopBarLogo {
+    color: #f1f5f8;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+#TopBarByline {
+    color: #93a0aa;
+    font-size: 12px;
+}
+
+#TopBarSeparator {
+    background-color: #1b2a36;
+    border: none;
+}
+
+#TopBar QPushButton,
+#TopBar QToolButton,
+#ZoomLabel {
+    background-color: #121b25;
+    color: #eef5f8;
+    border: 1px solid #1d2b37;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+#TopBar QPushButton:hover,
+#TopBar QToolButton:hover,
+#ZoomLabel:hover {
+    background-color: #172637;
+    border-color: #2a4253;
+}
+
+#TopBar #BtnExport {
+    background-color: #0f8397;
+    border-color: #12a9c2;
+    color: #ffffff;
+}
+
+#TopBar #BtnExport:hover {
+    background-color: #1193aa;
+}
+
+#TopBar #BtnExport:disabled {
+    background-color: #12323d;
+    border-color: #174250;
+    color: #6fa8b4;
+}
+
+#ZoomLabel {
+    color: #e8eef3;
+}
+
+#ToolSidebar {
+    background-color: #071018;
+    border-right: 1px solid #172532;
+}
+
+#ToolSidebar QToolButton {
+    background-color: transparent;
+    color: #aeb7c0;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 5px 2px;
+    font-size: 12px;
+}
+
+#ToolSidebar QToolButton:hover {
+    background-color: #111e2a;
+    color: #d9f7ff;
+    border-color: #263948;
+}
+
+#ToolSidebar QToolButton:checked {
+    background-color: #123844;
+    color: #39dcf8;
+    border-left: 3px solid #32d3ee;
+    border-top: 1px solid #1d5364;
+    border-right: 1px solid #1d5364;
+    border-bottom: 1px solid #1d5364;
+}
+
+#ToolSidebar QToolButton:disabled {
+    color: #626c75;
+}
+
+#InspectorDock {
+    background-color: #071018;
+    border-left: 1px solid #172532;
+}
+
+#InspectorTabBar {
+    background-color: #071018;
+    padding: 8px 10px 6px 10px;
+}
+
+#InspectorTabBar::tab {
+    background-color: #111a24;
+    color: #aeb8c2;
+    min-width: 126px;
+    padding: 12px 14px;
+    border: 1px solid #172532;
+    border-bottom: 2px solid transparent;
+    border-radius: 6px;
+    margin-right: 4px;
+}
+
+#InspectorTabBar::tab:selected {
+    background-color: #13212d;
+    color: #4bdff8;
+    border-bottom: 2px solid #32d3ee;
+}
+
+#InspectorPage {
+    background-color: #071018;
+}
+
+#InspectorSection {
+    background-color: #071018;
+    border-bottom: 1px solid #1b2a36;
+}
+
+#InspectorSectionHeader {
+    background-color: #071018;
+    color: #c5ced7;
+    border: none;
+    border-radius: 0;
+    padding: 10px 10px 6px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+}
+
+#InspectorSectionHeader:hover {
+    background-color: #0b1721;
+}
+
+#InspectorSectionBody {
+    background-color: #071018;
+}
+
+#InspectorLabel {
+    color: #aeb8c2;
+    font-size: 12px;
+}
+
+#InspectorHint {
+    color: #8b98a4;
+    font-size: 12px;
+}
+
+#InspectorTextEdit {
+    background-color: #0a121a;
+    color: #f2f5f7;
+    border: 1px solid #26333f;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 15px;
+}
+
+#StyleButton {
+    background-color: #101923;
+    color: #f3f7fa;
+    border: 1px solid #304252;
+    border-radius: 5px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+#StyleButton:checked {
+    background-color: #102b36;
+    color: #ffffff;
+    border: 2px solid #32d3ee;
+}
+
+#AlignButton,
+#ArrangeButton {
+    background-color: #101923;
+    color: #d9e2ea;
+    border: 1px solid #304252;
+    border-radius: 4px;
+    font-weight: 700;
+}
+
+#AlignButton:checked {
+    background-color: #0f7285;
+    border-color: #32d3ee;
+    color: #ffffff;
+}
+
+#LayersList {
+    background-color: #0a121a;
+    color: #d9e2ea;
+    border: 1px solid #1b2a36;
+    border-radius: 6px;
+}

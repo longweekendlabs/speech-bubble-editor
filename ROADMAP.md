@@ -85,6 +85,7 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 - [x] Alignment & Arrange section — align buttons, distribute, z-order
 - [x] Layers tab — list view of scene items with visibility toggles
 - Phase 4 implemented in `InspectorDock`; added undo-backed bubble properties for text alignment, tail, shadow, and z-order.
+- Corrective design pass: bundled `theme/dark.qss` in PyInstaller, forced v4 dark theme loading, and restyled TopBar/ToolSidebar/Inspector to match the reference more closely.
 
 ---
 

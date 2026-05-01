@@ -45,35 +45,14 @@ def _load_qss(relative: str) -> str:
 
 
 def _apply_system_theme(app):
-    """Apply the OS dark/light theme to the Qt application.
-
-    On Windows, reads AppsUseLightTheme from the registry.
-    Dark mode → Fusion style + dark.qss stylesheet.
-    Light mode → native windowsvista style for proper Windows chrome.
-    On Linux/other Qt picks up the system theme automatically.
-    """
-    if sys.platform == "win32":
-        dark_mode = False
-        try:
-            import winreg
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
-            )
-            use_light, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
-            winreg.CloseKey(key)
-            dark_mode = not bool(use_light)
-        except Exception:
-            pass  # registry read failed — fall through to light mode
-
-        if dark_mode:
-            app.setStyle("Fusion")
-            qss = _load_qss(os.path.join("theme", "dark.qss"))
-            if qss:
-                app.setStyleSheet(qss)
-        else:
-            # Light mode: native Windows chrome (respects accent colour, etc.)
-            app.setStyle("windowsvista")
+    """Apply the v4 dark UI theme consistently across packaged builds."""
+    app.setStyle("Fusion")
+    qss = _load_qss(os.path.join("theme", "dark.qss"))
+    if qss:
+        app.setStyleSheet(qss)
+        _logger.info("dark.qss loaded")
+    else:
+        _logger.warning("theme/dark.qss not found; packaged UI will be unstyled")
 
 
 def _check_duplicate_instance() -> bool:

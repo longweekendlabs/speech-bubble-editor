@@ -220,7 +220,7 @@ class InspectorDock(QWidget):
         self._style_group = QButtonGroup(self)
         self._style_group.setExclusive(True)
         self._style_btns = {}
-        symbols = {"oval": "S", "cloud": "C", "rect": "R", "spiky": "*", "text": "T"}
+        symbols = {"oval": "●", "cloud": "☁", "rect": "▱", "spiky": "✷", "text": "T"}
         for key, label in STYLE_LABELS.items():
             btn = QToolButton()
             btn.setObjectName("StyleButton")
