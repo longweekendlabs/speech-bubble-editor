@@ -1,18 +1,17 @@
-name: Build and Release v4.0
+name: Build Artifacts and Release v4
 
-# Trigger by pushing a tag: git tag v4.0.0 && git push origin v4.0.0
-# Or run manually from the Actions tab (workflow_dispatch).
+# Trigger by pushing a v4 tag: git tag v4.0.2 && git push origin v4.0.2
+# Or run manually from the Actions tab to build downloadable test artifacts.
 on:
   push:
     tags:
-      - 'v3.1*'
       - 'v4.0*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version string (e.g. 4.0.0)'
+        description: 'Artifact version string (e.g. 4.0.2)'
         required: false
-        default: '4.0.0'
+        default: '4.0.2'
 
 jobs:
 
@@ -636,7 +635,7 @@ jobs:
           body: |
             ## Speech Bubble Editor ${{ github.ref_name }}
 
-            > All packages are self-contained — no system Python or Qt required. macOS support was removed in v3.1.
+            > All packages are self-contained — no system Python or Qt required. macOS is not included.
 
             ### Downloads
 

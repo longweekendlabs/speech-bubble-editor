@@ -34,9 +34,11 @@ History:
             export fix; background-thread frame decoding with LRU cache;
             single-instance fail-fast; Python logging module; dark theme
             via theme/dark.qss.
+  v4.0.2 — Bundles theme/dark.qss in packaged builds and applies the v4
+            dark UI consistently for Windows/Linux artifacts.
 """
 
-__version__  = "4.0.0"
+__version__  = "4.0.2"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

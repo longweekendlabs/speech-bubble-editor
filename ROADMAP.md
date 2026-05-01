@@ -86,6 +86,7 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 - [x] Layers tab — list view of scene items with visibility toggles
 - Phase 4 implemented in `InspectorDock`; added undo-backed bubble properties for text alignment, tail, shadow, and z-order.
 - Corrective design pass: bundled `theme/dark.qss` in PyInstaller, forced v4 dark theme loading, and restyled TopBar/ToolSidebar/Inspector to match the reference more closely.
+- v4.0.2 release prep: renamed the Actions workflow to a v4 build/release file and set manual artifact builds to default to 4.0.2.
 
 ---
 
