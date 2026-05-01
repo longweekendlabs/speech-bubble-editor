@@ -168,6 +168,17 @@ class BubbleItem(QGraphicsItem):
         self._fill_color   = QColor(255, 255, 255, 240)
         self._border_color = QColor(20, 20, 20)
         self._border_width = 2.0
+        self._tail_position = "Bottom Center"
+        self._tail_width = 26
+        self._text_alignment = int(Qt.AlignmentFlag.AlignCenter)
+        self._shadow = {
+            "enabled": False,
+            "color": QColor(0, 0, 0),
+            "blur": 12,
+            "offset_x": 4,
+            "offset_y": 4,
+            "opacity": 80,
+        }
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,            True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,         True)
@@ -240,6 +251,20 @@ class BubbleItem(QGraphicsItem):
 
     def get_text(self) -> str:
         return self._text_item.toPlainText()
+
+    def get_text_alignment(self) -> int:
+        return self._text_alignment
+
+    def get_tail_position(self) -> str:
+        return self._tail_position
+
+    def get_tail_width(self) -> int:
+        return self._tail_width
+
+    def get_shadow(self) -> dict:
+        shadow = dict(self._shadow)
+        shadow["color"] = QColor(self._shadow["color"])
+        return shadow
 
     # ------------------------------------------------------------------
     # Setters
@@ -349,6 +374,7 @@ class BubbleItem(QGraphicsItem):
             self._text_item.setFont(cur)
         self._reposition_text()
         self._update_handle_positions()
+        self._tail.setPos(self._tail_pos_for(self._tail_position))
         self.update()
 
     def set_font(self, font: QFont):
@@ -368,6 +394,38 @@ class BubbleItem(QGraphicsItem):
     def set_text(self, text: str):
         self._text_item.setPlainText(text)
         self._reposition_text()
+        self.update()
+        self._notify_changed()
+
+    def set_text_alignment(self, alignment: int):
+        self._text_alignment = alignment
+        self._reposition_text()
+        self.update()
+        self._notify_changed()
+
+    def set_tail_position(self, position: str):
+        self.prepareGeometryChange()
+        self._tail_position = position
+        self._tail.setPos(self._tail_pos_for(position))
+        self.update()
+        self._notify_changed()
+
+    def set_tail_width(self, width: int):
+        self.prepareGeometryChange()
+        self._tail_width = max(6, int(width))
+        self.update()
+        self._notify_changed()
+
+    def set_shadow(self, shadow: dict):
+        old_enabled = self._shadow.get("enabled", False)
+        new_shadow = dict(self._shadow)
+        new_shadow.update(shadow)
+        new_shadow["color"] = QColor(new_shadow.get("color", QColor(0, 0, 0)))
+        if old_enabled or new_shadow.get("enabled", False):
+            self.prepareGeometryChange()
+        self._shadow = new_shadow
+        self.update()
+        self._notify_changed()
 
     # ------------------------------------------------------------------
     # Layout helpers
@@ -398,7 +456,7 @@ class BubbleItem(QGraphicsItem):
 
         self._text_item.setTextWidth(tw)
         opt = self._text_item.document().defaultTextOption()
-        opt.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        opt.setAlignment(Qt.AlignmentFlag(self._text_alignment))
         self._text_item.document().setDefaultTextOption(opt)
 
         th       = self._text_item.boundingRect().height()
@@ -448,6 +506,21 @@ class BubbleItem(QGraphicsItem):
         }.items():
             self._handles[anchor].setPos(x, y)
 
+    def _tail_pos_for(self, position: str) -> QPointF:
+        r = self._body_rect
+        offset = 70
+        positions = {
+            "Top Left": QPointF(r.left() + r.width() * 0.25, r.top() - offset),
+            "Top Center": QPointF(r.center().x(), r.top() - offset),
+            "Top Right": QPointF(r.right() - r.width() * 0.25, r.top() - offset),
+            "Right": QPointF(r.right() + offset, r.center().y()),
+            "Bottom Right": QPointF(r.right() - r.width() * 0.25, r.bottom() + offset),
+            "Bottom Center": QPointF(r.center().x(), r.bottom() + offset),
+            "Bottom Left": QPointF(r.left() + r.width() * 0.25, r.bottom() + offset),
+            "Left": QPointF(r.left() - offset, r.center().y()),
+        }
+        return positions.get(position, positions["Bottom Center"])
+
     # ------------------------------------------------------------------
     # QGraphicsItem overrides
     # ------------------------------------------------------------------
@@ -456,11 +529,20 @@ class BubbleItem(QGraphicsItem):
         pad = HANDLE_SIZE + 2
         r   = self._body_rect.adjusted(-pad, -pad, pad, pad)
         if self._style in ("text", "scrim", "caption"):
-            return r
+            return self._shadow_adjusted_rect(r)
         tip = self._tail.pos()
         tip_r = QRectF(tip.x()-TAIL_DOT_R, tip.y()-TAIL_DOT_R,
                        TAIL_DOT_R*2, TAIL_DOT_R*2)
-        return r.united(tip_r)
+        return self._shadow_adjusted_rect(r.united(tip_r))
+
+    def _shadow_adjusted_rect(self, rect: QRectF) -> QRectF:
+        if not self._shadow.get("enabled", False):
+            return rect
+        blur = float(self._shadow.get("blur", 0))
+        ox = float(self._shadow.get("offset_x", 0))
+        oy = float(self._shadow.get("offset_y", 0))
+        shadow = rect.translated(ox, oy).adjusted(-blur, -blur, blur, blur)
+        return rect.united(shadow)
 
     def shape(self) -> QPainterPath:
         if self._style in ("text", "rect", "scrim", "caption"):
@@ -533,6 +615,7 @@ class BubbleItem(QGraphicsItem):
         tip   = self._tail.pos()
 
         if self._style == "cloud":
+            self._paint_shadow(painter, self._cloud_path(self._body_rect))
             # Cloud body and thought dots drawn separately (dots are distinct circles)
             painter.setBrush(brush)
             painter.setPen(pen)
@@ -542,12 +625,14 @@ class BubbleItem(QGraphicsItem):
             painter.drawPath(self._thought_dots_path(tip))
 
         elif self._style == "rect":
+            self._paint_shadow(painter, self._build_body_path())
             # Caption bar — no tail; just fill the rounded rectangle
             painter.setBrush(brush)
             painter.setPen(pen)
             painter.drawPath(self._build_body_path())
 
         elif self._style == "scrim":
+            self._paint_shadow(painter, self._build_body_path())
             # Dark semi-transparent horizontal strip — full-width, no tail
             painter.setBrush(brush)
             painter.setPen(pen if self._border_width > 0
@@ -560,6 +645,7 @@ class BubbleItem(QGraphicsItem):
             body   = self._build_body_path()
             tail   = self._triangle_tail_path(tip)
             merged = body.united(tail)
+            self._paint_shadow(painter, merged)
             painter.setBrush(brush)
             painter.setPen(pen)
             painter.drawPath(merged)
@@ -591,6 +677,21 @@ class BubbleItem(QGraphicsItem):
         else:
             path.addEllipse(r)
         return path
+
+    def _paint_shadow(self, painter: QPainter, path: QPainterPath):
+        if not self._shadow.get("enabled", False):
+            return
+        color = QColor(self._shadow.get("color", QColor(0, 0, 0)))
+        color.setAlpha(round(max(0, min(100, self._shadow.get("opacity", 80))) * 255 / 100))
+        painter.save()
+        painter.translate(
+            float(self._shadow.get("offset_x", 0)),
+            float(self._shadow.get("offset_y", 0)),
+        )
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+        painter.drawPath(path)
+        painter.restore()
 
     def _organic_oval_path(self, r: QRectF) -> QPainterPath:
         """
@@ -632,7 +733,7 @@ class BubbleItem(QGraphicsItem):
         dist = math.hypot(dx, dy) or 1
         # Perpendicular unit vector
         nx, ny = dy / dist, -dx / dist
-        HALF = 13   # half-width at the base; tapers to a point at the tip
+        HALF = self._tail_width / 2   # half-width at the base; tapers to a point at the tip
 
         path = QPainterPath()
         path.moveTo(cx + nx * HALF, cy + ny * HALF)

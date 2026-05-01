@@ -14,6 +14,11 @@ Commands implemented:
   BorderColorChangeCommand — redo = new border color, undo = old border color
   BorderWidthChangeCommand — redo = new width, undo = old width
   TextColorChangeCommand   — redo = new text color, undo = old text color
+  TextAlignmentChangeCommand — redo = new alignment, undo = old alignment
+  TailPositionChangeCommand — redo = new tail preset, undo = old preset
+  TailWidthChangeCommand — redo = new tail width, undo = old width
+  ShadowChangeCommand — redo = new shadow settings, undo = old settings
+  ZValueChangeCommand — redo = new z, undo = old z
   MoveMediaCommand     — redo = move media to new_pos, undo = move to old_pos
   ResizeMediaCommand   — redo = resize + reposition, undo = restore original
   AddOverlayCommand    — redo = add overlay layer, undo = remove it
@@ -27,7 +32,8 @@ from constants import (
     MERGE_ID_MOVE_BUBBLE, MERGE_ID_MOVE_MEDIA,
     MERGE_ID_STYLE, MERGE_ID_FONT,
     MERGE_ID_FILL_COLOR, MERGE_ID_BORDER_COLOR, MERGE_ID_BORDER_WIDTH,
-    MERGE_ID_TEXT_COLOR,
+    MERGE_ID_TEXT_COLOR, MERGE_ID_TEXT_ALIGNMENT, MERGE_ID_TAIL_POSITION,
+    MERGE_ID_TAIL_WIDTH, MERGE_ID_SHADOW, MERGE_ID_Z_VALUE,
 )
 
 
@@ -382,3 +388,133 @@ class TextColorChangeCommand(QUndoCommand):
 
     def undo(self):
         self._bubble.set_text_color(self._old_color)
+
+
+class TextAlignmentChangeCommand(QUndoCommand):
+    """Undo/redo for changing bubble text alignment."""
+    _ID = MERGE_ID_TEXT_ALIGNMENT
+
+    def __init__(self, bubble, old_alignment: int, new_alignment: int):
+        super().__init__("Change Text Alignment")
+        self._bubble = bubble
+        self._old_alignment = old_alignment
+        self._new_alignment = new_alignment
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TextAlignmentChangeCommand) and other._bubble is self._bubble:
+            self._new_alignment = other._new_alignment
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_text_alignment(self._new_alignment)
+
+    def undo(self):
+        self._bubble.set_text_alignment(self._old_alignment)
+
+
+class TailPositionChangeCommand(QUndoCommand):
+    """Undo/redo for changing the bubble tail position preset."""
+    _ID = MERGE_ID_TAIL_POSITION
+
+    def __init__(self, bubble, old_position: str, new_position: str):
+        super().__init__("Change Tail Position")
+        self._bubble = bubble
+        self._old_position = old_position
+        self._new_position = new_position
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TailPositionChangeCommand) and other._bubble is self._bubble:
+            self._new_position = other._new_position
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_tail_position(self._new_position)
+
+    def undo(self):
+        self._bubble.set_tail_position(self._old_position)
+
+
+class TailWidthChangeCommand(QUndoCommand):
+    """Undo/redo for changing the bubble tail width."""
+    _ID = MERGE_ID_TAIL_WIDTH
+
+    def __init__(self, bubble, old_width: int, new_width: int):
+        super().__init__("Change Tail Width")
+        self._bubble = bubble
+        self._old_width = old_width
+        self._new_width = new_width
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TailWidthChangeCommand) and other._bubble is self._bubble:
+            self._new_width = other._new_width
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_tail_width(self._new_width)
+
+    def undo(self):
+        self._bubble.set_tail_width(self._old_width)
+
+
+class ShadowChangeCommand(QUndoCommand):
+    """Undo/redo for changing bubble shadow settings."""
+    _ID = MERGE_ID_SHADOW
+
+    def __init__(self, bubble, old_shadow: dict, new_shadow: dict):
+        super().__init__("Change Shadow")
+        self._bubble = bubble
+        self._old_shadow = dict(old_shadow)
+        self._new_shadow = dict(new_shadow)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, ShadowChangeCommand) and other._bubble is self._bubble:
+            self._new_shadow = dict(other._new_shadow)
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_shadow(self._new_shadow)
+
+    def undo(self):
+        self._bubble.set_shadow(self._old_shadow)
+
+
+class ZValueChangeCommand(QUndoCommand):
+    """Undo/redo for changing item stacking order."""
+    _ID = MERGE_ID_Z_VALUE
+
+    def __init__(self, item, old_z: float, new_z: float):
+        super().__init__("Change Layer Order")
+        self._item = item
+        self._old_z = old_z
+        self._new_z = new_z
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, ZValueChangeCommand) and other._item is self._item:
+            self._new_z = other._new_z
+            return True
+        return False
+
+    def redo(self):
+        self._item.setZValue(self._new_z)
+
+    def undo(self):
+        self._item.setZValue(self._old_z)

@@ -1,24 +1,27 @@
 """
-main_window.py — MainWindow: assembles toolbar, canvas, zoom bar,
-                 properties panel, and video controls.
+main_window.py — MainWindow: v4 layout with TopBar, ToolSidebar,
+                 canvas area, InspectorDock, and StatusBar.
 """
 
 import os
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QFileDialog, QMessageBox,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
+    QMessageBox, QSplitter,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QKeySequence, QShortcut
 
 from canvas import PhotoScene, PhotoView, ZoomBar
-from toolbar import MainToolbar, ALL_EXTENSIONS
-from properties_panel import PropertiesPanel
+from top_bar import TopBar
+from tool_sidebar import ToolSidebar
+from inspector_dock import InspectorDock
 from video_controls import VideoControls
 from bubble import BubbleItem
 from media_item import MediaItem
-from undo_commands import AddBubbleCommand, DeleteBubbleCommand
+from editor_controller import EditorController
 from version import __version__, __app_name__
-from constants import VIDEO_EXTENSIONS
+from constants import VIDEO_EXTENSIONS, ALL_EXTENSIONS
 from about_dialog import AboutDialog
 
 import export as exporter
@@ -38,47 +41,79 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _build_ui(self):
-        self.toolbar = MainToolbar(self)
-        self.addToolBar(self.toolbar)
-
-        self.scene = PhotoScene()
-        self.view  = PhotoView(self.scene)
-        self.zoom_bar = ZoomBar(self.view)
+        self.scene      = PhotoScene()
+        self.controller = EditorController(self.scene)
+        self.view       = PhotoView(self.scene)
+        self.zoom_bar   = ZoomBar(self.view)
         self.video_controls = VideoControls()
-        self.props = PropertiesPanel()
-        self.props.set_undo_stack(self.scene.undo_stack)
 
+        self.top_bar      = TopBar(self)
+        self.tool_sidebar = ToolSidebar(self)
+        self.inspector    = InspectorDock(self)
+        self.props        = self.inspector.props
+        self.props.set_scene(self.scene)
+        self.props.set_undo_stack(self.controller.undo_stack)
+
+        # Canvas area: view + zoom bar + video controls
+        canvas_widget = QWidget()
+        canvas_vbox = QVBoxLayout(canvas_widget)
+        canvas_vbox.setContentsMargins(0, 0, 0, 0)
+        canvas_vbox.setSpacing(0)
+        canvas_vbox.addWidget(self.view, stretch=1)
+        canvas_vbox.addWidget(self.zoom_bar)
+        canvas_vbox.addWidget(self.video_controls)
+
+        # Splitter: canvas | inspector
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.addWidget(canvas_widget)
+        self._splitter.addWidget(self.inspector)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        self._splitter.setSizes([720, 280])
+
+        # Content row: sidebar + splitter
+        content = QWidget()
+        content_hbox = QHBoxLayout(content)
+        content_hbox.setContentsMargins(0, 0, 0, 0)
+        content_hbox.setSpacing(0)
+        content_hbox.addWidget(self.tool_sidebar)
+        content_hbox.addWidget(self._splitter, stretch=1)
+
+        # Main layout: top bar + content
         central = QWidget()
         self.setCentralWidget(central)
         vbox = QVBoxLayout(central)
         vbox.setContentsMargins(0, 0, 0, 0)
         vbox.setSpacing(0)
-        vbox.addWidget(self.view, stretch=1)
-        vbox.addWidget(self.zoom_bar)
-        vbox.addWidget(self.video_controls)
-        vbox.addWidget(self.props)
+        vbox.addWidget(self.top_bar)
+        vbox.addWidget(content, stretch=1)
+
+        self.statusBar().showMessage("Ready")
 
     # ------------------------------------------------------------------
     # Signal wiring
     # ------------------------------------------------------------------
 
     def _connect_signals(self):
-        tb = self.toolbar
+        tb = self.top_bar
+        sb = self.tool_sidebar
         sc = self.scene
         vc = self.video_controls
 
         tb.open_media_requested.connect(self._on_open_media)
         tb.export_requested.connect(self._on_export)
-        tb.undo_requested.connect(sc.undo_stack.undo)
-        tb.redo_requested.connect(sc.undo_stack.redo)
-        tb.add_bubble_requested.connect(self._on_add_bubble_clicked)
-        tb.add_layer_requested.connect(self._on_add_layer)
-        tb.meme_toggled.connect(self._on_meme_toggled)
-        tb.dual_toggled.connect(self._on_dual_toggled)
+        tb.undo_requested.connect(self.controller.undo_stack.undo)
+        tb.redo_requested.connect(self.controller.undo_stack.redo)
         tb.about_requested.connect(self._on_about)
 
-        sc.undo_stack.canUndoChanged.connect(tb.set_undo_enabled)
-        sc.undo_stack.canRedoChanged.connect(tb.set_redo_enabled)
+        sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
+        sb.add_layer_requested.connect(self._on_add_layer)
+        sb.meme_toggled.connect(self._on_meme_toggled)
+        sb.dual_toggled.connect(self._on_dual_toggled)
+
+        self.controller.undo_stack.canUndoChanged.connect(tb.set_undo_enabled)
+        self.controller.undo_stack.canRedoChanged.connect(tb.set_redo_enabled)
+        self.controller.media_loaded.connect(self._on_media_loaded)
 
         sc.double_clicked_on_canvas.connect(self._on_canvas_double_click)
         sc.bubble_changed.connect(self.props.update_for_bubble)
@@ -86,6 +121,7 @@ class MainWindow(QMainWindow):
         sc.selectionChanged.connect(self._on_selection_changed)
 
         self.view.zoom_changed.connect(self.zoom_bar.update_zoom)
+        self.view.zoom_changed.connect(self.top_bar.update_zoom)
         self.view.open_media_requested.connect(self._show_open_dialog)
         self.view.photo_dropped.connect(self._on_open_media)
         self.view.right_media_dropped.connect(self._on_right_media_dropped)
@@ -98,45 +134,31 @@ class MainWindow(QMainWindow):
         vc.cuts_cleared.connect(self._on_clear_cuts)
         vc.reverse_toggled.connect(self._on_reverse)
 
-        # Dual seam signals
         self.props.dual_gap_changed.connect(self.scene.set_dual_gap)
         self.props.dual_border_changed.connect(self.scene.set_dual_border)
         self.props.dual_feather_changed.connect(self.scene.set_dual_feather)
 
+        # Ctrl+Shift+Z as alternative redo (primary Ctrl+Y is on the button)
+        QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(
+            self.controller.undo_stack.redo
+        )
+
     # ------------------------------------------------------------------
-    # Media loading — universal (photo or video, auto-detected)
+    # Media loading
     # ------------------------------------------------------------------
 
     def _on_open_media(self, path: str):
-        ext = os.path.splitext(path)[1].lower()
-        if ext in VIDEO_EXTENSIONS:
-            self._load_video(path)
-        else:
-            self._load_photo(path)
-
-    def _load_photo(self, path: str):
-        if self.scene.load_photo(path):
-            self._media_loaded(path, is_video=False)
-        else:
+        if not self.controller.open_media(path):
             QMessageBox.warning(self, "Open", f"Cannot open:\n{path}")
 
-    def _load_video(self, path: str):
-        if self.scene.load_video(path):
-            self._media_loaded(path, is_video=True)
-        else:
-            QMessageBox.warning(self, "Open", f"Cannot open:\n{path}")
+    def _on_media_loaded(self, path: str, is_video: bool):
+        self.top_bar.set_media_loaded(True)
+        self.tool_sidebar.set_media_loaded(True)
+        self.tool_sidebar.set_meme_checked(False)
+        self.tool_sidebar.set_dual_checked(False)
+        self.tool_sidebar.set_meme_enabled(True)
+        self.tool_sidebar.set_dual_enabled(True)
 
-    def _media_loaded(self, path: str, is_video: bool):
-        if self.scene._photo_item is not None:
-            self.scene._photo_item._source_path = path
-
-        self.toolbar.set_media_loaded(True)
-        self.toolbar.set_meme_checked(False)
-        self.toolbar.set_dual_checked(False)
-        self.toolbar.set_meme_enabled(True)
-        self.toolbar.set_dual_enabled(True)
-
-        # Show zoom bar now that media is loaded
         self.zoom_bar.setVisible(True)
 
         if is_video:
@@ -148,8 +170,9 @@ class MainWindow(QMainWindow):
 
         self.props.clear()
         self.view.fit_photo()
-        # Restore normal cursor once media is loaded
         self.view.viewport().setCursor(Qt.CursorShape.ArrowCursor)
+
+        self.statusBar().showMessage(os.path.basename(path))
 
     # ------------------------------------------------------------------
     # Right media (dual mode)
@@ -165,19 +188,13 @@ class MainWindow(QMainWindow):
             self._on_right_media_dropped(path)
 
     def _on_right_media_dropped(self, path: str):
-        ext = os.path.splitext(path)[1].lower()
-        if ext in VIDEO_EXTENSIONS:
-            ok = self.scene.load_right_video(path)
-            if ok:
-                # Bind right player to video controls
-                self.video_controls.set_right_player(
-                    self.scene.video_player_right)
-        else:
-            ok = self.scene.load_right_photo(path)
+        ok = self.controller.open_right_media(path)
         if not ok:
             QMessageBox.warning(self, "Open Right Media",
                                 f"Cannot open:\n{path}")
         else:
+            if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+                self.video_controls.set_right_player(self.scene.video_player_right)
             self.view.fit_photo()
 
     # ------------------------------------------------------------------
@@ -194,20 +211,16 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-        item = self.scene.create_overlay_item(path)
+        item = self.controller.add_overlay(path)
         if item is None:
             QMessageBox.warning(self, "Add Layer", f"Cannot open:\n{path}")
-            return
-        # Push onto undo stack; AddOverlayCommand.redo() adds it to the scene
-        from undo_commands import AddOverlayCommand
-        self.scene.undo_stack.push(AddOverlayCommand(self.scene, item))
 
     # ------------------------------------------------------------------
     # Export
     # ------------------------------------------------------------------
 
     def _on_export(self):
-        self.video_controls.stop()   # pause before export
+        self.video_controls.stop()
         has_left_video  = self.scene.has_video()
         has_right_video = (self.scene.video_player_right is not None
                            and self.scene.video_player_right.is_loaded())
@@ -216,7 +229,7 @@ class MainWindow(QMainWindow):
             exporter.export_video(
                 self, self.scene,
                 self.scene._photo_item,
-                self.scene.video_player,        # may be None if left=photo
+                self.scene.video_player,
                 right_photo_item=self.scene._photo_item_right,
                 right_player=self.scene.video_player_right,
                 is_dual=self.scene.is_dual_mode(),
@@ -234,20 +247,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_meme_toggled(self, enabled: bool):
-        if enabled:
-            self.scene.enable_meme_mode()
-        else:
-            self.scene.disable_meme_mode()
+        self.controller.set_meme_mode(enabled)
         self.view.fit_photo()
 
     def _on_dual_toggled(self, enabled: bool):
+        self.controller.set_dual_mode(enabled)
         if enabled:
-            self.scene.enable_dual_mode()
             if not self.scene.selectedItems():
                 self.props.show_dual_settings()
         else:
-            self.scene.disable_dual_mode()
-            # Unbind right player from controls when leaving dual mode
             self.video_controls.set_right_player(None)
         self.view.fit_photo()
 
@@ -285,7 +293,6 @@ class MainWindow(QMainWindow):
         player.set_trim_in(0)
         player.set_trim_out(player.frame_count - 1)
         self.video_controls.sync_markers()
-        # If the playhead is now inside the cut range, jump past it
         cur = self.video_controls.current_frame
         if s <= cur <= e:
             next_frame = e + 1
@@ -306,18 +313,15 @@ class MainWindow(QMainWindow):
             player.toggle_reverse()
 
     def _active_player(self):
-        """Return the player that the video controls are currently editing."""
         if self.video_controls.active_side == "right":
             return self.scene.video_player_right
         return self.scene.video_player
 
     # ------------------------------------------------------------------
-    # Canvas double-click → add bubble
+    # Canvas double-click / open dialog
     # ------------------------------------------------------------------
 
     def _show_open_dialog(self):
-        """Open file dialog — called from toolbar button or canvas click."""
-        from toolbar import ALL_EXTENSIONS
         ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Media", "",
@@ -327,22 +331,17 @@ class MainWindow(QMainWindow):
             self._on_open_media(path)
 
     def _on_add_bubble_clicked(self):
-        """Add a bubble at the centre of the current scene rect."""
         if not self.scene.has_photo():
             return
         c = self.scene.sceneRect().center()
         self._on_canvas_double_click(c.x(), c.y())
 
     def _on_canvas_double_click(self, x: float, y: float):
-        bubble = BubbleItem(x, y)
-        cmd = AddBubbleCommand(self.scene, bubble)
-        self.scene.undo_stack.push(cmd)
-        self.scene.clearSelection()
-        bubble.setSelected(True)
+        bubble = self.controller.add_bubble(x, y)
         self.props.update_for_bubble(bubble)
 
     # ------------------------------------------------------------------
-    # Selection → properties panel
+    # Selection → inspector
     # ------------------------------------------------------------------
 
     def _on_selection_changed(self):

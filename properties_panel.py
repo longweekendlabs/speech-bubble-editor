@@ -13,10 +13,10 @@ Page 3 = dual mode seam settings
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QHBoxLayout, QVBoxLayout, QPushButton, QToolButton,
     QSpinBox, QDoubleSpinBox, QSlider, QColorDialog, QFrame,
-    QButtonGroup, QFontComboBox, QSizePolicy, QStackedWidget, QCheckBox
+    QButtonGroup, QSizePolicy, QStackedWidget, QCheckBox
 )
 from PyQt6.QtGui import QColor, QFont, QUndoStack
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 
 from undo_commands import (
     StyleChangeCommand, FontChangeCommand,
@@ -92,8 +92,24 @@ class PropertiesPanel(QWidget):
         self._media  = None      # currently selected MediaItem
         self._updating = False   # guard against recursive updates
         self._undo_stack = None  # type: QUndoStack | None
-        self.setFixedHeight(96)
+        self._font_combo = None  # created deferred — see _create_font_combo
         self._build_ui()
+
+    def _create_font_combo(self):
+        """Deferred: create QFontComboBox and replace the placeholder widget."""
+        from PyQt6.QtWidgets import QFontComboBox
+        self._font_combo = QFontComboBox()
+        self._font_combo.setFixedWidth(150)
+        self._font_combo.setFixedHeight(28)
+        self._font_combo.setToolTip("Font family")
+        self._font_combo.currentFontChanged.connect(self._on_font_family)
+        layout = self._font_row_layout
+        idx = layout.indexOf(self._font_combo_placeholder)
+        if idx >= 0:
+            layout.removeWidget(self._font_combo_placeholder)
+            self._font_combo_placeholder.deleteLater()
+            layout.insertWidget(idx, self._font_combo)
+        self._font_combo_placeholder = None
 
     def set_undo_stack(self, stack):
         """Bind the scene's undo stack so property changes are undoable."""
@@ -169,13 +185,14 @@ class PropertiesPanel(QWidget):
 
         font_row = QHBoxLayout()
         font_row.setSpacing(4)
+        self._font_row_layout = font_row   # saved for deferred font combo swap
 
-        self._font_combo = QFontComboBox()
-        self._font_combo.setFixedWidth(150)
-        self._font_combo.setFixedHeight(28)
-        self._font_combo.setToolTip("Font family")
-        self._font_combo.currentFontChanged.connect(self._on_font_family)
-        font_row.addWidget(self._font_combo)
+        # QFontComboBox scans all system fonts on creation — defer until after
+        # the window is visible so the UI appears instantly.
+        self._font_combo_placeholder = QWidget()
+        self._font_combo_placeholder.setFixedSize(150, 28)
+        font_row.addWidget(self._font_combo_placeholder)
+        QTimer.singleShot(0, self._create_font_combo)
 
         self._font_size = QSpinBox()
         self._font_size.setRange(6, 96)
@@ -390,7 +407,8 @@ class PropertiesPanel(QWidget):
 
             # Font
             font = bubble.get_font()
-            self._font_combo.setCurrentFont(font)
+            if self._font_combo is not None:
+                self._font_combo.setCurrentFont(font)
             self._font_size.setValue(max(6, font.pointSize()))
             self._btn_bold.setChecked(font.bold())
             self._btn_italic.setChecked(font.italic())
