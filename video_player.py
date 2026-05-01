@@ -13,8 +13,10 @@ cv2 and numpy are imported lazily (inside methods) to avoid slowing startup.
 
 from __future__ import annotations
 
+import threading
 from collections import OrderedDict
 
+from PyQt6.QtCore import QMetaObject, QObject, Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage, QPixmap
 
 from constants import VIDEO_EXTENSIONS
@@ -27,21 +29,23 @@ class FrameCache:
     """
     LRU cache for decoded video frames (stored as BGR numpy arrays).
 
-    Cache capacity is computed automatically from the frame dimensions so the
-    total memory footprint stays within _CACHE_BUDGET_MB regardless of video
-    resolution:
-        • 4 K  (3840×2160) → ~11 frames  (~256 MB)
-        • 1080p(1920×1080) → ~42 frames  (~252 MB)
-        • 720p (1280× 720) → ~94 frames  (capped at 128 → ~349 MB*)
-        • 480p ( 854× 480) → 128 frames  (~158 MB)
-    (*) a hard cap of 128 frames prevents extreme caching on tiny resolutions.
+    Capacity is governed by a byte budget rather than a fixed frame count.
+    Each frame's actual byte size (from numpy's nbytes) is tracked, and LRU
+    entries are evicted until total usage falls within the budget.
+
+    Examples at 256 MB budget:
+        4 K  (3840×2160 × 3 bytes) ≈  11 frames
+        1080p(1920×1080 × 3 bytes) ≈  42 frames
+        720p (1280× 720 × 3 bytes) ≈  94 frames  (hard-capped at 128)
+        480p ( 854× 480 × 3 bytes) ≈ 128 frames
     """
 
-    def __init__(self, frame_w: int, frame_h: int):
-        bytes_per_frame = max(1, frame_w * frame_h * 3)
-        budget_bytes    = _CACHE_BUDGET_MB * 1024 * 1024
-        self._max: int  = max(8, min(128, budget_bytes // bytes_per_frame))
+    _MAX_FRAMES = 128   # hard cap to avoid extreme caching on tiny resolutions
+
+    def __init__(self):
+        self._budget: int = _CACHE_BUDGET_MB * 1024 * 1024
         self._store: OrderedDict[int, object] = OrderedDict()
+        self._bytes_used: int = 0
 
     # ------------------------------------------------------------------
 
@@ -55,12 +59,131 @@ class FrameCache:
         if idx in self._store:
             self._store.move_to_end(idx)
             return
+        fb = frame.nbytes  # actual bytes for this numpy array
         self._store[idx] = frame
-        if len(self._store) > self._max:
-            self._store.popitem(last=False)  # evict least-recently-used
+        self._bytes_used += fb
+        # Evict LRU entries until within budget and under the hard frame cap.
+        while (self._bytes_used > self._budget
+               or len(self._store) > self._MAX_FRAMES) and len(self._store) > 1:
+            _, evicted = self._store.popitem(last=False)
+            self._bytes_used -= evicted.nbytes
 
     def clear(self):
         self._store.clear()
+        self._bytes_used = 0
+
+
+class FrameDecodeWorker(QObject):
+    """
+    Decodes video frames on a background thread to keep the UI thread responsive
+    during scrubbing and playback.
+
+    Usage:
+        worker = FrameDecodeWorker(player)
+        thread = QThread()
+        worker.moveToThread(thread)
+        thread.start()
+        worker.frame_ready.connect(my_slot)   # auto QueuedConnection → UI thread
+        worker.request(42)                    # schedule decode of frame 42
+
+    Thread-safety contract:
+        • request() is called from the UI thread.
+        • _decode() runs on the background thread (via QueuedConnection).
+        • VideoPlayer._read_frame() is only ever called from _decode(),
+          so VideoCapture is never accessed concurrently.
+        • pause() / resume() allow the export code (which runs on the UI thread
+          and accesses the player directly) to safely serialize with decode.
+
+    Stale-frame filtering:
+        A generation counter (incremented via new_generation()) is stamped on
+        each request and result.  Results from a superseded generation are
+        silently dropped so a late-arriving decode from an old video never
+        updates the new scene.
+    """
+
+    # Emits on the UI thread (auto QueuedConnection from background → UI).
+    # Carries (generation, frame_idx, QImage).  Callers check generation.
+    frame_ready = pyqtSignal(int, int, QImage)   # (generation, frame_idx, image)
+
+    def __init__(self, player: VideoPlayer):
+        super().__init__()
+        self._player      = player
+        self._lock        = threading.Lock()
+        self._latest_idx  = -1
+        self._generation  = 0     # current generation; incremented on new video load
+        self._req_gen     = 0     # generation stamped on the latest request
+        self._in_flight   = 0     # number of _decode invocations queued/running
+        self._paused      = False
+        self._idle        = threading.Event()
+        self._idle.set()          # starts idle
+
+    # ------------------------------------------------------------------
+    # Public API (called from UI thread)
+    # ------------------------------------------------------------------
+
+    def request(self, frame_idx: int):
+        """Schedule an async frame decode.  Only the latest request is decoded."""
+        with self._lock:
+            if self._paused:
+                return
+            self._latest_idx = frame_idx
+            self._req_gen    = self._generation
+            if self._in_flight == 0:
+                self._idle.clear()
+            self._in_flight += 1
+        QMetaObject.invokeMethod(self, "_decode", Qt.ConnectionType.QueuedConnection)
+
+    def new_generation(self):
+        """
+        Increment the generation counter.  Call this when a new video is loaded
+        so stale in-flight results from the old video are discarded.
+        """
+        with self._lock:
+            self._generation += 1
+
+    def pause(self):
+        """
+        Prevent new requests and wait (blocking) until any in-flight decode
+        finishes.  Call before accessing the player directly (e.g. export).
+        """
+        with self._lock:
+            self._paused = True
+        self._idle.wait()
+
+    def resume(self):
+        """Re-enable request() after a pause."""
+        with self._lock:
+            self._paused = False
+
+    # ------------------------------------------------------------------
+    # Background-thread slot
+    # ------------------------------------------------------------------
+
+    @pyqtSlot()
+    def _decode(self):
+        with self._lock:
+            idx        = self._latest_idx
+            gen        = self._req_gen
+            self._in_flight -= 1
+            stale      = self._in_flight > 0   # a newer request is already queued
+            if self._in_flight == 0:
+                self._idle.set()
+
+        if stale or idx == -1:
+            return
+
+        # Decode BGR array on the background thread (cv2 access here only).
+        frame = self._player._read_frame(idx)
+        if frame is None:
+            return
+
+        # Convert BGR → RGB and build a QImage (QImage is safe off-thread).
+        import cv2
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch  = frame_rgb.shape
+        image = QImage(frame_rgb.tobytes(), w, h, ch * w,
+                       QImage.Format.Format_RGB888).copy()  # .copy() detaches from buffer
+        self.frame_ready.emit(gen, idx, image)
 
 
 class VideoPlayer:
@@ -116,7 +239,7 @@ class VideoPlayer:
         self._cuts        = []
         self._reversed    = False
         self._last_read   = -1
-        self._cache       = FrameCache(self._width, self._height)
+        self._cache       = FrameCache()
         return True
 
     def release(self):

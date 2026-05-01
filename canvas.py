@@ -10,13 +10,13 @@ from PyQt6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsTextItem,
     QWidget, QHBoxLayout, QLabel, QPushButton, QSlider,
 )
-from PyQt6.QtCore import Qt, QRectF, QPointF, QEvent, pyqtSignal
+from PyQt6.QtCore import Qt, QRectF, QPointF, QEvent, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QPixmap, QPainter, QColor, QUndoStack, QFont, QPen,
-    QFontMetrics, QTransform, QBrush,
+    QFontMetrics, QTransform, QBrush, QImage,
 )
 
-from video_player import VideoPlayer
+from video_player import VideoPlayer, FrameDecodeWorker
 from media_item import MediaItem
 from constants import IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
@@ -309,6 +309,16 @@ class PhotoScene(QGraphicsScene):
         self._video_player:       VideoPlayer | None = None
         self._video_player_right: VideoPlayer | None = None
 
+        # Background decode workers (one per player); None when no video loaded.
+        self._decode_worker:       FrameDecodeWorker | None = None
+        self._decode_thread:       QThread | None = None
+        self._decode_worker_right: FrameDecodeWorker | None = None
+        self._decode_thread_right: QThread | None = None
+        # Generation counter per side: incremented on each new video load so
+        # late-arriving results from old videos are silently discarded.
+        self._decode_gen_left  = 0
+        self._decode_gen_right = 0
+
         self.undo_stack  = QUndoStack(self)
         self._meme_top:  MemeBarItem | None = None
         self._meme_bot:  MemeBarItem | None = None
@@ -350,13 +360,50 @@ class PhotoScene(QGraphicsScene):
         self._photo_item.setPos(0, 0)
         self.addItem(self._photo_item)
         self.setSceneRect(QRectF(0, 0, float(player.width), float(player.height)))
+        self._decode_gen_left, self._decode_worker, self._decode_thread = \
+            self._start_decode_worker(player, self._on_left_frame_ready)
         return True
+
+    def _start_decode_worker(self, player: VideoPlayer, ready_slot) \
+            -> tuple[int, FrameDecodeWorker, QThread]:
+        """
+        Create a FrameDecodeWorker for *player*, move it to a new QThread, and
+        connect its frame_ready signal to *ready_slot*.
+
+        Returns (generation, worker, thread).  The generation value is the
+        initial stamp; callers should store it and compare against incoming
+        frame_ready emissions to detect stale results.
+        """
+        worker = FrameDecodeWorker(player)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+        worker.frame_ready.connect(ready_slot)
+        thread.start()
+        return worker._generation, worker, thread
+
+    @staticmethod
+    def _stop_decode_worker(worker: FrameDecodeWorker | None,
+                            thread: QThread | None) -> None:
+        """Drain in-flight decodes, stop the thread, and schedule cleanup."""
+        if worker is not None:
+            worker.pause()           # wait for any running _decode to finish
+            worker.frame_ready.disconnect()
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+            thread.deleteLater()
+        if worker is not None:
+            worker.deleteLater()
 
     def _reset_all(self):
         """Release all media and reset modes."""
         self._remove_meme_bars()
         self._clear_overlays()
         self._clear_dual_state()
+        # Stop left decode worker before releasing the player it wraps.
+        self._stop_decode_worker(self._decode_worker, self._decode_thread)
+        self._decode_worker = None
+        self._decode_thread = None
         if self._video_player is not None:
             self._video_player.release()
             self._video_player = None
@@ -365,33 +412,67 @@ class PhotoScene(QGraphicsScene):
             self._photo_item = None
 
     # ------------------------------------------------------------------
+    # Background decode callbacks (UI thread — auto QueuedConnection)
+    # ------------------------------------------------------------------
+
+    @pyqtSlot(int, int, QImage)
+    def _on_left_frame_ready(self, gen: int, frame_idx: int, image: QImage):
+        """Called on the UI thread when the left decode worker finishes a frame."""
+        if gen != self._decode_gen_left:
+            return  # stale result from a previous video — discard
+        if self._photo_item is not None:
+            self._photo_item.set_pixmap(QPixmap.fromImage(image))
+
+    @pyqtSlot(int, int, QImage)
+    def _on_right_frame_ready(self, gen: int, frame_idx: int, image: QImage):
+        """Called on the UI thread when the right decode worker finishes a frame."""
+        if gen != self._decode_gen_right:
+            return
+        if self._photo_item_right is not None:
+            self._photo_item_right.set_pixmap(QPixmap.fromImage(image))
+
+    # ------------------------------------------------------------------
     # Video frame update (called from MainWindow when scrubber moves)
     # ------------------------------------------------------------------
 
     def update_frame(self, frame_idx: int):
-        """Refresh the background pixmap(s) to the given video frame."""
+        """Request async refresh of the background pixmap(s) to the given video frame."""
         if self._video_player is not None and self._photo_item is not None:
-            px = self._video_player.get_frame_pixmap(frame_idx)
-            if px is not None:
-                self._photo_item.set_pixmap(px)
+            if self._decode_worker is not None:
+                self._decode_worker.request(frame_idx)
 
         if self._dual_mode and self._video_player_right is not None \
                 and self._photo_item_right is not None:
             right_idx = min(frame_idx,
                             self._video_player_right.frame_count - 1)
-            px = self._video_player_right.get_frame_pixmap(right_idx)
-            if px is not None:
-                self._photo_item_right.set_pixmap(px)
+            if self._decode_worker_right is not None:
+                self._decode_worker_right.request(right_idx)
 
     def update_right_frame(self, frame_idx: int):
-        """Update only the right media frame (for independent right-player scrubbing)."""
+        """Async update of only the right media frame (independent right-player scrubbing)."""
         if self._dual_mode and self._video_player_right is not None \
                 and self._photo_item_right is not None:
             right_idx = min(frame_idx,
                             self._video_player_right.frame_count - 1)
-            px = self._video_player_right.get_frame_pixmap(right_idx)
-            if px is not None:
-                self._photo_item_right.set_pixmap(px)
+            if self._decode_worker_right is not None:
+                self._decode_worker_right.request(right_idx)
+
+    def pause_decode_workers(self):
+        """
+        Block until all in-flight decodes complete and prevent new ones.
+        Call before accessing players directly (e.g. at the start of export).
+        """
+        if self._decode_worker is not None:
+            self._decode_worker.pause()
+        if self._decode_worker_right is not None:
+            self._decode_worker_right.pause()
+
+    def resume_decode_workers(self):
+        """Re-enable async decoding after a pause."""
+        if self._decode_worker is not None:
+            self._decode_worker.resume()
+        if self._decode_worker_right is not None:
+            self._decode_worker_right.resume()
 
     # ------------------------------------------------------------------
     # Meme mode
@@ -495,6 +576,10 @@ class PhotoScene(QGraphicsScene):
         if self._photo_item_right is not None:
             self.removeItem(self._photo_item_right)
             self._photo_item_right = None
+        # Stop right decode worker before releasing the player.
+        self._stop_decode_worker(self._decode_worker_right, self._decode_thread_right)
+        self._decode_worker_right = None
+        self._decode_thread_right = None
         if self._video_player_right is not None:
             self._video_player_right.release()
             self._video_player_right = None
@@ -525,9 +610,15 @@ class PhotoScene(QGraphicsScene):
         if first is None:
             player.release()
             return False
+        # Stop old right worker before replacing the player.
+        self._stop_decode_worker(self._decode_worker_right, self._decode_thread_right)
+        self._decode_worker_right = None
+        self._decode_thread_right = None
         if self._video_player_right is not None:
             self._video_player_right.release()
         self._video_player_right = player
+        self._decode_gen_right, self._decode_worker_right, self._decode_thread_right = \
+            self._start_decode_worker(player, self._on_right_frame_ready)
         return self._install_right_media(first)
 
     def _install_right_media(self, pixmap: QPixmap) -> bool:

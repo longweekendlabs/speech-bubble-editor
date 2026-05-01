@@ -2,25 +2,27 @@
 main.py — Entry point for Speech Bubble Editor v3.
 """
 
+import logging
 import os
 import sys
-import traceback
 
 # ── Early crash log (macOS windowed builds suppress all stdout/stderr) ────────
-_LOG = os.path.expanduser("~/speechbubble_debug.log")
+# Configure the root logger to write to a file before any Qt imports.
+_LOG_PATH = os.path.expanduser("~/speechbubble_debug.log")
+_logger = logging.getLogger("sbe")
 
-def _log(msg: str):
-    try:
-        with open(_LOG, "a") as f:
-            import datetime
-            f.write(f"{datetime.datetime.now():%H:%M:%S}  {msg}\n")
-            f.flush()
-    except Exception:
-        pass
+try:
+    _fh = logging.FileHandler(_LOG_PATH, encoding="utf-8")
+    _fh.setFormatter(logging.Formatter("%(asctime)s  %(message)s", datefmt="%H:%M:%S"))
+    _logger.addHandler(_fh)
+    _logger.setLevel(logging.DEBUG)
+except Exception:
+    # Unwritable log path — use a no-op logger; never let this crash the app.
+    _logger.addHandler(logging.NullHandler())
 
-_log("=== Speech Bubble Editor starting ===")
-_log(f"Python {sys.version}  platform={sys.platform}")
-_log(f"executable={sys.executable}")
+_logger.info("=== Speech Bubble Editor starting ===")
+_logger.info(f"Python {sys.version}  platform={sys.platform}")
+_logger.info(f"executable={sys.executable}")
 
 _singleton_server = None  # module-level — prevents GC of the QLocalServer
 
@@ -32,20 +34,25 @@ def _resource_path(relative: str) -> str:
     return os.path.join(os.path.dirname(os.path.abspath(__file__)), relative)
 
 
+def _load_qss(relative: str) -> str:
+    """Read a QSS file from bundled resources. Returns empty string on error."""
+    path = _resource_path(relative)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
 def _apply_system_theme(app):
     """Apply the OS dark/light theme to the Qt application.
 
     On Windows, reads AppsUseLightTheme from the registry.
-    Dark mode → Fusion style + dark palette (Qt's native Windows style
-    does not reliably handle dark mode before Qt 6.7).
+    Dark mode → Fusion style + dark.qss stylesheet.
     Light mode → native windowsvista style for proper Windows chrome.
-    On macOS, Qt6 reads the system appearance automatically; we use
-    Fusion for consistent custom-colour rendering.
     On Linux/other Qt picks up the system theme automatically.
     """
     if sys.platform == "win32":
-        from PyQt6.QtGui import QPalette, QColor
-
         dark_mode = False
         try:
             import winreg
@@ -61,32 +68,9 @@ def _apply_system_theme(app):
 
         if dark_mode:
             app.setStyle("Fusion")
-            p = QPalette()
-            bg      = QColor(30,  30,  30)
-            panel   = QColor(45,  45,  45)
-            ctrl    = QColor(53,  53,  53)
-            fg      = QColor(220, 220, 220)
-            hi      = QColor(42,  130, 218)
-            hi_text = QColor(255, 255, 255)
-            p.setColor(QPalette.ColorRole.Window,          bg)
-            p.setColor(QPalette.ColorRole.WindowText,      fg)
-            p.setColor(QPalette.ColorRole.Base,            panel)
-            p.setColor(QPalette.ColorRole.AlternateBase,   ctrl)
-            p.setColor(QPalette.ColorRole.ToolTipBase,     ctrl)
-            p.setColor(QPalette.ColorRole.ToolTipText,     fg)
-            p.setColor(QPalette.ColorRole.Text,            fg)
-            p.setColor(QPalette.ColorRole.Button,          ctrl)
-            p.setColor(QPalette.ColorRole.ButtonText,      fg)
-            p.setColor(QPalette.ColorRole.BrightText,      QColor(255, 80, 80))
-            p.setColor(QPalette.ColorRole.Link,            hi)
-            p.setColor(QPalette.ColorRole.Highlight,       hi)
-            p.setColor(QPalette.ColorRole.HighlightedText, hi_text)
-            # Dimmed disabled colours
-            dim = QColor(110, 110, 110)
-            p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text,       dim)
-            p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, dim)
-            p.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, dim)
-            app.setPalette(p)
+            qss = _load_qss(os.path.join("theme", "dark.qss"))
+            if qss:
+                app.setStyleSheet(qss)
         else:
             # Light mode: native Windows chrome (respects accent colour, etc.)
             app.setStyle("windowsvista")
@@ -143,61 +127,67 @@ def _start_single_instance_server(window) -> None:
     _singleton_server.newConnection.connect(_on_connection)
 
 
+def _load_fonts():
+    """Load bundled fonts — deferred so the window appears before font scanning."""
+    from PyQt6.QtGui import QFontDatabase
+    fonts_dir = _resource_path("fonts")
+    if os.path.isdir(fonts_dir):
+        for fname in os.listdir(fonts_dir):
+            if fname.lower().endswith((".ttf", ".otf")):
+                QFontDatabase.addApplicationFont(
+                    os.path.join(fonts_dir, fname))
+    _logger.info("fonts loaded (deferred)")
+
+
 def main():
     try:
-        _log("importing QApplication…")
+        _logger.info("importing QApplication…")
         from PyQt6.QtWidgets import QApplication
-        from PyQt6.QtGui import QIcon, QFont, QFontDatabase
-        _log("QApplication imported OK")
+        from PyQt6.QtGui import QIcon, QFont
+        from PyQt6.QtCore import QTimer
+        _logger.info("QApplication imported OK")
 
         app = QApplication(sys.argv)
         app.setApplicationName("Speech Bubble Editor")
         app.setOrganizationName("Long Weekend Labs")
-        _log("QApplication created OK")
+        _logger.info("QApplication created OK")
 
         # Fast-fail before building the window if another instance is running
         if _check_duplicate_instance():
-            _log("duplicate instance detected — exiting")
+            _logger.info("duplicate instance detected — exiting")
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(None, "Already Running",
                                     "Speech Bubble Editor is already open.")
             sys.exit(0)
-        _log("single-instance check passed")
+        _logger.info("single-instance check passed")
 
         _apply_system_theme(app)
-        _log("theme applied")
-
-        # Load bundled fonts
-        fonts_dir = _resource_path("fonts")
-        if os.path.isdir(fonts_dir):
-            for fname in os.listdir(fonts_dir):
-                if fname.lower().endswith((".ttf", ".otf")):
-                    QFontDatabase.addApplicationFont(
-                        os.path.join(fonts_dir, fname))
-        _log("fonts loaded")
+        _logger.info("theme applied")
 
         # App icon
         icon_path = _resource_path(os.path.join("icons", "icon.png"))
         if os.path.exists(icon_path):
             app.setWindowIcon(QIcon(icon_path))
-        _log("icon set")
+        _logger.info("icon set")
 
-        _log("importing MainWindow…")
+        _logger.info("importing MainWindow…")
         from main_window import MainWindow
-        _log("MainWindow imported OK")
+        _logger.info("MainWindow imported OK")
 
-        _log("creating MainWindow…")
+        _logger.info("creating MainWindow…")
         window = MainWindow()
-        _log("MainWindow created OK")
+        _logger.info("MainWindow created OK")
 
         _start_single_instance_server(window)
 
+        # Defer font loading so the window appears before font-file scanning.
+        QTimer.singleShot(0, _load_fonts)
+
         window.show()
-        _log("window.show() called — entering event loop")
+        _logger.info("window.show() called — entering event loop")
         sys.exit(app.exec())
     except Exception:
-        _log("EXCEPTION in main():")
-        _log(traceback.format_exc())
+        _logger.exception("EXCEPTION in main()")
         raise
 
 

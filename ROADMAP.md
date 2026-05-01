@@ -47,13 +47,13 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 
 > Architecture scaffolding before any UI work.
 
-- [ ] Introduce `constants.py` (if not done in Phase 1)
-- [ ] Create `theme/dark.qss` — move all QPalette manipulation out of `main.py` (M3)
-- [ ] Add `AppModel` dataclass: holds project metadata, bubble list, media paths — no Qt dependency
-- [ ] Add `EditorController`: owns `AppModel`, processes all actions, pushes undo commands, emits signals
-- [ ] Wire `EditorController` into `MainWindow` — replace direct cross-component calls with controller methods
-- [ ] Defer `QFontComboBox` init — create after window is visible (P3)
-- [ ] Defer font loading with `QTimer.singleShot(0, ...)` (M2)
+- [x] Introduce `constants.py` (done in Phase 1)
+- [x] Create `theme/dark.qss` — QPalette code removed from `main.py`; dark theme in `theme/dark.qss` loaded via `setStyleSheet` (M3)
+- [x] Add `AppModel` dataclass in `app_model.py`: media paths, dual/meme flags — no Qt dependency
+- [x] Add `EditorController` in `editor_controller.py`: owns AppModel, wraps scene mutations, emits `media_loaded` / `right_media_loaded` signals
+- [x] Wire `EditorController` into `MainWindow` — open media, add bubble/overlay, meme/dual mode all route through controller; undo stack accessed via controller
+- [x] Defer `QFontComboBox` init — placeholder widget in layout, real combo created with `QTimer.singleShot(0, ...)` after window visible (P3)
+- [x] Defer font loading with `QTimer.singleShot(0, _load_fonts)` in `main()` (M2)
 
 ---
 
@@ -61,13 +61,13 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 
 > Build the layout from the reference image (`newui_for_sbe_v40.png`) before any functional wiring.
 
-- [ ] Build `TopBar` widget — logo, Open, Export, Undo/Redo, Zoom control, settings icons
-- [ ] Build `ToolSidebar` — vertical icon strip: Select, Move, Bubble, Caption, Text, Layers, Meme Mode, Dual Mode
-- [ ] Build `InspectorDock` shell — tabbed: Inspector + Layers tabs, collapsible accordion sections
-- [ ] Build `StatusBar` — project name, resolution, fps, duration, autosave indicator
-- [ ] Wire `QSplitter` layout: ToolSidebar | CanvasArea | InspectorDock
-- [ ] Migrate `VideoControls` into `VideoStrip` inside CanvasArea — add filmstrip thumbnails
-- [ ] Apply `dark.qss` across all new widgets
+- [x] Build `TopBar` widget — logo, Open, Export, Undo/Redo, zoom label, About (`top_bar.py`)
+- [x] Build `ToolSidebar` — vertical icon strip: Select, Bubble, Layer, Meme Mode, Dual Mode (`tool_sidebar.py`)
+- [x] Build `InspectorDock` shell — Inspector tab (PropertiesPanel) + Layers placeholder (`inspector_dock.py`)
+- [x] Build `StatusBar` — filename shown on media load via `QMainWindow.statusBar()`
+- [x] Wire `QSplitter` layout: ToolSidebar | CanvasArea | InspectorDock (`main_window.py` restructured)
+- [x] Apply `dark.qss` across all new widgets — TopBar, ToolSidebar, InspectorDock, splitter handle
+- [ ] Migrate `VideoControls` into `VideoStrip` inside CanvasArea — filmstrip thumbnails (Phase 5)
 
 ---
 
@@ -75,26 +75,28 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 
 > Fill in the right-panel accordion sections to match v4 reference.
 
-- [ ] Text section — text input, character counter (19/200 style)
-- [ ] Bubble section — 5-style picker (Speech, Cloud, Rectangle, Starburst, Text-only)
-- [ ] Colors section — Fill + Stroke color pickers
-- [ ] Typography section — font combo, weight, size, text color, alignment
-- [ ] Tail section — position dropdown, width control
-- [ ] Stroke section — width control
-- [ ] Shadow section — toggle, color, blur, offset X/Y, opacity
-- [ ] Alignment & Arrange section — align buttons, distribute, z-order
-- [ ] Layers tab — list view of scene items with visibility toggles
+- [x] Text section — text input, character counter (19/200 style)
+- [x] Bubble section — 5-style picker (Speech, Cloud, Rectangle, Starburst, Text-only)
+- [x] Colors section — Fill + Stroke color pickers
+- [x] Typography section — font combo, weight, size, text color, alignment
+- [x] Tail section — position dropdown, width control
+- [x] Stroke section — width control
+- [x] Shadow section — toggle, color, blur, offset X/Y, opacity
+- [x] Alignment & Arrange section — align buttons, distribute, z-order
+- [x] Layers tab — list view of scene items with visibility toggles
+- Phase 4 implemented in `InspectorDock`; added undo-backed bubble properties for text alignment, tail, shadow, and z-order.
 
 ---
 
 ## Phase 5 — Polish & Export `[Copilot]`
 
-- [ ] Fix `VideoPlayer` frame decode to run on background thread — remove UI jank on scrubbing (V3)
-- [ ] Add frame cache eviction by memory pressure, not count (V2)
-- [ ] Add Cancel button to export progress dialog (E2)
-- [ ] Add FFmpeg subprocess timeout (E3)
-- [ ] Replace `logging._log` with Python `logging` module (M4)
+- [x] Fix `VideoPlayer` frame decode to run on background thread — remove UI jank on scrubbing (V3)
+- [x] Add frame cache eviction by memory pressure, not count (V2)
+- [x] Add Cancel button to export progress dialog (E2) — already present in export.py
+- [x] Add FFmpeg subprocess timeout (E3)
+- [x] Replace `logging._log` with Python `logging` module (M4)
 - [ ] Validate all four build targets: Linux x86/ARM deb+rpm, Windows x86/ARM exe
+- Phase 5 implemented: `FrameDecodeWorker` (QThread, latest-wins, pause/resume) in `video_player.py`; wired into `PhotoScene` (canvas.py) for left+right players; `FrameCache` now tracks actual bytes; FFmpeg timeout scales from frame count; Python `logging` module replaces custom `_log`.
 
 ---
 

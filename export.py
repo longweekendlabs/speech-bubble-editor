@@ -197,6 +197,9 @@ def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_pat
     H   = H if H % 2 == 0 else H + 1
     fps = player.fps
 
+    # Pause background decode workers so they don't race the export loop.
+    scene.pause_decode_workers()
+
     # Pre-render bubble overlay once — bubbles are static across all frames.
     bubble_overlay = _prerender_bubble_overlay(scene, photo_item, W, H)
 
@@ -228,6 +231,7 @@ def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_pat
     finally:
         writer.release()
         progress.close()
+        scene.resume_decode_workers()
 
     if cancelled:
         _safe_remove(tmp_video)
@@ -305,6 +309,9 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
 
     W, H = LW + RW_out, LH
 
+    # Pause background decode workers before accessing players directly.
+    scene.pause_decode_workers()
+
     # Pre-render static sides once (photo stays the same every frame)
     static_left_bgr  = None if left_has_video  else _pixmap_to_bgr(left_item.pixmap(),  LW, LH)
     static_right_bgr = None
@@ -365,6 +372,7 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
     finally:
         writer.release()
         progress.close()
+        scene.resume_decode_workers()
 
     if cancelled:
         _safe_remove(tmp_video)
@@ -384,7 +392,7 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
                export_frames: list[int], fps: float):
     """
     Attempt to mux audio from src_video into rendered_video → out_path.
-    Falls back to just renaming rendered_video if FFmpeg is unavailable.
+    Falls back to just renaming rendered_video if FFmpeg is unavailable or fails.
     """
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
@@ -394,6 +402,9 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
     # Calculate start time offset based on first export frame
     start_frame = export_frames[0] if export_frames else 0
     start_time = start_frame / fps if fps else 0.0
+
+    # Scale timeout: 120 s base + 1 s per export frame, minimum 120 s.
+    timeout_s = max(120, 120 + len(export_frames))
 
     cmd = [
         ffmpeg, "-y",
@@ -410,10 +421,12 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
         out_path,
     ]
     try:
-        subprocess.run(cmd, check=True,
+        subprocess.run(cmd, check=True, timeout=timeout_s,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except subprocess.CalledProcessError:
-        # FFmpeg failed — just use the video without audio
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        # FFmpeg failed or timed out — use the video without audio.
+        # Remove any partial output FFmpeg may have created before falling back.
+        _safe_remove(out_path)
         shutil.move(rendered_video, out_path)
 
 
