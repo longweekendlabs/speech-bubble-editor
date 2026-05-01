@@ -1,6 +1,6 @@
 name: Build Artifacts and Release v4
 
-# Trigger by pushing a v4 tag: git tag v4.0.2 && git push origin v4.0.2
+# Trigger by pushing a v4 tag: git tag v4.0.3 && git push origin v4.0.3
 # Or run manually from the Actions tab to build downloadable test artifacts.
 on:
   push:
@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Artifact version string (e.g. 4.0.2)'
+        description: 'Artifact version string (e.g. 4.0.3)'
         required: false
-        default: '4.0.2'
+        default: '4.0.3'
 
 jobs:
 
