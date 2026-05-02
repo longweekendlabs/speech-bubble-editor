@@ -103,6 +103,7 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 - [x] Delete key (global shortcut) bound to delete selected bubble/overlay
 - [x] `theme/dark.qss` completely rewritten with exact v4 design tokens (accent #46ddcb, Export #00c4a0, bg #141820, panels #1a1f2e, inputs #252d3d, borders #2e3a50, danger #f87171); ContextToolbar, SectionChevron, ContextChip, ContextDeleteBtn styles added
 - [x] `version.py` bumped to 4.0.3
+- [x] Design handoff v2 applied: all 6 UI files replaced from design_handoff/pyqt_output/ — exact SVG paths for all icons (tool sidebar, context toolbar, top bar, video transport, bubble style picker); 7 bubble style picker SVGs with starburst coordinates; oled + slate themes with exact hex values; #TimecodeLabel QSS added
 
 ---
 

@@ -1,0 +1,1564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Speech Bubble Editor — Long Weekend Labs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0d1117; font-family: 'Inter', sans-serif; }
+  #root { width: 100%; height: 100%; display: flex; flex-direction: column; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #3a4455; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "theme": "slate",
+  "accentColor": "#46ddcb",
+  "sidebarWidth": 80,
+  "inspectorWidth": 320,
+  "showTimeline": true,
+  "fontSize": 12
+}/*EDITMODE-END*/;
+
+// ─── THEME DEFINITIONS ────────────────────────────────────────────────────
+const THEMES = {
+  dark: {
+    appBg:        '#141820',
+    topBarBg:     '#1a1f2e',
+    sidebarBg:    '#1a1f2e',
+    canvasBg:     '#0f1319',
+    inspectorBg:  '#1a1f2e',
+    panelBorder:  '#252d3d',
+    sectionBg:    '#1e2535',
+    inputBg:      '#252d3d',
+    inputBorder:  '#2e3a50',
+    textPrimary:  '#e8ecf4',
+    textSecondary:'#8a95aa',
+    textMuted:    '#4e5a6e',
+    btnHover:     '#2a3347',
+    btnActive:    '#2e3d5a',
+    timelineBg:   '#131820',
+    filmBg:       '#0d1117',
+    scrubberTrack:'#252d3d',
+    scrubberFill: '#00d4c820',
+    playhead:     '#00d4c8',
+    export:       '#00c4a0',
+    exportHover:  '#00ddb5',
+  },
+  oled: {
+    appBg:        '#000000',
+    topBarBg:     '#0a0a0a',
+    sidebarBg:    '#0a0a0a',
+    canvasBg:     '#000000',
+    inspectorBg:  '#0a0a0a',
+    panelBorder:  '#1a1a1a',
+    sectionBg:    '#111111',
+    inputBg:      '#1a1a1a',
+    inputBorder:  '#222222',
+    textPrimary:  '#f0f0f0',
+    textSecondary:'#777777',
+    textMuted:    '#444444',
+    btnHover:     '#1a1a1a',
+    btnActive:    '#222222',
+    timelineBg:   '#050505',
+    filmBg:       '#000000',
+    scrubberTrack:'#1a1a1a',
+    scrubberFill: '#00d4c815',
+    playhead:     '#00d4c8',
+    export:       '#00c4a0',
+    exportHover:  '#00ddb5',
+  },
+  slate: {
+    appBg:        '#0f1623',
+    topBarBg:     '#131c2e',
+    sidebarBg:    '#131c2e',
+    canvasBg:     '#0a1020',
+    inspectorBg:  '#131c2e',
+    panelBorder:  '#1e2d47',
+    sectionBg:    '#172038',
+    inputBg:      '#1e2d47',
+    inputBorder:  '#253659',
+    textPrimary:  '#ccd6f6',
+    textSecondary:'#7a8caa',
+    textMuted:    '#3d4f69',
+    btnHover:     '#1e2d47',
+    btnActive:    '#253659',
+    timelineBg:   '#0c1525',
+    filmBg:       '#08101e',
+    scrubberTrack:'#1e2d47',
+    scrubberFill: '#7c83ff20',
+    playhead:     '#7c83ff',
+    export:       '#5865f2',
+    exportHover:  '#6b74ff',
+  },
+};
+
+// ─── ICONS (SVG paths) ─────────────────────────────────────────────────────
+const Icon = ({ d, size = 16, color = 'currentColor', strokeWidth = 1.5 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+
+// ─── TOOL SIDEBAR ──────────────────────────────────────────────────────────
+// Tool sidebar icons — each is a tiny SVG component tuned for clarity at 20px
+const ToolIcons = {
+  select: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Arrow cursor — classic select tool */}
+      <path d="M4 2L4 14L7.5 11L9.5 17L11.5 16.2L9.5 10.2L14 10L4 2Z"
+        fill={color} stroke={color} strokeWidth="0.5" strokeLinejoin="round" />
+    </svg>
+  ),
+  move: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      {/* Four-directional move arrows */}
+      <path d="M10 2v16M2 10h16" />
+      <path d="M10 2L8 5M10 2L12 5" />
+      <path d="M10 18L8 15M10 18L12 15" />
+      <path d="M2 10L5 8M2 10L5 12" />
+      <path d="M18 10L15 8M18 10L15 12" />
+    </svg>
+  ),
+  bubble: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Oval speech bubble with tail */}
+      <ellipse cx="10" cy="8.5" rx="8" ry="5.5" fill={color} opacity="0.15" stroke={color} strokeWidth="1.5" />
+      <path d="M7 13.5L5 17.5L9.5 14" fill={color} stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  ),
+  caption: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Rounded rect bar + horizontal text lines */}
+      <rect x="1.5" y="5" width="17" height="10" rx="3" fill={color} opacity="0.12" stroke={color} strokeWidth="1.5" />
+      <line x1="5" y1="8.5" x2="15" y2="8.5" stroke={color} strokeWidth="1.3" strokeLinecap="round" />
+      <line x1="5" y1="11.5" x2="12" y2="11.5" stroke={color} strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  text: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Bold T with baseline */}
+      <path d="M3 4.5H17M10 4.5V16" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <line x1="7" y1="16" x2="13" y2="16" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  ),
+  layers: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      {/* Three stacked layers */}
+      <path d="M2 14l8 4 8-4" />
+      <path d="M2 10l8 4 8-4" />
+      <path d="M2 6l8-4 8 4-8 4-8-4z" />
+    </svg>
+  ),
+  meme: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Meme mode: photo with bold white text top & bottom — the classic format */}
+      <rect x="2" y="2" width="16" height="16" rx="1.5" fill={color} opacity="0.1" stroke={color} strokeWidth="1.5" />
+      {/* TOP TEXT — thick bold strokes */}
+      <line x1="5" y1="5.5" x2="15" y2="5.5" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
+      <line x1="6.5" y1="8" x2="13.5" y2="8" stroke={color} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+      {/* BOTTOM TEXT */}
+      <line x1="5" y1="14.5" x2="15" y2="14.5" stroke={color} strokeWidth="2.2" strokeLinecap="round" />
+      <line x1="6.5" y1="12" x2="13.5" y2="12" stroke={color} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+    </svg>
+  ),
+  dual: (color) => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      {/* Dual mode: two plain side-by-side video frames */}
+      <rect x="1.5" y="3.5" width="7" height="13" rx="1" fill={color} opacity="0.12" stroke={color} strokeWidth="1.5" />
+      <rect x="11.5" y="3.5" width="7" height="13" rx="1" fill={color} opacity="0.12" stroke={color} strokeWidth="1.5" />
+    </svg>
+  ),
+};
+
+const TOOLS = [
+  { id: 'select',  label: 'Select',    key: 'V',    tip: 'Select items  (V)' },
+  { id: 'move',    label: 'Move',      key: 'M',    tip: 'Move selected item  (M)' },
+  { id: 'bubble',  label: 'Bubble',    key: 'B',    tip: 'Add Speech Bubble  (Ctrl+B)' },
+  { id: 'caption', label: 'Caption',   key: 'C',    tip: 'Add Caption Bar  (C)' },
+  { id: 'text',    label: 'Text',      key: 'T',    tip: 'Add Text Overlay  (T)' },
+  { id: 'layers',  label: 'Layers',    key: 'L',    tip: 'Add Overlay Layer  (Ctrl+L)' },
+  { id: 'meme',    label: 'Meme',      key: null,   tip: 'Meme Mode — top/bottom caption bars' },
+  { id: 'dual',    label: 'Dual',      key: null,   tip: 'Dual Mode — side-by-side media' },
+];
+
+function ToolSidebar({ activeTool, setActiveTool, mediaLoaded, t, tw, accent }) {
+  const s = THEMES[t];
+  return (
+    <div style={{
+      width: tw,
+      minWidth: tw,
+      background: s.sidebarBg,
+      borderRight: `1px solid ${s.panelBorder}`,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '12px 0 8px',
+      gap: 2,
+      userSelect: 'none',
+    }}>
+      {TOOLS.map((tool) => {
+        const active = activeTool === tool.id;
+        const disabled = !mediaLoaded && ['bubble','caption','text','layers','meme','dual'].includes(tool.id);
+        return (
+          <button
+            key={tool.id}
+            title={tool.tip}
+            onClick={() => !disabled && setActiveTool(tool.id)}
+            style={{
+              width: tw - 14,
+              height: 56,
+              background: active ? s.btnActive : 'transparent',
+              border: active ? `1px solid ${s.inputBorder}` : '1px solid transparent',
+              borderRadius: 8,
+              cursor: disabled ? 'default' : 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              opacity: disabled ? 0.3 : 1,
+              transition: 'background 0.12s, border-color 0.12s, opacity 0.12s',
+              color: active ? accent : s.textSecondary,
+              position: 'relative',
+            }}
+            onMouseEnter={e => { if (!disabled && !active) e.currentTarget.style.background = s.btnHover; }}
+            onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+          >
+            {/* Active indicator bar on left edge */}
+            {active && (
+              <div style={{
+                position: 'absolute', left: 0, top: '20%', bottom: '20%',
+                width: 3, borderRadius: '0 2px 2px 0', background: accent,
+              }} />
+            )}
+            {ToolIcons[tool.id](active ? accent : s.textSecondary)}
+            <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, lineHeight: 1, letterSpacing: '0.03em', color: active ? accent : s.textSecondary }}>{tool.label}</span>
+          </button>
+        );
+      })}
+      <div style={{ flexGrow: 1 }} />
+      <button style={{
+        width: tw - 16, height: 28,
+        background: 'transparent', border: `1px solid ${s.inputBorder}`,
+        borderRadius: 6, cursor: 'pointer', color: s.textMuted, fontSize: 11,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+      }}>
+        <span style={{ fontSize: 14 }}>«</span>
+      </button>
+    </div>
+  );
+}
+
+// ─── CONTEXT TOOLBAR ──────────────────────────────────────────────────────
+function ContextToolbar({ visible, t, accent }) {
+  const s = THEMES[t];
+  if (!visible) return null;
+
+  // Pure SVG icons — no opacity tricks, full currentColor fill
+  const I = {
+    alignL:   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="0" y="2" width="2" height="10" rx="1"/><rect x="2" y="3" width="7" height="3.5" rx="1"/><rect x="2" y="7.5" width="10" height="3.5" rx="1"/></svg>,
+    alignHC:  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="6" y="2" width="2" height="10" rx="1"/><rect x="2" y="3" width="10" height="3.5" rx="1"/><rect x="3" y="7.5" width="8" height="3.5" rx="1"/></svg>,
+    alignR:   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="12" y="2" width="2" height="10" rx="1"/><rect x="5" y="3" width="7" height="3.5" rx="1"/><rect x="2" y="7.5" width="10" height="3.5" rx="1"/></svg>,
+    alignT:   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="0" width="10" height="2" rx="1"/><rect x="3" y="2" width="3.5" height="7" rx="1"/><rect x="7.5" y="2" width="3.5" height="10" rx="1"/></svg>,
+    alignVC:  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="6" width="10" height="2" rx="1"/><rect x="3" y="2" width="3.5" height="10" rx="1"/><rect x="7.5" y="1" width="3.5" height="12" rx="1"/></svg>,
+    alignB:   <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="2" y="12" width="10" height="2" rx="1"/><rect x="3" y="5" width="3.5" height="7" rx="1"/><rect x="7.5" y="2" width="3.5" height="10" rx="1"/></svg>,
+    toFront:  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="7" height="7" rx="1" strokeDasharray="2 1.5"/><rect x="5" y="1" width="8" height="8" rx="1" fill="currentColor" fillOpacity="0.25"/><path d="M11 -1v3M11 -1L9.5 1M11 -1l1.5 2" transform="translate(0,1)"/></svg>,
+    bringFwd: <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="4" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3"/><rect x="5" y="1" width="7" height="7" rx="1" fillOpacity="0.35"/><path d="M11.5 0l-1.5 2.5 1.5 2.5V0z" fillOpacity="0.8"/></svg>,
+    sendBack: <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="5" y="1" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3"/><rect x="1" y="4" width="7" height="7" rx="1" fillOpacity="0.35"/><path d="M2.5 14l1.5-2.5L2.5 9v5z" fillOpacity="0.8"/></svg>,
+    toBack:   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="1" width="8" height="8" rx="1" strokeDasharray="2 1.5"/><rect x="1" y="4" width="7" height="7" rx="1" fill="currentColor" fillOpacity="0.25"/></svg>,
+    flipH:    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="6.5" y="1" width="1" height="12" rx="0.5"/><path d="M5.5 4L1 7l4.5 3V4z" fillOpacity="0.9"/><path d="M8.5 4L13 7l-4.5 3V4z" fillOpacity="0.5"/></svg>,
+    flipV:    <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor"><rect x="1" y="6.5" width="12" height="1" rx="0.5"/><path d="M4 5.5L7 1l3 4.5H4z" fillOpacity="0.9"/><path d="M4 8.5L7 13l3-4.5H4z" fillOpacity="0.5"/></svg>,
+    del:      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M1 3.5h12M5 3.5V2h4v1.5M2.5 3.5L3.5 12h7l1-8.5M5.5 6v4M8.5 6v4"/></svg>,
+  };
+
+  const CTBtn = ({ icon, tip, danger }) => (
+    <button title={tip} style={{
+      width: 28, height: 26, background: 'transparent',
+      border: '1px solid transparent', borderRadius: 5,
+      color: danger ? '#f87171' : s.textPrimary,
+      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transition: 'all 0.1s', flexShrink: 0,
+    }}
+    onMouseEnter={e => { e.currentTarget.style.background = danger ? '#f8717122' : s.btnHover; e.currentTarget.style.borderColor = danger ? '#f8717160' : s.inputBorder; }}
+    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
+    >{icon}</button>
+  );
+
+  const Sep = () => <div style={{ width: 1, height: 18, background: s.panelBorder, margin: '0 4px', flexShrink: 0 }} />;
+
+  return (
+    <div style={{
+      height: 38,
+      background: s.sectionBg,
+      borderBottom: `1px solid ${accent}50`,
+      display: 'flex', alignItems: 'center',
+      padding: '0 14px', gap: 2,
+      flexShrink: 0,
+    }}>
+      {/* Selection chip */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6, marginRight: 10,
+        padding: '3px 10px', borderRadius: 5,
+        background: accent+'20', border: `1px solid ${accent}60`,
+        flexShrink: 0,
+      }}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <ellipse cx="6" cy="5" rx="5" ry="3" fill={accent} fillOpacity="0.4" stroke={accent} strokeWidth="1.2"/>
+          <path d="M4.5 7.5L3 10 5.5 8.5" fill={accent} stroke={accent} strokeWidth="0.9" strokeLinejoin="round"/>
+        </svg>
+        <span style={{ fontSize: 11, color: accent, fontWeight: 600 }}>Bubble selected</span>
+      </div>
+
+      <CTBtn icon={I.alignL}   tip="Align left edge to canvas" />
+      <CTBtn icon={I.alignHC}  tip="Center horizontally on canvas" />
+      <CTBtn icon={I.alignR}   tip="Align right edge to canvas" />
+      <CTBtn icon={I.alignT}   tip="Align top edge to canvas" />
+      <CTBtn icon={I.alignVC}  tip="Center vertically on canvas" />
+      <CTBtn icon={I.alignB}   tip="Align bottom edge to canvas" />
+
+      <Sep />
+
+      <CTBtn icon={I.toFront}  tip="Bring to front — above all layers" />
+      <CTBtn icon={I.bringFwd} tip="Bring forward — one layer up" />
+      <CTBtn icon={I.sendBack} tip="Send backward — one layer down" />
+      <CTBtn icon={I.toBack}   tip="Send to back — behind all layers" />
+
+      <Sep />
+
+      <CTBtn icon={I.flipH}    tip="Flip horizontal" />
+      <CTBtn icon={I.flipV}    tip="Flip vertical" />
+
+      <Sep />
+
+      <CTBtn icon={I.del} tip="Delete selected bubble  (Del)" danger />
+    </div>
+  );
+}
+
+// ─── ABOUT / MORE MENU ────────────────────────────────────────────────────
+function AboutMenu({ s, accent }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const MENU_ITEMS = [
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>, label: 'About Speech Bubble Editor', desc: 'v3 · Long Weekend Labs' },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>, label: 'Release Notes', desc: "What's new in this version" },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>, label: 'Help & Documentation', desc: 'Keyboard shortcuts, tutorials' },
+    { sep: true },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: 'Send Feedback', desc: 'Report a bug or request a feature' },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>, label: 'View on GitHub', desc: 'longweekendlabs/speech-bubble-editor' },
+    { sep: true },
+    { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.08-4.43"/></svg>, label: 'Check for Updates', desc: 'You are on the latest version' },
+  ];
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        title="More options — about, help, feedback"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: 32, height: 32, background: open ? s.btnActive : 'transparent',
+          border: `1px solid ${open ? s.inputBorder : 'transparent'}`, borderRadius: 6,
+          color: s.textSecondary, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.1s, border-color 0.1s',
+        }}
+        onMouseEnter={e => { if (!open) { e.currentTarget.style.background = s.btnHover; e.currentTarget.style.borderColor = s.inputBorder; }}}
+        onMouseLeave={e => { if (!open) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}}
+      >
+        {/* Three-dot vertical menu icon */}
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+        </svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 38, right: 0,
+          width: 260, background: s.topBarBg,
+          border: `1px solid ${s.panelBorder}`,
+          borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          zIndex: 1000, overflow: 'hidden',
+          padding: '4px 0',
+        }}>
+          {MENU_ITEMS.map((item, i) => item.sep ? (
+            <div key={i} style={{ height: 1, background: s.panelBorder, margin: '4px 0' }} />
+          ) : (
+            <button key={i} onClick={() => setOpen(false)} style={{
+              width: '100%', padding: '8px 14px',
+              background: 'transparent', border: 'none',
+              display: 'flex', alignItems: 'center', gap: 10,
+              cursor: 'pointer', textAlign: 'left',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = s.btnHover}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ color: s.textMuted, flexShrink: 0 }}>{item.icon}</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500, color: s.textPrimary, lineHeight: 1.3 }}>{item.label}</div>
+                {item.desc && <div style={{ fontSize: 10.5, color: s.textMuted, marginTop: 1 }}>{item.desc}</div>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TOP BAR ───────────────────────────────────────────────────────────────
+function ZoomPicker({ zoom, setZoom, s }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+
+  const ZOOM_LEVELS = [
+    { label: '200%', value: 200 },
+    { label: '150%', value: 150 },
+    { label: '100%', value: 100 },
+    { label: '75%',  value: 75  },
+    { label: '50%',  value: 50  },
+    { sep: true },
+    { label: 'Fit Width',  value: 'fit-width'  },
+    { label: 'Fit Window', value: 'fit-window' },
+  ];
+
+  const displayLabel = typeof zoom === 'number' ? `${zoom}%`
+    : zoom === 'fit-width' ? 'Fit Width' : 'Fit Window';
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        title="Zoom level — click to change"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          background: s.inputBg, border: `1px solid ${s.inputBorder}`,
+          borderRadius: 6, padding: '0 9px', height: 32,
+          cursor: 'pointer', color: s.textSecondary, fontSize: 12, fontWeight: 500,
+          fontFamily: 'Inter, sans-serif', minWidth: 110,
+          transition: 'background 0.1s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = s.btnHover}
+        onMouseLeave={e => e.currentTarget.style.background = s.inputBg}
+      >
+        {/* Magnifier icon */}
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <span style={{ flex: 1, textAlign: 'center' }}>{displayLabel}</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 36, left: 0,
+          width: 140, background: s.topBarBg,
+          border: `1px solid ${s.panelBorder}`,
+          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+          zIndex: 1000, overflow: 'hidden', padding: '4px 0',
+        }}>
+          {ZOOM_LEVELS.map((item, i) => item.sep ? (
+            <div key={i} style={{ height: 1, background: s.panelBorder, margin: '4px 0' }} />
+          ) : (
+            <button key={i} onClick={() => { setZoom(item.value); setOpen(false); }} style={{
+              width: '100%', padding: '7px 12px',
+              background: zoom === item.value ? s.btnActive : 'transparent',
+              border: 'none', cursor: 'pointer', textAlign: 'left',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              fontFamily: 'Inter, sans-serif',
+            }}
+            onMouseEnter={e => { if (zoom !== item.value) e.currentTarget.style.background = s.btnHover; }}
+            onMouseLeave={e => { if (zoom !== item.value) e.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style={{ fontSize: 12, color: s.textPrimary }}>{item.label}</span>
+              {zoom === item.value && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={s.textSecondary} strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TopBar({ mediaLoaded, zoom, setZoom, canUndo, canRedo, t, accent }) {
+  const s = THEMES[t];
+  const BtnSep = () => (
+    <div style={{ width: 1, height: 22, background: s.panelBorder, margin: '0 4px' }} />
+  );
+
+  // Icon-only button for top bar actions
+  const ActionBtn = ({ svgPath, label, disabled, title, isAccent }) => (
+    <button title={title} style={{
+      background: isAccent ? s.export : 'transparent',
+      border: `1px solid ${isAccent ? 'transparent' : s.inputBorder}`,
+      borderRadius: 6,
+      color: disabled ? s.textMuted : isAccent ? '#fff' : s.textSecondary,
+      padding: '0 11px', height: 32, fontSize: 12, fontWeight: isAccent ? 600 : 500,
+      cursor: disabled ? 'default' : 'pointer',
+      display: 'flex', alignItems: 'center', gap: 6,
+      fontFamily: 'Inter, sans-serif', transition: 'background 0.1s',
+      opacity: disabled ? 0.4 : 1,
+    }}
+    onMouseEnter={e => { if (!disabled) e.currentTarget.style.background = isAccent ? s.exportHover : s.btnHover; }}
+    onMouseLeave={e => { e.currentTarget.style.background = isAccent ? s.export : 'transparent'; }}
+    >
+      {svgPath}
+      {label}
+    </button>
+  );
+
+  return (
+    <div style={{
+      height: 52,
+      background: s.topBarBg,
+      borderBottom: `1px solid ${s.panelBorder}`,
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 16px',
+      gap: 8,
+      flexShrink: 0,
+    }}>
+      {/* Logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="10" fill={accent} opacity="0.15" />
+          <path d="M8 12h8M8 8h8M8 16h5" stroke={accent} strokeWidth="2" strokeLinecap="round" />
+          <circle cx="12" cy="12" r="10" stroke={accent} strokeWidth="1.5" />
+        </svg>
+        <span style={{ fontSize: 13, fontWeight: 700, color: s.textPrimary, letterSpacing: '-0.02em' }}>
+          Speech Bubble Editor
+        </span>
+        <span style={{ fontSize: 11, color: s.textMuted, fontWeight: 400 }}>by Long Weekend Labs</span>
+      </div>
+
+      <div style={{ flexGrow: 1 }} />
+
+      {/* Open */}
+      <ActionBtn
+        title="Open photo or video (Ctrl+O)"
+        label="Open…"
+        svgPath={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+        }
+      />
+
+      {/* Export */}
+      <ActionBtn
+        title="Export with bubbles (Ctrl+E)"
+        label="Export…"
+        disabled={!mediaLoaded}
+        isAccent
+        svgPath={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        }
+      />
+
+      <BtnSep />
+
+      {/* Undo */}
+      <ActionBtn
+        title="Undo (Ctrl+Z)"
+        label="Undo"
+        disabled={!canUndo}
+        svgPath={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 7v6h6"/>
+            <path d="M3 13C5 7 10 4 16 5.5a9 9 0 0 1 5 7.5"/>
+          </svg>
+        }
+      />
+
+      {/* Redo */}
+      <ActionBtn
+        title="Redo (Ctrl+Y)"
+        label="Redo"
+        disabled={!canRedo}
+        svgPath={
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 7v6h-6"/>
+            <path d="M21 13C19 7 14 4 8 5.5A9 9 0 0 0 3 13"/>
+          </svg>
+        }
+      />
+
+      <BtnSep />
+
+      {/* Zoom picker */}
+      <ZoomPicker zoom={zoom} setZoom={setZoom} s={s} />
+
+      <div style={{ flexGrow: 1 }} />
+
+      {/* Right icon buttons */}
+      {[
+        {
+          tip: 'Toggle light/dark theme',
+          svg: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>,
+        },
+        {
+          tip: 'Preferences — keyboard shortcuts, export defaults, canvas settings',
+          svg: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+        },
+      ].map((btn, i) => (
+        <button key={i} title={btn.tip} style={{
+          width: 32, height: 32, background: 'transparent',
+          border: `1px solid transparent`, borderRadius: 6,
+          color: s.textSecondary, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.1s, border-color 0.1s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = s.btnHover; e.currentTarget.style.borderColor = s.inputBorder; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent'; }}
+        >{btn.svg}</button>
+      ))}
+
+      <BtnSep />
+
+      {/* About / More menu */}
+      <AboutMenu s={s} accent={accent} />
+    </div>
+  );
+}
+
+// ─── CANVAS AREA ───────────────────────────────────────────────────────────
+function CanvasArea({ mediaLoaded, activeBubble, setActiveBubble, bubbleText, t, accent }) {
+  const s = THEMES[t];
+  return (
+    <div style={{
+      flex: 1, background: s.canvasBg, position: 'relative',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', cursor: mediaLoaded ? 'crosshair' : 'default',
+    }}>
+      {mediaLoaded ? (
+        <>
+          {/* Simulated video frame */}
+          <div style={{
+            width: '85%', maxWidth: 720, aspectRatio: '16/9',
+            background: 'linear-gradient(145deg, #1a1008 0%, #2d1f0d 40%, #1a1008 100%)',
+            borderRadius: 2, position: 'relative', overflow: 'visible',
+            boxShadow: '0 8px 48px rgba(0,0,0,0.8)',
+          }}>
+            {/* Scene strips for depth */}
+            <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(90deg, transparent, transparent 120px, rgba(0,0,0,0.05) 120px, rgba(0,0,0,0.05) 121px)', borderRadius: 2 }} />
+
+            {/* Simulated people silhouettes */}
+            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} viewBox="0 0 720 405" preserveAspectRatio="none">
+              <defs>
+                <radialGradient id="bg1" cx="30%" cy="60%">
+                  <stop offset="0%" stopColor="#5a3820" />
+                  <stop offset="100%" stopColor="#1a0f05" />
+                </radialGradient>
+                <radialGradient id="bg2" cx="80%" cy="40%">
+                  <stop offset="0%" stopColor="#3d2810" />
+                  <stop offset="100%" stopColor="#0d0804" />
+                </radialGradient>
+              </defs>
+              <rect width="720" height="405" fill="url(#bg1)" />
+              <ellipse cx="560" cy="250" rx="180" ry="220" fill="url(#bg2)" opacity="0.6" />
+              {/* Left figure (back of head) */}
+              <ellipse cx="160" cy="180" rx="80" ry="90" fill="#1a100a" />
+              <ellipse cx="160" cy="130" rx="50" ry="55" fill="#2a1a10" />
+              {/* Right figure (facing viewer) */}
+              <ellipse cx="430" cy="160" rx="70" ry="80" fill="#3d2515" />
+              <ellipse cx="430" cy="100" rx="45" ry="50" fill="#5a3820" />
+              {/* Background café elements */}
+              <rect x="0" y="280" width="720" height="125" fill="#120c06" opacity="0.7" />
+              <rect x="300" y="220" width="8" height="60" fill="#2a1a0a" opacity="0.5" />
+              <circle cx="550" cy="340" rx="60" ry="15" fill="#1e1208" />
+            </svg>
+
+            {/* Speech bubble */}
+            <div
+              style={{
+                position: 'absolute',
+                left: '22%', top: '12%',
+                width: 200, cursor: 'move',
+                filter: 'drop-shadow(2px 3px 6px rgba(0,0,0,0.5))',
+              }}
+              onClick={() => setActiveBubble(true)}
+            >
+              <svg viewBox="0 0 200 130" style={{ width: '100%', overflow: 'visible' }}>
+                {/* Bubble body */}
+                <ellipse cx="100" cy="58" rx="95" ry="52" fill="white" stroke="black" strokeWidth="4" />
+                {/* Tail */}
+                <polygon points="80,106 60,128 100,102" fill="white" />
+                <path d="M80,106 L60,128" stroke="black" strokeWidth="4" />
+                <path d="M100,102 L60,128" stroke="black" strokeWidth="4" />
+                {/* Text */}
+                <text x="100" y="42" textAnchor="middle" fontFamily="'Comic Neue', 'Comic Sans MS', cursive" fontWeight="bold" fontSize="17" fill="black">DID YOU</text>
+                <text x="100" y="65" textAnchor="middle" fontFamily="'Comic Neue', 'Comic Sans MS', cursive" fontWeight="bold" fontSize="17" fill="black">ADD THE</text>
+                <text x="100" y="88" textAnchor="middle" fontFamily="'Comic Neue', 'Comic Sans MS', cursive" fontWeight="bold" fontSize="17" fill="black">CAPTION?</text>
+              </svg>
+              {/* Selection handles */}
+              {activeBubble && (
+                <div style={{ position: 'absolute', inset: -6, border: `2px solid ${accent}`, borderRadius: 4, pointerEvents: 'none' }}>
+                  {[[-4,-4],['calc(50% - 4px)',-4],['calc(100% - 4px)',-4],
+                    [-4,'calc(50% - 4px)'],['calc(100% - 4px)','calc(50% - 4px)'],
+                    [-4,'calc(100% - 4px)'],['calc(50% - 4px)','calc(100% - 4px)'],['calc(100% - 4px)','calc(100% - 4px)']
+                  ].map(([l,tp], i) => (
+                    <div key={i} style={{
+                      position: 'absolute', width: 8, height: 8, background: accent,
+                      borderRadius: 2, left: l, top: tp, border: '1px solid #fff',
+                    }} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
+        // Empty state
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+          color: s.textMuted,
+        }}>
+          <div style={{
+            width: 80, height: 80, borderRadius: 20,
+            border: `2px dashed ${s.textMuted}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon d="M5 19a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2 2h4a2 2 0 0 1 2 2v1M14 14l3 3 3-3M17 21v-8" size={32} color={s.textMuted} />
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: s.textSecondary, marginBottom: 4 }}>Drop media here</div>
+            <div style={{ fontSize: 12, color: s.textMuted }}>Photos, video files — drag & drop or click Open</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TIMELINE ──────────────────────────────────────────────────────────────
+function Timeline({ mediaLoaded, currentFrame, totalFrames, setCurrentFrame, playing, setPlaying, t, accent }) {
+  const s = THEMES[t];
+  const pct = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+  const fmtTime = (f) => {
+    const secs = f / 24;
+    const m = Math.floor(secs / 60);
+    const sv = secs % 60;
+    return `00:00:0${m}:${String(Math.floor(sv)).padStart(2,'0')}:${String(Math.round((sv % 1)*24)).padStart(2,'0')}`;
+  };
+
+  // SVG player icon button
+  const PlayBtn = ({ svg, title, onClick, small, active, accent: btnAccent }) => (
+    <button title={title} onClick={onClick} style={{
+      width: small ? 26 : 30, height: 26, background: active ? (btnAccent+'22') : 'transparent',
+      border: `1px solid ${active ? btnAccent : s.inputBorder}`, borderRadius: 5,
+      color: active ? btnAccent : s.textSecondary, cursor: 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexShrink: 0, transition: 'all 0.12s',
+    }}
+    onMouseEnter={e => { if (!active) e.currentTarget.style.background = s.btnHover; }}
+    onMouseLeave={e => { if (!active) e.currentTarget.style.background = active ? btnAccent+'22' : 'transparent'; }}
+    >{svg}</button>
+  );
+
+  // Compact SVG icons for transport controls
+  const IC = {
+    toStart:  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="1" y="2" width="2" height="12" rx="1"/><path d="M14 2.5L5 8l9 5.5V2.5z"/></svg>,
+    stepBack: <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M11 2.5L2 8l9 5.5V2.5z"/><path d="M10.5 8L7 5.5v5L10.5 8z" opacity="0.4"/></svg>,
+    play:     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 2.5l10 5.5-10 5.5V2.5z"/></svg>,
+    pause:    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg>,
+    stepFwd:  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M5 2.5L14 8 5 13.5V2.5z"/><path d="M5.5 8L9 5.5v5L5.5 8z" opacity="0.4"/></svg>,
+    toEnd:    <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><rect x="13" y="2" width="2" height="12" rx="1"/><path d="M2 2.5L11 8 2 13.5V2.5z"/></svg>,
+    volume:   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><path d="M3 5.5H1.5v5H3l4 3V2.5L3 5.5z" fill="currentColor" stroke="none"/><path d="M9.5 4.5c1 1 1.5 2.2 1.5 3.5s-.5 2.5-1.5 3.5"/><path d="M12 2.5c1.7 1.5 2.5 3.4 2.5 5.5s-.8 4-2.5 5.5"/></svg>,
+    fullscr:  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4"/></svg>,
+    cut:      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><circle cx="4" cy="4" r="2"/><circle cx="4" cy="12" r="2"/><path d="M6 5.5L14 9M6 10.5L14 7"/></svg>,
+    marker:   <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.8 5.5H16l-5 3.6 1.9 5.9L8 12.5l-4.9 3.5 1.9-5.9-5-3.6h6.2z" opacity="0.9"/></svg>,
+    reverse:  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 8h12"/><path d="M4 4L1 8l3 4"/><path d="M10 4l4 4-4 4" opacity="0.5"/></svg>,
+    setIn:    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><rect x="1" y="2" width="2" height="12" rx="1" fill="currentColor" stroke="none"/><path d="M3 8h10"/><path d="M10 5l3 3-3 3"/></svg>,
+    setOut:   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"><rect x="13" y="2" width="2" height="12" rx="1" fill="currentColor" stroke="none"/><path d="M13 8H3"/><path d="M6 5L3 8l3 3"/></svg>,
+  };
+
+  const handleScrubberClick = (e) => {
+    if (!mediaLoaded) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newFrame = Math.round((x / rect.width) * totalFrames);
+    setCurrentFrame(Math.max(0, Math.min(totalFrames, newFrame)));
+  };
+
+  return (
+    <div style={{
+      background: s.timelineBg,
+      borderTop: `1px solid ${s.panelBorder}`,
+      flexShrink: 0,
+    }}>
+      {/* Controls row */}
+      <div style={{
+        height: 40,
+        display: 'flex', alignItems: 'center',
+        padding: '0 12px', gap: 5,
+        borderBottom: `1px solid ${s.panelBorder}`,
+      }}>
+        <PlayBtn svg={IC.toStart}  title="Go to first frame  (Home)"     small onClick={() => setCurrentFrame(0)} />
+        <PlayBtn svg={IC.stepBack} title="Step back one frame  (←)"      small onClick={() => setCurrentFrame(f => Math.max(0, f-1))} />
+
+        {/* Play / Pause — larger, accent-highlighted */}
+        <button
+          title={playing ? 'Pause  (Space)' : 'Play  (Space)'}
+          onClick={() => setPlaying(p => !p)}
+          style={{
+            width: 34, height: 28,
+            background: playing ? accent+'22' : 'transparent',
+            border: `1px solid ${playing ? accent : s.inputBorder}`,
+            borderRadius: 6, color: playing ? accent : s.textSecondary,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.15s', flexShrink: 0,
+          }}
+          onMouseEnter={e => { if (!playing) e.currentTarget.style.background = s.btnHover; }}
+          onMouseLeave={e => { if (!playing) e.currentTarget.style.background = 'transparent'; }}
+        >{playing ? IC.pause : IC.play}</button>
+
+        <PlayBtn svg={IC.stepFwd} title="Step forward one frame  (→)"    small onClick={() => setCurrentFrame(f => Math.min(totalFrames, f+1))} />
+        <PlayBtn svg={IC.toEnd}   title="Go to last frame  (End)"         small onClick={() => setCurrentFrame(totalFrames)} />
+
+        {/* Separator */}
+        <div style={{ width: 1, height: 18, background: s.panelBorder, margin: '0 2px' }} />
+
+        {/* Volume */}
+        <PlayBtn svg={IC.volume} title="Volume" small onClick={() => {}} />
+        <div style={{
+          width: 60, height: 4, background: s.scrubberTrack, borderRadius: 2,
+          position: 'relative', cursor: 'pointer', flexShrink: 0,
+        }}>
+          <div style={{ width: '60%', height: '100%', background: s.textMuted, borderRadius: 2 }} />
+          <div style={{ position: 'absolute', left: '60%', top: '50%', transform: 'translate(-50%, -50%)', width: 9, height: 9, borderRadius: '50%', background: s.textSecondary, border: `2px solid ${s.timelineBg}` }} />
+        </div>
+
+        <div style={{ flexGrow: 1 }} />
+
+        {/* Timecode */}
+        <span style={{ fontSize: 13, fontFamily: 'monospace', color: accent, fontWeight: 600, letterSpacing: '0.05em' }}>
+          {fmtTime(currentFrame)}
+        </span>
+        <span style={{ fontSize: 12, color: s.textMuted, fontFamily: 'monospace' }}>
+          / {fmtTime(totalFrames)}
+        </span>
+        <span style={{ fontSize: 11, color: s.textMuted, marginLeft: 4 }}>24 fps</span>
+
+        <div style={{ flexGrow: 1 }} />
+
+        {/* Fullscreen */}
+        <PlayBtn svg={IC.fullscr} title="Toggle fullscreen canvas  (F)" small onClick={() => {}} />
+      </div>
+
+      {/* Scrubber */}
+      <div style={{
+        height: 28,
+        background: s.scrubberTrack,
+        position: 'relative',
+        cursor: 'pointer',
+        overflow: 'hidden',
+      }} onClick={handleScrubberClick}>
+        {/* Time marks */}
+        {[0,1,2,3,4,5,6,7].map(i => (
+          <div key={i} style={{
+            position: 'absolute',
+            left: `${(i / 7) * 100}%`,
+            top: 0, bottom: 0,
+            borderLeft: `1px solid ${s.panelBorder}`,
+            display: 'flex', alignItems: 'center',
+            paddingLeft: 4,
+          }}>
+            <span style={{ fontSize: 9, color: s.textMuted, fontFamily: 'monospace' }}>
+              00:00:0{i}:00
+            </span>
+          </div>
+        ))}
+        {/* Selection range */}
+        <div style={{
+          position: 'absolute',
+          left: '5%', width: '80%',
+          top: 0, bottom: 0,
+          background: accent + '15',
+        }} />
+        {/* Playhead */}
+        {mediaLoaded && (
+          <div style={{
+            position: 'absolute',
+            left: `${pct}%`,
+            top: 0, bottom: 0,
+            width: 2,
+            background: accent,
+            boxShadow: `0 0 6px ${accent}`,
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}>
+            <div style={{
+              position: 'absolute', top: 0,
+              left: '50%', transform: 'translateX(-50%)',
+              width: 0, height: 0,
+              borderLeft: '5px solid transparent',
+              borderRight: '5px solid transparent',
+              borderTop: `8px solid ${accent}`,
+            }} />
+          </div>
+        )}
+      </div>
+
+      {/* Film strip */}
+      <div style={{
+        height: 56,
+        background: s.filmBg,
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+      }}>
+        {/* Film strip perforations + frames */}
+        {[...Array(20)].map((_, i) => (
+          <div key={i} style={{
+            width: 52, height: 48, flexShrink: 0,
+            border: `1px solid ${s.panelBorder}`,
+            background: `hsl(${25 + i*3}, ${18+i%4}%, ${8+i%3}%)`,
+            position: 'relative', overflow: 'hidden',
+          }}>
+            <div style={{ position: 'absolute', top: 2, left: 0, right: 0, height: 6, background: s.filmBg, display: 'flex', gap: 4, padding: '0 4px' }}>
+              {[0,1,2].map(p => <div key={p} style={{ flex: 1, background: s.panelBorder, borderRadius: 1 }} />)}
+            </div>
+            <div style={{ position: 'absolute', bottom: 2, left: 0, right: 0, height: 6, background: s.filmBg, display: 'flex', gap: 4, padding: '0 4px' }}>
+              {[0,1,2].map(p => <div key={p} style={{ flex: 1, background: s.panelBorder, borderRadius: 1 }} />)}
+            </div>
+          </div>
+        ))}
+
+        {/* Bubble clips on timeline */}
+        <div style={{
+          position: 'absolute',
+          left: '10%', width: '20%',
+          top: 8, bottom: 8,
+          background: accent + '30',
+          border: `1px solid ${accent}80`,
+          borderRadius: 3,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: accent, fontWeight: 600 }}>00:00:01:24</span>
+        </div>
+
+        <div style={{
+          position: 'absolute',
+          left: '65%', width: '25%',
+          top: 8, bottom: 8,
+          background: accent + '30',
+          border: `1px solid ${accent}80`,
+          borderRadius: 3,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: accent, fontWeight: 600 }}>00:00:06:20</span>
+        </div>
+
+        {/* Cut markers */}
+        {[36, 72].map((pctPos, i) => (
+          <div key={i} style={{
+            position: 'absolute',
+            left: `${pctPos}%`,
+            top: 0, bottom: 0,
+            width: 2, background: '#a855f7',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <span style={{ fontSize: 14, color: '#a855f7' }}>✂</span>
+          </div>
+        ))}
+
+        {/* Playhead on filmstrip */}
+        {mediaLoaded && (
+          <div style={{
+            position: 'absolute',
+            left: `${pct}%`,
+            top: 0, bottom: 0,
+            width: 2, background: accent,
+            zIndex: 5, pointerEvents: 'none',
+          }} />
+        )}
+      </div>
+
+      {/* Bottom edit bar */}
+      <div style={{
+        height: 34, borderTop: `1px solid ${s.panelBorder}`,
+        display: 'flex', alignItems: 'center',
+        padding: '0 10px', gap: 6,
+      }}>
+        {[
+          { svg: IC.setIn,   label: 'Set In',  tip: 'Set trim in-point to current frame  ([)' },
+          { svg: IC.setOut,  label: 'Set Out', tip: 'Set trim out-point to current frame  (])' },
+          { sep: true },
+          { svg: IC.cut,     label: 'Cut',     tip: 'Cut selected trim range from clip' },
+          { svg: IC.marker,  label: 'Marker',  tip: 'Add marker at current frame  (M)' },
+          { svg: IC.reverse, label: 'Reverse', tip: 'Toggle playback direction (reverse on export)' },
+        ].map((item, i) => item.sep ? (
+          <div key={i} style={{ width: 1, height: 18, background: s.panelBorder }} />
+        ) : (
+          <button key={item.label} title={item.tip} style={{
+            height: 24, padding: '0 8px', background: 'transparent',
+            border: `1px solid ${s.inputBorder}`, borderRadius: 5,
+            color: s.textSecondary, fontSize: 11, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 5,
+            fontFamily: 'Inter, sans-serif', transition: 'background 0.1s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = s.btnHover}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+          >
+            {item.svg}
+            <span style={{ fontSize: 11 }}>{item.label}</span>
+          </button>
+        ))}
+
+        <div style={{ flexGrow: 1 }} />
+
+        <span style={{ color: s.textMuted, fontSize: 13 }}>−</span>
+        <div style={{ width: 80, height: 4, background: s.scrubberTrack, borderRadius: 2, position: 'relative', cursor: 'pointer' }}>
+          <div style={{ width: '50%', height: '100%', background: s.textMuted, borderRadius: 2 }} />
+          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 10, height: 10, borderRadius: '50%', background: s.textSecondary, border: `2px solid ${s.timelineBg}` }} />
+        </div>
+        <span style={{ color: s.textMuted, fontSize: 13 }}>+</span>
+
+        <div style={{
+          height: 24, padding: '0 10px',
+          background: s.inputBg, border: `1px solid ${s.inputBorder}`,
+          borderRadius: 5, display: 'flex', alignItems: 'center', gap: 4,
+          color: s.textSecondary, fontSize: 11, cursor: 'pointer',
+        }}>
+          Fit Timeline <span style={{ fontSize: 10 }}>▾</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── STATUS BAR ────────────────────────────────────────────────────────────
+function StatusBar({ t, accent }) {
+  const s = THEMES[t];
+  return (
+    <div style={{
+      height: 26, background: s.topBarBg,
+      borderTop: `1px solid ${s.panelBorder}`,
+      display: 'flex', alignItems: 'center',
+      padding: '0 14px', gap: 16, flexShrink: 0,
+    }}>
+      <span style={{ fontSize: 11, color: s.textMuted }}>
+        Project: <span style={{ color: s.textSecondary }}>Sample Café Conversation</span>
+      </span>
+      <span style={{ fontSize: 11, color: s.textMuted }}>1920 × 1080</span>
+      <span style={{ fontSize: 11, color: s.textMuted }}>24 fps</span>
+      <span style={{ fontSize: 11, color: s.textMuted }}>Duration: 00:00:06:20</span>
+      <div style={{ flexGrow: 1 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e' }} />
+        <span style={{ fontSize: 11, color: s.textMuted }}>Autosaved just now</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── INSPECTOR PANEL ───────────────────────────────────────────────────────
+function InspectorPanel({ activeTab, setActiveTab, activeBubble, bubbleText, setBubbleText, t, accent }) {
+  const s = THEMES[t];
+  const [openSections, setOpenSections] = React.useState({
+    text: true, bubble: true, colors: true, typography: true,
+    tail: true, stroke: true, shadow: true, align: true,
+  });
+  const [fillColor, setFillColor] = React.useState('#FFFFFF');
+  const [strokeColor, setStrokeColor] = React.useState('#000000');
+  const [bubbleStyle, setBubbleStyle] = React.useState('oval');
+  const [tailPos, setTailPos] = React.useState('Bottom Left');
+  const [tailWidth, setTailWidth] = React.useState(28);
+  const [strokeWidth, setStrokeWidth] = React.useState(4);
+  const [shadowEnabled, setShadowEnabled] = React.useState(true);
+  const [shadowBlur, setShadowBlur] = React.useState(12);
+  const [shadowOpacity, setShadowOpacity] = React.useState(80);
+  const [fontSize, setFontSize] = React.useState(48);
+  const [fontWeight, setFontWeight] = React.useState('Bold');
+  const [textAlign, setTextAlign] = React.useState('center');
+
+  const toggle = (key) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
+
+  const Section = ({ id, title, checkable, checked, onCheck, children }) => {
+    const open = openSections[id];
+    return (
+      <div style={{ borderBottom: `1px solid ${s.panelBorder}` }}>
+        <div
+          style={{
+            display: 'flex', alignItems: 'center',
+            padding: '0 10px 0 14px', height: 32, cursor: 'pointer',
+            userSelect: 'none', gap: 6,
+          }}
+          onClick={() => toggle(id)}
+        >
+          {/* Chevron — clearly visible, flips on open/close */}
+          <div style={{
+            width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+            background: open ? accent+'18' : s.inputBg,
+            border: `1px solid ${open ? accent+'40' : s.inputBorder}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.15s',
+          }}>
+            <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+              <path d={open ? 'M1 3l3 3 3-3' : 'M3 1l3 3-3 3'}
+                stroke={open ? accent : s.textMuted} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.1em', color: open ? s.textPrimary : s.textSecondary, flex: 1 }}>{title}</span>
+          {checkable && (
+            <input type="checkbox" checked={checked} onChange={e => { e.stopPropagation(); onCheck && onCheck(e.target.checked); }}
+              style={{ accentColor: accent }} onClick={e => e.stopPropagation()} />
+          )}
+        </div>
+        {open && (
+          <div style={{ padding: '4px 14px 12px' }}>
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const Label = ({ children }) => (
+    <span style={{ fontSize: 11, color: s.textSecondary, minWidth: 54 }}>{children}</span>
+  );
+
+  const Row = ({ children, gap = 8 }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap, marginBottom: 8 }}>{children}</div>
+  );
+
+  const ColorBtn = ({ color, onChange, label, tip }) => (
+    <Row>
+      <Label>{label}</Label>
+      <input type="color" value={color} onChange={e => onChange(e.target.value)}
+        title={tip || label}
+        style={{ width: 30, height: 24, border: `1px solid ${s.inputBorder}`, borderRadius: 4, background: 'none', cursor: 'pointer', padding: 2 }} />
+      <span style={{ fontSize: 11, color: s.textSecondary, fontFamily: 'monospace' }}>{color.toUpperCase()}</span>
+    </Row>
+  );
+
+  const Slider = ({ value, onChange, min, max, label, suffix, tip }) => (
+    <Row>
+      <Label>{label}</Label>
+      <input type="range" min={min} max={max} value={value} onChange={e => onChange(+e.target.value)}
+        title={tip || label}
+        style={{ flex: 1, accentColor: accent, cursor: 'pointer', height: 4 }} />
+      <div style={{
+        width: 52, height: 24, background: s.inputBg, border: `1px solid ${s.inputBorder}`,
+        borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, color: s.textPrimary, fontFamily: 'monospace',
+      }}>{value}{suffix}</div>
+    </Row>
+  );
+
+  // Bubble style previews — drawn to match bubble.py shape algorithms exactly
+  const BUBBLE_STYLES = [
+    {
+      key: 'oval', label: 'Speech',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Organic oval body (bezier approximation) */}
+          <path d="M24,6 C34.5,6 42,12 42,20 C42,28 34.5,34 24,34 C13.5,34 6,28 6,20 C6,12 13.5,6 24,6 Z"
+            fill={color === 'currentColor' ? 'none' : color+'33'} stroke={color} strokeWidth="2" />
+          {/* Tail — bottom left */}
+          <path d="M16,32 L10,44 L22,30" fill={color === 'currentColor' ? 'none' : color+'33'} stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        </svg>
+      ),
+    },
+    {
+      key: 'cloud', label: 'Cloud',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Cloud bumps united — matches _cloud_path() */}
+          <path d="
+            M8,28 C5,28 4,24 7,22 C5,18 9,15 12,17 C13,13 17,11 20,14
+            C21,10 26,9 28,13 C31,11 35,13 34,17 C37,17 40,20 38,23
+            C40,25 39,29 36,29 C35,32 32,33 30,31 C28,34 23,34 22,31
+            C19,33 15,32 14,29 C11,30 8,29 8,28 Z"
+            fill={color === 'currentColor' ? 'none' : color+'33'} stroke={color} strokeWidth="2" />
+          {/* Thought dots */}
+          <circle cx="16" cy="36" r="2.5" fill={color} />
+          <circle cx="12" cy="41" r="1.8" fill={color} />
+          <circle cx="9" cy="45" r="1.2" fill={color} />
+        </svg>
+      ),
+    },
+    {
+      key: 'rect', label: 'Rectangle',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Rounded rect caption bar — matches addRoundedRect(r, 16, 16) */}
+          <rect x="4" y="10" width="40" height="24" rx="6" ry="6"
+            fill={color === 'currentColor' ? 'none' : color+'33'} stroke={color} strokeWidth="2" />
+          {/* Tail bottom-left */}
+          <path d="M12,34 L7,44 L20,34" fill={color === 'currentColor' ? 'none' : color+'33'} stroke={color} strokeWidth="2" strokeLinejoin="round" />
+        </svg>
+      ),
+    },
+    {
+      key: 'spiky', label: 'Starburst',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Manga action bubble — 12 sharp spikes, miter joins, solid fill */}
+          <path d="M24.0,1.0 L27.1,12.4 L33.5,7.5 L32.5,15.5 L43.1,13.0 L35.6,20.9 L42.0,24.0 L35.6,27.1 L43.9,35.5 L32.5,32.5 L34.0,41.3 L27.1,35.6 L24.0,47.0 L20.9,35.6 L14.5,40.5 L15.5,32.5 L4.9,35.0 L12.4,27.1 L6.0,24.0 L12.4,20.9 L4.1,12.5 L15.5,15.5 L14.0,6.7 L20.9,12.4 Z"
+            fill={color === 'currentColor' ? 'none' : color+'25'}
+            stroke={color} strokeWidth="1.5" strokeLinejoin="miter" />
+        </svg>
+      ),
+    },
+    {
+      key: 'text', label: 'Text only',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Text-only — no body, just T with dashed selection indicator */}
+          <text x="24" y="32" textAnchor="middle" fontSize="28" fontWeight="bold"
+            fill={color} fontFamily="serif">T</text>
+          <rect x="7" y="8" width="34" height="32" rx="2"
+            fill="none" stroke={color} strokeWidth="1.5" strokeDasharray="3,3" opacity="0.5" />
+        </svg>
+      ),
+    },
+    {
+      key: 'scrim', label: 'Scrim',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Dark full-width strip — matches addRect (sharp corners) */}
+          <rect x="2" y="16" width="44" height="16"
+            fill={color === 'currentColor' ? 'none' : color+'44'} stroke={color} strokeWidth="2" />
+          {/* Text lines hint */}
+          <line x1="9" y1="22" x2="39" y2="22" stroke={color} strokeWidth="1.5" opacity="0.5" />
+          <line x1="14" y1="27" x2="34" y2="27" stroke={color} strokeWidth="1" opacity="0.3" />
+        </svg>
+      ),
+    },
+    {
+      key: 'caption', label: 'Caption',
+      preview: (color) => (
+        <svg viewBox="0 0 48 48" width="36" height="36">
+          {/* Stroke-text overlay — outline text, transparent bg */}
+          <text x="24" y="30" textAnchor="middle" fontSize="20" fontWeight="bold"
+            fontFamily="sans-serif"
+            stroke={color} strokeWidth="3" fill="white" paintOrder="stroke"
+            letterSpacing="1">Aa</text>
+          {/* Subtle bounding hint */}
+          <rect x="4" y="12" width="40" height="24" rx="2"
+            fill="none" stroke={color} strokeWidth="1" opacity="0.3" strokeDasharray="2,3" />
+        </svg>
+      ),
+    },
+  ];
+
+  const LAYERS_DATA = [
+    { label: 'Bubble: DID YOU ADD THE...', z: 2, visible: true },
+    { label: 'Overlay layer', z: 1, visible: true },
+    { label: 'Media: café_scene.mp4', z: 0, visible: true },
+  ];
+
+  return (
+    <div style={{
+      width: 320, minWidth: 280, maxWidth: 380,
+      background: s.inspectorBg,
+      borderLeft: `1px solid ${s.panelBorder}`,
+      display: 'flex', flexDirection: 'column',
+      flexShrink: 0,
+    }}>
+      {/* Tabs */}
+      <div style={{
+        display: 'flex', borderBottom: `1px solid ${s.panelBorder}`,
+        background: s.topBarBg, flexShrink: 0,
+      }}>
+        {['Inspector', 'Layers'].map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            flex: 1, height: 40, background: 'transparent',
+            border: 'none', borderBottom: activeTab === tab ? `2px solid ${accent}` : '2px solid transparent',
+            color: activeTab === tab ? s.textPrimary : s.textSecondary,
+            fontSize: 12, fontWeight: activeTab === tab ? 600 : 400,
+            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+            transition: 'all 0.15s',
+          }}>{tab}</button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {activeTab === 'Inspector' ? (
+          <div>
+            {/* TEXT */}
+            <Section id="text" title="TEXT">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                <span style={{ fontSize: 10, color: s.textMuted }}>{bubbleText.length} / 200</span>
+              </div>
+              <textarea value={bubbleText} onChange={e => setBubbleText(e.target.value.slice(0,200))}
+                style={{
+                  width: '100%', height: 80, background: s.inputBg,
+                  border: `1px solid ${s.inputBorder}`, borderRadius: 6,
+                  color: s.textPrimary, fontSize: 13, padding: '8px 10px',
+                  resize: 'none', fontFamily: 'Inter, sans-serif',
+                  outline: 'none', lineHeight: 1.5,
+                }} />
+            </Section>
+
+            {/* BUBBLE */}
+            <Section id="bubble" title="BUBBLE">
+              <Label>Style</Label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                {BUBBLE_STYLES.map(bs => {
+                  const active = bubbleStyle === bs.key;
+                  const iconColor = active ? accent : s.textSecondary;
+                  return (
+                    <button key={bs.key} title={bs.label} onClick={() => setBubbleStyle(bs.key)} style={{
+                      width: 46, height: 46,
+                      background: active ? accent + '18' : s.inputBg,
+                      border: `2px solid ${active ? accent : s.inputBorder}`,
+                      borderRadius: 8, cursor: 'pointer', padding: 0,
+                      color: iconColor,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: 1,
+                      transition: 'all 0.12s',
+                      position: 'relative',
+                    }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.background = s.btnHover; e.currentTarget.style.borderColor = s.textMuted; }}}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.background = s.inputBg; e.currentTarget.style.borderColor = s.inputBorder; }}}
+                    >
+                      {bs.preview(iconColor)}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Style label beneath selected */}
+              <div style={{ marginTop: 5, fontSize: 10, color: s.textMuted }}>
+                {BUBBLE_STYLES.find(b => b.key === bubbleStyle)?.label}
+              </div>
+            </Section>
+
+            {/* COLORS */}
+            <Section id="colors" title="COLORS">
+              <ColorBtn label="Fill" color={fillColor} onChange={setFillColor} tip="Bubble fill color — click to pick" />
+              <ColorBtn label="Stroke" color={strokeColor} onChange={setStrokeColor} tip="Bubble outline/stroke color" />
+            </Section>
+
+            {/* TYPOGRAPHY */}
+            <Section id="typography" title="TYPOGRAPHY">
+              <Row>
+                <select style={{ flex: 1, height: 28, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, color: s.textPrimary, fontSize: 12, padding: '0 6px', fontFamily: 'Inter, sans-serif', cursor: 'pointer' }}>
+                  <option>Comic Neue</option><option>Impact</option><option>Arial</option><option>Georgia</option>
+                </select>
+                <select value={fontWeight} onChange={e => setFontWeight(e.target.value)} style={{ width: 90, height: 28, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, color: s.textPrimary, fontSize: 12, padding: '0 4px', fontFamily: 'Inter, sans-serif', cursor: 'pointer' }}>
+                  <option>Regular</option><option>Bold</option><option>Italic</option><option>Bold Italic</option>
+                </select>
+              </Row>
+              <Row>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, padding: '0 6px', height: 28 }}>
+                  <input type="number" value={fontSize} onChange={e => setFontSize(+e.target.value)} style={{ width: 36, background: 'transparent', border: 'none', color: s.textPrimary, fontSize: 12, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                  <span style={{ fontSize: 11, color: s.textMuted }}>px</span>
+                </div>
+                <input type="color" defaultValue="#000000" style={{ width: 28, height: 28, border: `1px solid ${s.inputBorder}`, borderRadius: 4, padding: 2, cursor: 'pointer', background: 'none' }} />
+                {[
+                  { al: 'left',    tip: 'Align text left',    svg: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="4" x2="15" y2="4"/><line x1="1" y1="7.5" x2="10" y2="7.5"/><line x1="1" y1="11" x2="13" y2="11"/></svg> },
+                  { al: 'center',  tip: 'Center text',         svg: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="4" x2="15" y2="4"/><line x1="3.5" y1="7.5" x2="12.5" y2="7.5"/><line x1="1.5" y1="11" x2="14.5" y2="11"/></svg> },
+                  { al: 'right',   tip: 'Align text right',   svg: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="4" x2="15" y2="4"/><line x1="6" y1="7.5" x2="15" y2="7.5"/><line x1="3" y1="11" x2="15" y2="11"/></svg> },
+                  { al: 'justify', tip: 'Justify text',        svg: <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="4" x2="15" y2="4"/><line x1="1" y1="7.5" x2="15" y2="7.5"/><line x1="1" y1="11" x2="15" y2="11"/></svg> },
+                ].map(({ al, tip, svg }) => (
+                  <button key={al} title={tip} onClick={() => setTextAlign(al)} style={{
+                    width: 28, height: 28, background: textAlign === al ? accent+'22' : s.inputBg,
+                    border: `1px solid ${textAlign === al ? accent : s.inputBorder}`,
+                    borderRadius: 4, cursor: 'pointer', color: textAlign === al ? accent : s.textSecondary,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 0.12s',
+                  }}>{svg}</button>
+                ))}
+              </Row>
+            </Section>
+
+            {/* TAIL */}
+            <Section id="tail" title="TAIL">
+              <Row>
+                <Label>Position</Label>
+                <select value={tailPos} onChange={e => setTailPos(e.target.value)} style={{ flex: 1, height: 28, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, color: s.textPrimary, fontSize: 12, padding: '0 6px', fontFamily: 'Inter, sans-serif', cursor: 'pointer' }}>
+                  {['Top Left','Top Center','Top Right','Right','Bottom Right','Bottom Center','Bottom Left','Left'].map(p => <option key={p}>{p}</option>)}
+                </select>
+              </Row>
+              <Slider label="Width" value={tailWidth} onChange={setTailWidth} min={6} max={80} suffix=" px" tip="Width of the tail at its base in pixels" />
+            </Section>
+
+            {/* STROKE */}
+            <Section id="stroke" title="STROKE">
+              <Slider label="Width" value={strokeWidth} onChange={setStrokeWidth} min={0} max={12} suffix=" px" tip="Bubble outline stroke width in pixels" />
+            </Section>
+
+            {/* SHADOW */}
+            <Section id="shadow" title="SHADOW" checkable checked={shadowEnabled} onCheck={setShadowEnabled}>
+              <ColorBtn label="Color" color="#000000" onChange={() => {}} tip="Shadow color" />
+              <Slider label="Blur" value={shadowBlur} onChange={setShadowBlur} min={0} max={40} suffix=" px" tip="Shadow blur radius in pixels" />
+              <Row>
+                <Label>Offset</Label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, padding: '0 6px', height: 28 }}>
+                  <span style={{ fontSize: 10, color: s.textMuted }}>X</span>
+                  <input type="number" defaultValue="4" style={{ width: 26, background: 'transparent', border: 'none', color: s.textPrimary, fontSize: 12, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                  <span style={{ fontSize: 10, color: s.textMuted }}>px</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: s.inputBg, border: `1px solid ${s.inputBorder}`, borderRadius: 4, padding: '0 6px', height: 28 }}>
+                  <span style={{ fontSize: 10, color: s.textMuted }}>Y</span>
+                  <input type="number" defaultValue="4" style={{ width: 26, background: 'transparent', border: 'none', color: s.textPrimary, fontSize: 12, outline: 'none', fontFamily: 'Inter, sans-serif' }} />
+                  <span style={{ fontSize: 10, color: s.textMuted }}>px</span>
+                </div>
+              </Row>
+              <Slider label="Opacity" value={shadowOpacity} onChange={setShadowOpacity} min={0} max={100} suffix=" %" tip="Shadow opacity (0 = invisible, 100 = fully opaque)" />
+            </Section>
+
+          </div>
+        ) : (
+          // Layers tab
+          <div style={{ padding: '10px 8px' }}>
+            {LAYERS_DATA.map((layer, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 8px', borderRadius: 6,
+                background: i === 0 ? accent + '15' : 'transparent',
+                border: `1px solid ${i === 0 ? accent + '40' : 'transparent'}`,
+                marginBottom: 3, cursor: 'pointer',
+              }}
+              onMouseEnter={e => { if (i !== 0) e.currentTarget.style.background = s.btnHover; }}
+              onMouseLeave={e => { if (i !== 0) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <input type="checkbox" checked={layer.visible} readOnly style={{ accentColor: accent, cursor: 'pointer' }} />
+                <Icon d={i === 0 ? 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' : i === 1 ? 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' : 'M15 10l-4 4L6 10m0 0l5-5 5 5'} size={14} color={i === 0 ? accent : s.textMuted} />
+                <span style={{ fontSize: 12, color: i === 0 ? s.textPrimary : s.textSecondary, flex: 1 }}>{layer.label}</span>
+                <span style={{ fontSize: 10, color: s.textMuted }}>z={layer.z}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ──────────────────────────────────────────────────────────────
+function App() {
+  const { useTweaks, TweaksPanel, TweakSection, TweakSelect, TweakColor, TweakSlider, TweakToggle } = window;
+
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const t = tweaks.theme;
+  const accent = tweaks.accentColor;
+  const tw = tweaks.sidebarWidth;
+  const iw = tweaks.inspectorWidth;
+
+  const [activeTool, setActiveTool] = React.useState('select');
+  const [mediaLoaded, setMediaLoaded] = React.useState(true);
+  const [activeTab, setActiveTab] = React.useState('Inspector');
+  const [activeBubble, setActiveBubble] = React.useState(true);
+  const [bubbleText, setBubbleText] = React.useState('DID YOU ADD\nTHE CAPTION?');
+  const [currentFrame, setCurrentFrame] = React.useState(36);
+  const [totalFrames] = React.useState(150);
+  const [playing, setPlaying] = React.useState(false);
+  const [zoom, setZoom] = React.useState(100);
+  const [canUndo] = React.useState(true);
+  const [canRedo] = React.useState(false);
+  const [showTweaks, setShowTweaks] = React.useState(false);
+
+  // Playback timer
+  React.useEffect(() => {
+    if (!playing) return;
+    const id = setInterval(() => setCurrentFrame(f => f >= totalFrames ? 0 : f + 1), 1000/24);
+    return () => clearInterval(id);
+  }, [playing, totalFrames]);
+
+  // Tweaks panel protocol
+  React.useEffect(() => {
+    const handler = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setShowTweaks(true);
+      if (e.data?.type === '__deactivate_edit_mode') setShowTweaks(false);
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const s = THEMES[t];
+
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: s.appBg, color: s.textPrimary, fontSize: tweaks.fontSize }}>
+      <TopBar mediaLoaded={mediaLoaded} zoom={zoom} setZoom={setZoom} canUndo={canUndo} canRedo={canRedo} t={t} accent={accent} />
+      <ContextToolbar visible={activeBubble && mediaLoaded} t={t} accent={accent} />
+
+      {/* Main body */}
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <ToolSidebar activeTool={activeTool} setActiveTool={setActiveTool} mediaLoaded={mediaLoaded} t={t} tw={tw} accent={accent} />
+
+        {/* Center + inspector */}
+        <div style={{ flex: 1, display: 'flex', minWidth: 0 }}>
+          {/* Canvas + timeline */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <CanvasArea mediaLoaded={mediaLoaded} activeBubble={activeBubble} setActiveBubble={setActiveBubble} bubbleText={bubbleText} t={t} accent={accent} />
+            {tweaks.showTimeline && mediaLoaded && (
+              <Timeline mediaLoaded={mediaLoaded} currentFrame={currentFrame} totalFrames={totalFrames} setCurrentFrame={setCurrentFrame} playing={playing} setPlaying={setPlaying} t={t} accent={accent} />
+            )}
+          </div>
+
+          <InspectorPanel activeTab={activeTab} setActiveTab={setActiveTab} activeBubble={activeBubble} bubbleText={bubbleText} setBubbleText={setBubbleText} t={t} accent={accent} />
+        </div>
+      </div>
+
+      <StatusBar t={t} accent={accent} />
+
+      {/* Tweaks Panel */}
+      {showTweaks && (
+        <TweaksPanel onClose={() => {
+          setShowTweaks(false);
+          window.parent.postMessage({ type: '__edit_mode_dismissed' }, '*');
+        }}>
+          <TweakSection title="Theme">
+            <TweakSelect id="theme" label="Color Theme" value={tweaks.theme}
+              options={[{value:'dark',label:'Dark'},{value:'oled',label:'OLED Black'},{value:'slate',label:'Blue Slate'}]}
+              onChange={v => setTweak('theme', v)} />
+            <TweakColor id="accentColor" label="Accent Color" value={tweaks.accentColor}
+              onChange={v => setTweak('accentColor', v)} />
+          </TweakSection>
+          <TweakSection title="Layout">
+            <TweakSlider id="sidebarWidth" label="Sidebar Width" value={tweaks.sidebarWidth} min={56} max={100} step={4}
+              onChange={v => setTweak('sidebarWidth', v)} />
+            <TweakToggle id="showTimeline" label="Show Timeline" value={tweaks.showTimeline}
+              onChange={v => setTweak('showTimeline', v)} />
+          </TweakSection>
+          <TweakSection title="Typography">
+            <TweakSlider id="fontSize" label="UI Font Size" value={tweaks.fontSize} min={11} max={16} step={1}
+              onChange={v => setTweak('fontSize', v)} />
+          </TweakSection>
+        </TweaksPanel>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

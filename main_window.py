@@ -484,26 +484,26 @@ class MainWindow(QMainWindow):
             QSlider::groove:horizontal { background-color: #111111; }
             #StyleButton, #AlignButton, #ArrangeButton { background-color: #111111; }
         """,
-        "blue": """
-            QWidget                  { background-color: #0f172a; color: #e2e8f0; }
-            QMainWindow, QDialog     { background-color: #0f172a; }
-            #TopBar                  { background-color: #1e293b; border-bottom: 1px solid #334155; }
-            #InspectorDock           { background-color: #1e293b; border-left: 1px solid #334155; }
-            #ToolSidebar             { background-color: #1e293b; border-right: 1px solid #334155; }
-            #CanvasArea, QGraphicsView { background-color: #0b1120; }
+        "slate": """
+            QWidget                  { background-color: #0f1623; color: #ccd6f6; }
+            QMainWindow, QDialog     { background-color: #0f1623; }
+            #TopBar                  { background-color: #131c2e; border-bottom: 1px solid #1e2d47; }
+            #InspectorDock           { background-color: #131c2e; border-left: 1px solid #1e2d47; }
+            #ToolSidebar             { background-color: #131c2e; border-right: 1px solid #1e2d47; }
+            #CanvasArea, QGraphicsView { background-color: #0a1020; }
             #InspectorPage, #InspectorSection, #InspectorSectionHeader,
-            #InspectorSectionBody    { background-color: #1e293b; }
-            QScrollArea              { background-color: #0f172a; }
-            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit { background-color: #334155; border-color: #475569; }
-            QSlider::groove:horizontal { background-color: #334155; }
-            QSlider::handle:horizontal { background-color: #38bdf8; }
-            QSlider::sub-page:horizontal { background-color: #38bdf8; }
-            #StyleButton, #AlignButton, #ArrangeButton { background-color: #334155; border-color: #475569; }
-            #StyleButton:checked { background-color: rgba(56,189,248,0.15); border-color: #38bdf8; color: #38bdf8; }
-            #ContextToolbar          { background-color: #1e293b; border-bottom: 1px solid rgba(56,189,248,0.3); }
-            #ContextChip             { background-color: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.4); color: #38bdf8; }
-            #BtnExport               { background-color: #0284c7; }
-            #BtnExport:hover         { background-color: #0ea5e9; }
+            #InspectorSectionBody    { background-color: #172038; }
+            QScrollArea              { background-color: #0f1623; }
+            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit { background-color: #1e2d47; border-color: #253659; }
+            QSlider::groove:horizontal { background-color: #1e2d47; }
+            QSlider::handle:horizontal { background-color: #7c83ff; }
+            QSlider::sub-page:horizontal { background-color: #7c83ff; }
+            #StyleButton, #AlignButton, #ArrangeButton { background-color: #1e2d47; border-color: #253659; }
+            #StyleButton:checked { background-color: rgba(124,131,255,0.15); border-color: #7c83ff; color: #7c83ff; }
+            #ContextToolbar          { background-color: #172038; border-bottom: 1px solid rgba(124,131,255,0.3); }
+            #ContextChip             { background-color: rgba(124,131,255,0.12); border-color: rgba(124,131,255,0.4); color: #7c83ff; }
+            #BtnExport               { background-color: #5865f2; }
+            #BtnExport:hover         { background-color: #6b74ff; }
         """,
     }
 

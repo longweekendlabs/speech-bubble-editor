@@ -688,3 +688,13 @@ QSplitter::handle:horizontal {
 #LayersList::item:hover:!selected {
     background-color: #2a3347;
 }
+
+/* ── Timecode label ───────────────────────────────────────────────── */
+#TimecodeLabel {
+    color: #46ddcb;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    background-color: transparent;
+}

@@ -24,26 +24,17 @@ from icons import (
 
 class TopBar(QWidget):
 
-    open_media_requested  = pyqtSignal(str)
-    export_requested      = pyqtSignal()
-    undo_requested        = pyqtSignal()
-    redo_requested        = pyqtSignal()
-    about_requested       = pyqtSignal()
-    zoom_changed          = pyqtSignal(object)   # int (percent) or str ("fit-width"/"fit-window")
-    theme_change_requested = pyqtSignal(str)      # "dark" | "oled" | "slate"
-
-    _THEMES     = ["dark", "oled", "slate"]
-    _THEME_TIPS = {
-        "dark":  "Theme: Dark — click to switch to OLED",
-        "oled":  "Theme: OLED — click to switch to Slate",
-        "slate": "Theme: Slate — click to switch to Dark",
-    }
+    open_media_requested = pyqtSignal(str)
+    export_requested     = pyqtSignal()
+    undo_requested       = pyqtSignal()
+    redo_requested       = pyqtSignal()
+    about_requested      = pyqtSignal()
+    zoom_changed         = pyqtSignal(object)   # int (percent) or str ("fit-width"/"fit-window")
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(52)
         self.setObjectName("TopBar")
-        self._current_theme = "dark"
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -139,9 +130,8 @@ class TopBar(QWidget):
         # ── Right icon buttons ─────────────────────────────────────────
         self.btn_theme = self._icon_btn(
             make_icon(ICON_SUN, 15, MUTED),
-            self._THEME_TIPS["dark"],
+            "Toggle light/dark theme",
         )
-        self.btn_theme.clicked.connect(self._cycle_theme)
         lay.addWidget(self.btn_theme)
 
         self.btn_prefs = self._icon_btn(
@@ -290,16 +280,6 @@ class TopBar(QWidget):
         )
         # align right edge of menu to button right edge
         menu.exec(pos)
-
-    # ------------------------------------------------------------------
-    # Theme cycling
-    # ------------------------------------------------------------------
-
-    def _cycle_theme(self):
-        idx = self._THEMES.index(self._current_theme)
-        self._current_theme = self._THEMES[(idx + 1) % len(self._THEMES)]
-        self.btn_theme.setToolTip(self._THEME_TIPS[self._current_theme])
-        self.theme_change_requested.emit(self._current_theme)
 
     # ------------------------------------------------------------------
     # Open dialog
