@@ -1,7 +1,12 @@
 # Speech Bubble Editor
 
 **Add speech bubbles, captions, and text overlays to photos and videos.**
-Built by [Long Weekend Labs](https://longweekendlabs.github.io/speech-bubble-editor)
+
+[![GitHub Release](https://img.shields.io/github/v/release/longweekendlabs/speech-bubble-editor?style=flat-square)](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#download)
+
+A truly cross-platform tool for adding expressive text to your media. Built for speed, performance, and offline-first workflows.
 
 ---
 
@@ -16,32 +21,18 @@ Built by [Long Weekend Labs](https://longweekendlabs.github.io/speech-bubble-edi
 - **Full-resolution export** — PNG, JPEG, WebP; video export via FFmpeg (audio preserved)
 - **Drag & resize** — 8-anchor handles, draggable tail, undo/redo for everything
 - **Font controls** — family, size, bold, italic, colour; auto-shrink to fit
-- **Truly cross-platform** — Linux, Windows and macOS; follows OS light/dark theme on all three
 - **Single instance** — re-activates the existing window instead of opening a second copy
-
----
 
 ## Download
 
 Head to the **[Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)** to grab the latest build for your platform.
 
-| Platform | File | Notes |
+| Platform | Package | Notes |
 |---|---|---|
-| **macOS Apple Silicon** | `SpeechBubbleEditor-*-macos-arm64.dmg` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time (unsigned app). FFmpeg bundled. |
-| Linux (any distro) | `SpeechBubbleEditor-*.AppImage` | Double-click to run, no install |
-| Fedora / RHEL | `speech-bubble-editor-*.rpm` | `sudo dnf install ./file.rpm` |
-| Ubuntu / Mint | `speech-bubble-editor_*.deb` | `sudo dpkg -i file.deb` |
-| Linux (archive) | `SpeechBubbleEditor-*-linux-x64.tar.gz` | Extract and run |
-| Windows | `SpeechBubbleEditor-*-win64-Setup.exe` | Installer |
-| Windows portable | `SpeechBubbleEditor-*-win64-portable.zip` | No install needed |
-
----
-
-## Screenshots
-
-*(Add screenshots to `docs/screenshots/` and update this section)*
-
----
+| **macOS Apple Silicon** | `.dmg` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time. |
+| **Linux (any distro)** | `.AppImage` | Double-click to run, no install needed. |
+| **Windows (installer)** | `-Setup.exe` | Standard Windows installer. |
+| **Windows (portable)** | `.zip` | No install needed, run anywhere. |
 
 ## Building from Source
 
@@ -56,46 +47,32 @@ pip install -r requirements.txt
 python main.py
 ```
 
-**To build release packages:**
+### Build release packages:
 
 ```bash
-# macOS (Apple Silicon) — run on an M-series Mac
+# macOS (Apple Silicon)
 python create_icon.py
 iconutil -c icns icons/icon.iconset -o icons/icon.icns
 python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
-# Output: dist/SpeechBubbleEditor.app  (FFmpeg bundled automatically if on PATH)
 
 # Linux
 bash build_linux.sh
 
-# Windows — run on a Windows machine
+# Windows
 build_windows.bat
 ```
 
-> **macOS note:** The `.app` is unsigned. First launch: right-click → **Open** to bypass Gatekeeper.
-
----
-
-## Releasing a New Version
-
-1. Update `version.py` with the new version number and history entry
-2. Commit the change: `git commit -am "Release vX.Y.Z"`
-3. Tag it: `git tag vX.Y.Z`
-4. Push: `git push && git push --tags`
-
-GitHub Actions will automatically build all packages and publish them to Releases.
-
----
-
 ## Dependencies
 
-- [PyQt6](https://pypi.org/project/PyQt6/) — UI framework
-- [OpenCV](https://pypi.org/project/opencv-python/) — video decoding
-- [Pillow](https://pypi.org/project/Pillow/) — image export
-- [FFmpeg](https://ffmpeg.org/) — video export with audio (bundled in the macOS app; on Linux/Windows must be installed separately)
-
----
+- **PyQt6** — UI framework
+- **OpenCV** — video decoding
+- **Pillow** — image export
+- **FFmpeg** — video export with audio (bundled in macOS; required on PATH for Linux/Windows)
 
 ## License
 
-© 2026 Long Weekend Labs. All rights reserved.
+MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+Made with ♥ by **[Long Weekend Labs](https://github.com/longweekendlabs)**
