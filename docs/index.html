@@ -294,6 +294,9 @@
       font-size: 1rem; color: var(--muted); font-weight: 600;
       text-transform: uppercase; letter-spacing: .08em; margin-bottom: 18px;
     }
+    .more-grid {
+      display: grid; gap: 14px;
+    }
     .more-card {
       display: flex; align-items: center; gap: 20px; text-align: left;
       background: var(--bg3); border: 1px solid var(--border); border-radius: 12px;
@@ -565,14 +568,24 @@
 <!-- MORE FROM LONG WEEKEND LABS -->
 <div class="more-section">
   <h2>More from Long Weekend Labs</h2>
-  <a class="more-card" href="https://longweekendlabs.github.io/bg-remover/" target="_blank">
-    <div class="more-icon">✂</div>
-    <div class="more-info">
-      <h3>BG Remover</h3>
-      <p>AI-powered batch background removal — 100% offline. Drop your character sprites; get clean transparent PNGs without cloud APIs, subscriptions, or watermarks.</p>
-    </div>
-    <span class="btn-more">Learn more →</span>
-  </a>
+  <div class="more-grid">
+    <a class="more-card" href="https://longweekendlabs.github.io/bg-remover/" target="_blank">
+      <div class="more-icon">✂</div>
+      <div class="more-info">
+        <h3>BG Remover</h3>
+        <p>AI-powered batch background removal — 100% offline. Drop your character sprites; get clean transparent PNGs without cloud APIs, subscriptions, or watermarks.</p>
+      </div>
+      <span class="btn-more">Learn more →</span>
+    </a>
+    <a class="more-card" href="https://longweekendlabs.github.io/parallax-studio/" target="_blank">
+      <div class="more-icon">🎞</div>
+      <div class="more-info">
+        <h3>Parallax Studio</h3>
+        <p>Turn layered artwork into looping 2.5D parallax animations. Import cutouts, paint depth, preview motion, and export MP4 or GIF loops.</p>
+      </div>
+      <span class="btn-more">Learn more →</span>
+    </a>
+  </div>
 </div>
 
 <!-- FOOTER -->
