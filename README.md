@@ -27,13 +27,13 @@ Head to the **[Releases page](https://github.com/longweekendlabs/speech-bubble-e
 
 | Platform | File | Notes |
 |---|---|---|
+| **macOS Apple Silicon** | `SpeechBubbleEditor-*-macos-arm64.dmg` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time (unsigned app). FFmpeg bundled. |
 | Linux (any distro) | `SpeechBubbleEditor-*.AppImage` | Double-click to run, no install |
 | Fedora / RHEL | `speech-bubble-editor-*.rpm` | `sudo dnf install ./file.rpm` |
 | Ubuntu / Mint | `speech-bubble-editor_*.deb` | `sudo dpkg -i file.deb` |
-| Linux (archive) | `SpeechBubbleEditor-*-linux.tar.gz` | Extract and run |
+| Linux (archive) | `SpeechBubbleEditor-*-linux-x64.tar.gz` | Extract and run |
 | Windows | `SpeechBubbleEditor-*-win64-Setup.exe` | Installer |
 | Windows portable | `SpeechBubbleEditor-*-win64-portable.zip` | No install needed |
-| macOS | `SpeechBubbleEditor-*.dmg` | Drag to Applications |
 
 ---
 
@@ -59,15 +59,20 @@ python main.py
 **To build release packages:**
 
 ```bash
+# macOS (Apple Silicon) — run on an M-series Mac
+python create_icon.py
+iconutil -c icns icons/icon.iconset -o icons/icon.icns
+python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
+# Output: dist/SpeechBubbleEditor.app  (FFmpeg bundled automatically if on PATH)
+
 # Linux
 bash build_linux.sh
 
 # Windows — run on a Windows machine
 build_windows.bat
-
-# macOS — run on a Mac
-bash build_mac.sh
 ```
+
+> **macOS note:** The `.app` is unsigned. First launch: right-click → **Open** to bypass Gatekeeper.
 
 ---
 
@@ -87,7 +92,7 @@ GitHub Actions will automatically build all packages and publish them to Release
 - [PyQt6](https://pypi.org/project/PyQt6/) — UI framework
 - [OpenCV](https://pypi.org/project/opencv-python/) — video decoding
 - [Pillow](https://pypi.org/project/Pillow/) — image export
-- [FFmpeg](https://ffmpeg.org/) — video export with audio (must be installed separately)
+- [FFmpeg](https://ffmpeg.org/) — video export with audio (bundled in the macOS app; on Linux/Windows must be installed separately)
 
 ---
 

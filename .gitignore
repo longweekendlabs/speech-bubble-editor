@@ -17,6 +17,7 @@ dist/
 # Build outputs — these go to GitHub Releases, not the repo
 lin/
 win/
+*.dmg
 
 # Downloaded build tools (fetched automatically)
 .build_tools/

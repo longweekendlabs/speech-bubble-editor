@@ -119,6 +119,17 @@ App is shipped and functional. Core features work: speech bubbles on images and 
 
 ---
 
+## Phase 6 — macOS Apple Silicon `[Claude Code]`
+
+> Port the app to macOS arm64; no Python code changes required — only build infra.
+
+- [x] Add `speech_bubble_macos.spec` — PyInstaller spec producing a `.app` bundle (arm64, LSMinimumSystemVersion 12.0, bundle ID `com.longweekendlabs.speechbubbleeditor`)
+- [x] Add `build-macos-arm64` CI job (macos-14 runner): generate `.icns` via `iconutil`, build with PyInstaller, package as DMG via `hdiutil`
+- [x] Update publish job: add macOS artifact download + release notes (Gatekeeper notice, FFmpeg Homebrew requirement)
+- [x] Update `PROJECT.md`: macOS arm64 added to Platforms; macOS Intel stays Out of Scope
+
+---
+
 ## Backlog (post-v4, not committed)
 
 - [ ] Batch mode — apply same bubble layout to multiple images `[Codex]`

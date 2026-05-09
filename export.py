@@ -9,6 +9,7 @@ Video export:  renders each export frame with bubbles via OpenCV, then
 import os
 import shutil
 import subprocess
+import sys
 from datetime import datetime
 
 from PyQt6.QtCore import Qt, QRectF
@@ -16,6 +17,15 @@ from PyQt6.QtGui import QImage, QPainter, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QMessageBox, QProgressDialog, QApplication
 
 from video_player import VideoPlayer
+
+
+def _find_ffmpeg() -> str | None:
+    """Return path to FFmpeg: bundled copy first, then system PATH."""
+    if hasattr(sys, "_MEIPASS"):
+        bundled = os.path.join(sys._MEIPASS, "ffmpeg")
+        if os.path.isfile(bundled):
+            return bundled
+    return shutil.which("ffmpeg")
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +404,7 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
     Attempt to mux audio from src_video into rendered_video → out_path.
     Falls back to just renaming rendered_video if FFmpeg is unavailable or fails.
     """
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = _find_ffmpeg()
     if not ffmpeg:
         shutil.move(rendered_video, out_path)
         return

@@ -587,10 +587,92 @@ jobs:
             SpeechBubbleEditor-*-winarm64-Setup.exe
 
   # ──────────────────────────────────────────────────────────────────────────
+  # macOS arm64 — .app bundle packaged as DMG (Apple Silicon, macOS 12+)
+  #
+  # macos-14 runner = Apple Silicon M1 (arm64).
+  # All required deps (PyQt6, opencv-python, numpy, Pillow) ship arm64 wheels
+  # on PyPI so a plain pip install works.  FFmpeg is NOT bundled — users must
+  # install it via Homebrew for video export to work.
+  # The .app is unsigned/unnotarized; users need to right-click → Open the
+  # first time to bypass Gatekeeper (macOS security gate).
+  # ──────────────────────────────────────────────────────────────────────────
+  build-macos-arm64:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Get version
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "TAG=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Ensure FFmpeg is available (pre-installed on macos-14; install if missing)
+        run: which ffmpeg || brew install ffmpeg
+
+      - name: Generate PNG icons
+        run: python create_icon.py
+
+      - name: Create .icns icon (iconutil)
+        run: |
+          ICONSET=icons/icon.iconset
+          mkdir -p "$ICONSET"
+          cp icons/icon_16.png  "$ICONSET/icon_16x16.png"
+          cp icons/icon_32.png  "$ICONSET/icon_16x16@2x.png"
+          cp icons/icon_32.png  "$ICONSET/icon_32x32.png"
+          cp icons/icon_64.png  "$ICONSET/icon_32x32@2x.png"
+          cp icons/icon_128.png "$ICONSET/icon_128x128.png"
+          cp icons/icon_256.png "$ICONSET/icon_128x128@2x.png"
+          cp icons/icon_256.png "$ICONSET/icon_256x256.png"
+          cp icons/icon_512.png "$ICONSET/icon_256x256@2x.png"
+          cp icons/icon_512.png "$ICONSET/icon_512x512.png"
+          iconutil -c icns "$ICONSET" -o icons/icon.icns
+
+      - name: Build macOS app (PyInstaller)
+        run: python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
+
+      - name: Verify .app bundle
+        run: |
+          ls -lhd dist/SpeechBubbleEditor.app
+          file dist/SpeechBubbleEditor.app/Contents/MacOS/SpeechBubbleEditor
+
+      - name: Package as DMG
+        run: |
+          TAG="${{ steps.ver.outputs.TAG }}"
+          hdiutil create \
+            -volname "Speech Bubble Editor" \
+            -srcfolder "dist/SpeechBubbleEditor.app" \
+            -ov -format UDZO \
+            "SpeechBubbleEditor-${TAG}-macos-arm64.dmg"
+
+      - name: Upload macOS arm64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-packages
+          path: SpeechBubbleEditor-*-macos-arm64.dmg
+
+  # ──────────────────────────────────────────────────────────────────────────
   # Publish — collect artifacts and create GitHub Release
   # ──────────────────────────────────────────────────────────────────────────
   publish:
-    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-windows-arm64]
+    needs: [build-linux-x64, build-linux-arm64, build-windows-x64, build-windows-arm64, build-macos-arm64]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
 
@@ -622,6 +704,12 @@ jobs:
           name: windows-arm64-packages
           path: packages/
 
+      - name: Download macOS arm64 packages
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm64-packages
+          path: packages/
+
       - name: List all packages
         run: ls -lh packages/
 
@@ -635,12 +723,15 @@ jobs:
           body: |
             ## Speech Bubble Editor ${{ github.ref_name }}
 
-            > All packages are self-contained — no system Python or Qt required. macOS is not included.
+            > All packages are self-contained — no system Python or Qt required.
+            > **macOS:** FFmpeg is not bundled — install it via `brew install ffmpeg` for video export.
+            > The macOS app is unsigned; right-click → Open the first time to bypass Gatekeeper.
 
             ### Downloads
 
             | Platform | File | Notes |
             |---|---|---|
+            | **macOS Apple Silicon** (arm64) | `SpeechBubbleEditor-*-macos-arm64.dmg` | macOS 12+, M1/M2/M3/M4 |
             | **Windows 11 ARM** (installer) | `SpeechBubbleEditor-*-winarm64-Setup.exe` | Native ARM64 |
             | **Windows 11 ARM** (portable) | `SpeechBubbleEditor-*-winarm64-portable.zip` | Extract & run |
             | **Windows 10/11 x64** (installer) | `SpeechBubbleEditor-*-win64-Setup.exe` | |
@@ -655,6 +746,11 @@ jobs:
             | **Linux ARM64 portable** | `SpeechBubbleEditor-*-linux-arm64.tar.gz` | Extract & run |
 
             ### Install
+
+            **macOS (Apple Silicon):**
+            1. Open the `.dmg` and drag `SpeechBubbleEditor.app` to your Applications folder.
+            2. First launch: right-click the app → **Open** to bypass Gatekeeper (unsigned app).
+            3. For video export, install FFmpeg: `brew install ffmpeg`
 
             **Windows installer:** Run the `-Setup.exe` and follow the wizard.
 

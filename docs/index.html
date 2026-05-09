@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Speech Bubble Editor — Long Weekend Labs</title>
-  <meta name="description" content="Add speech bubbles, captions, and text overlays to photos and videos. Native builds for Windows x64, Windows ARM64, and Linux ARM64." />
+  <meta name="description" content="Add speech bubbles, captions, and text overlays to photos and videos. Native builds for macOS Apple Silicon, Windows, and Linux including ARM64." />
   <meta property="og:title" content="Speech Bubble Editor" />
-  <meta property="og:description" content="Add speech bubbles to photos and videos. Native builds for Windows and Linux ARM64." />
+  <meta property="og:description" content="Add speech bubbles to photos and videos. Native builds for macOS Apple Silicon, Windows, and Linux ARM64." />
   <meta property="og:image" content="https://longweekendlabs.github.io/speech-bubble-editor/screenshots/og.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -122,6 +122,7 @@
       white-space: nowrap;
     }
     .btn:hover { opacity: 0.88; text-decoration: none; transform: translateY(-1px); }
+    .btn-macos  { background: #555;           color: #fff; }
     .btn-linux  { background: var(--accent);  color: #fff; }
     .btn-win    { background: #2d7d46;        color: #fff; }
     .btn-github { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
@@ -356,8 +357,14 @@
   />
   <h1>Speech Bubble<br><span>Editor</span></h1>
   <p>Add speech bubbles, captions, and text overlays to your photos and videos — in seconds.
-     Native builds for Windows &amp; Linux, including <strong style="color:var(--arm)">ARM64</strong>.</p>
+     Native builds for macOS, Windows &amp; Linux, including <strong style="color:var(--arm)">ARM64</strong>.</p>
   <div class="hero-buttons">
+    <a href="#download" class="btn btn-macos">
+      <svg width="16" height="16" viewBox="0 0 814 1000" fill="currentColor">
+        <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 376.6 0 248.9 0 127.5 0 59.1 25 24.4 80.7-2.4c41.4-19.5 88.5-29.3 134-29.3 44 0 91.5 11.9 127.2 47.5 30.2 30.8 47.7 73 47.7 113.6 0 4.8-.3 9.7-.9 14.5-.5 4.8-1.2 9.6-2.2 14.2 4.7-.8 9.5-1.3 14.4-1.3 28.6 0 57.5 10.3 78.3 28 25.2 21.3 38.8 54 38.8 93.5 0 44-19.8 81.2-54.6 104.4-6.1 3.9-12.4 7.5-18.8 10.6l-2.9 1.4z"/>
+      </svg>
+      macOS
+    </a>
     <a href="#download" class="btn btn-linux">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
@@ -457,7 +464,7 @@
     <div class="feature-card">
       <div class="feature-icon">💪</div>
       <h3>Native ARM64 Builds</h3>
-      <p>Self-contained binaries for Windows 11 ARM and Linux aarch64. No system Python or Qt required — just download and run.</p>
+      <p>Self-contained binaries for macOS Apple Silicon, Windows 11 ARM, and Linux aarch64. No system Python or Qt required — just download and run.</p>
     </div>
   </div>
 </section>
@@ -468,6 +475,19 @@
     <p class="section-label">Free download · v3.1</p>
     <h2 class="section-title">Get Speech Bubble Editor</h2>
     <div class="platform-cards">
+
+      <!-- macOS Apple Silicon -->
+      <div class="platform-card">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 814 1000" fill="var(--text)">
+            <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46 376.6 0 248.9 0 127.5 0 59.1 25 24.4 80.7-2.4c41.4-19.5 88.5-29.3 134-29.3 44 0 91.5 11.9 127.2 47.5 30.2 30.8 47.7 73 47.7 113.6 0 4.8-.3 9.7-.9 14.5-.5 4.8-1.2 9.6-2.2 14.2 4.7-.8 9.5-1.3 14.4-1.3 28.6 0 57.5 10.3 78.3 28 25.2 21.3 38.8 54 38.8 93.5 0 44-19.8 81.2-54.6 104.4-6.1 3.9-12.4 7.5-18.8 10.6l-2.9 1.4z"/>
+          </svg>
+          macOS
+          <span class="arm-badge">Apple Silicon</span>
+        </h3>
+        <p class="sub">M1 / M2 / M3 / M4 · macOS 12 Monterey or later. FFmpeg bundled — no Homebrew needed. Right-click → Open first launch (unsigned app).</p>
+        <div id="macos-arm64-downloads"><span class="loading">Fetching latest release…</span></div>
+      </div>
 
       <!-- Linux x64 -->
       <div class="platform-card">
@@ -587,11 +607,13 @@
       const badge = document.getElementById('version-badge');
       if (badge && rel.tag_name) badge.textContent = `Latest: ${rel.tag_name}`;
 
+      const macosArm64   = document.getElementById('macos-arm64-downloads');
       const linuxX64     = document.getElementById('linux-x64-downloads');
       const linuxArm64   = document.getElementById('linux-arm64-downloads');
       const windowsX64   = document.getElementById('windows-x64-downloads');
       const windowsArm64 = document.getElementById('windows-arm64-downloads');
 
+      macosArm64.innerHTML   = '';
       linuxX64.innerHTML     = '';
       linuxArm64.innerHTML   = '';
       windowsX64.innerHTML   = '';
@@ -612,8 +634,13 @@
           return btn;
         }
 
+        // ── macOS Apple Silicon ──────────────────────────────────────────
+        if (name.includes('macos-arm64') && name.endsWith('.dmg')) {
+          macosArm64.appendChild(makeBtn(
+            `DMG <small>· Drag to Applications · ${mb} MB</small>`, 'dl-primary'));
+
         // ── Linux x64 ────────────────────────────────────────────────────
-        if (name.includes('x86_64') && name.endsWith('.AppImage')) {
+        } else if (name.includes('x86_64') && name.endsWith('.AppImage')) {
           linuxX64.appendChild(makeBtn(
             `AppImage <small>· Any distro · ${mb} MB</small>`, 'dl-primary'));
 
@@ -668,6 +695,7 @@
 
       // Fallback buttons if no matching assets found
       const fallback = `<a href="${rel.html_url}" class="dl-btn dl-primary" target="_blank" rel="noopener">View Release on GitHub</a>`;
+      if (!macosArm64.innerHTML)   macosArm64.innerHTML   = fallback;
       if (!linuxX64.innerHTML)     linuxX64.innerHTML     = fallback;
       if (!linuxArm64.innerHTML)   linuxArm64.innerHTML   = fallback;
       if (!windowsX64.innerHTML)   windowsX64.innerHTML   = fallback;
@@ -675,6 +703,7 @@
     })
     .catch(() => {
       const fallback = `<a href="https://github.com/${REPO}/releases/latest" class="dl-btn dl-primary" target="_blank" rel="noopener">View Latest Release</a>`;
+      document.getElementById('macos-arm64-downloads').innerHTML   = fallback;
       document.getElementById('linux-x64-downloads').innerHTML     = fallback;
       document.getElementById('linux-arm64-downloads').innerHTML   = fallback;
       document.getElementById('windows-x64-downloads').innerHTML   = fallback;

@@ -30,6 +30,7 @@ A focused, fast, offline desktop tool for adding professional-quality speech bub
 - Windows x86_64 — `.exe` (NSIS per-user, no admin)
 - Windows ARM64 — `.exe`
 - Linux ARM64 — `.deb` + `.rpm`
+- macOS ARM64 (Apple Silicon) — `.dmg` (unsigned; requires `brew install ffmpeg` for video export)
 
 ## v4 UI Layout (reference: `newui_for_sbe_v40.png`)
 
@@ -90,5 +91,5 @@ Full review in `/AI/Projects/speech-bubble-editor/codereview.md`.
 
 - Cloud storage or sync
 - Subscription or in-app purchase
-- macOS
+- macOS Intel (x86_64) — Apple Silicon only; Rosetta fallback not tested
 - AI-assisted bubble placement (possible future idea)
