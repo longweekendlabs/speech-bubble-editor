@@ -37,3 +37,17 @@ desktop.ini
 
 # Logs
 *.log
+
+# Local agent and handoff notes
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+PROJECT.md
+ROADMAP.md
+DEPLOYMENT.md
+codereview.md
+HANDOFF.md
+handoff.md
+archive/
+design_handoff/
+.github/copilot-instructions.md
