@@ -182,9 +182,9 @@ class RightMediaPlaceholder(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self._rect, QColor(55, 55, 55))
+        painter.fillRect(self._rect, QColor("#0f1319"))
 
-        pen = QPen(QColor(160, 160, 160))
+        pen = QPen(QColor("#3a4d66"))
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setWidth(2)
         painter.setPen(pen)
@@ -193,7 +193,7 @@ class RightMediaPlaceholder(QGraphicsItem):
         font = QFont()
         font.setPixelSize(max(14, int(self._rect.height() * 0.035)))
         painter.setFont(font)
-        painter.setPen(QPen(QColor(190, 190, 190)))
+        painter.setPen(QPen(QColor("#8a95aa")))
         painter.drawText(
             self._rect,
             int(Qt.AlignmentFlag.AlignHCenter) |
@@ -223,8 +223,8 @@ class DualSeamItem(QGraphicsItem):
     def __init__(self, x, y, w, h):
         super().__init__()
         self._rect         = QRectF(x, y, w, h)
-        self._gap_color    = QColor(45, 45, 45)
-        self._border_color = QColor(90, 90, 90)
+        self._gap_color    = QColor("#0f1319")
+        self._border_color = QColor("#3a4d66")
         self._border_width = 0.0
         self._feather      = 0
         self.setZValue(-0.5)
@@ -328,7 +328,7 @@ class PhotoScene(QGraphicsScene):
         self._overlay_layers: list = []            # list[MediaItem]
         self._dual_gap = _DUAL_GAP                 # instance copy of gap
         self._dual_seam: DualSeamItem | None = None
-        self._dual_border_color = QColor(90, 90, 90)
+        self._dual_border_color = QColor("#3a4d66")
         self._dual_border_width = 0.0
 
     # ------------------------------------------------------------------
@@ -411,6 +411,31 @@ class PhotoScene(QGraphicsScene):
             self.removeItem(self._photo_item)
             self._photo_item = None
 
+    def reset_project(self):
+        """Clear every project item and return the scene to its launch state."""
+        self.undo_stack.clear()
+        self._remove_meme_bars()
+        self._clear_overlays()
+        self._clear_dual_state()
+        self._stop_decode_worker(self._decode_worker, self._decode_thread)
+        self._decode_worker = None
+        self._decode_thread = None
+        self._decode_gen_left += 1
+        self._decode_gen_right += 1
+        if self._video_player is not None:
+            self._video_player.release()
+            self._video_player = None
+        self.clear()
+        self._photo_item = None
+        self._photo_item_right = None
+        self._right_placeholder = None
+        self._meme_top = None
+        self._meme_bot = None
+        self._overlay_layers.clear()
+        self._dual_mode = False
+        self._dual_seam = None
+        self.setSceneRect(QRectF(0, 0, 900, 600))
+
     # ------------------------------------------------------------------
     # Background decode callbacks (UI thread — auto QueuedConnection)
     # ------------------------------------------------------------------
@@ -440,6 +465,14 @@ class PhotoScene(QGraphicsScene):
         if self._video_player is not None and self._photo_item is not None:
             if self._decode_worker is not None:
                 self._decode_worker.request(frame_idx)
+
+        for item in self._overlay_layers:
+            player = item.video_player() if hasattr(item, "video_player") else None
+            if player is not None and player.is_loaded():
+                idx = min(frame_idx, player.frame_count - 1)
+                pix = player.get_frame_pixmap(idx)
+                if pix is not None:
+                    item.set_pixmap(pix)
 
         if self._dual_mode and self._video_player_right is not None \
                 and self._photo_item_right is not None:
@@ -722,15 +755,18 @@ class PhotoScene(QGraphicsScene):
             if not p.load(file_path):
                 return None
             px = p.get_frame_pixmap(0)
-            p.release()
             if px is None:
+                p.release()
                 return None
         else:
+            p = None
             px = QPixmap(file_path)
             if px.isNull():
                 return None
 
         item = MediaItem(px, is_overlay=True)
+        if p is not None:
+            item.set_video_player(p)
         # Scale to ~35% of scene width
         sr = self.sceneRect()
         target_w = max(120.0, sr.width() * 0.35)
@@ -752,6 +788,8 @@ class PhotoScene(QGraphicsScene):
         """Remove an overlay layer from the scene and the tracking list."""
         if item in self._overlay_layers:
             self._overlay_layers.remove(item)
+            if hasattr(item, "video_player") and item.video_player() is not None:
+                item.video_player().release()
             if item.scene() is self:
                 self.removeItem(item)
             self.overlay_removed.emit(item)
@@ -761,6 +799,8 @@ class PhotoScene(QGraphicsScene):
 
     def _clear_overlays(self):
         for item in list(self._overlay_layers):
+            if hasattr(item, "video_player") and item.video_player() is not None:
+                item.video_player().release()
             if item.scene() is self:
                 self.removeItem(item)
         self._overlay_layers.clear()
@@ -935,12 +975,8 @@ class PhotoView(QGraphicsView):
         self._update_background_brush()
 
     def _update_background_brush(self):
-        """Set the view background colour based on the current palette."""
-        dark = self.palette().window().color().lightness() < 128
-        if dark:
-            self.setBackgroundBrush(QColor(45, 45, 45))
-        else:
-            self.setBackgroundBrush(QColor(200, 200, 200))
+        """Keep the empty canvas aligned with the fixed v4 dark theme."""
+        self.setBackgroundBrush(QColor("#0f1319"))
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -1007,20 +1043,11 @@ class PhotoView(QGraphicsView):
         super().drawBackground(painter, rect)
         if not self._photo_scene.has_photo():
             # Welcome screen — draw in viewport coordinates so it's always centered
-            dark = self.palette().window().color().lightness() < 128
-
-            if dark:
-                icon_bg_color    = QColor(70, 70, 70)
-                icon_border_color = QColor(110, 110, 110)
-                icon_plus_color  = QColor(170, 170, 170)
-                main_text_color  = QColor(200, 200, 200)
-                sub_text_color   = QColor(130, 130, 130)
-            else:
-                icon_bg_color    = QColor(200, 200, 200)
-                icon_border_color = QColor(150, 150, 150)
-                icon_plus_color  = QColor(80, 80, 80)
-                main_text_color  = QColor(60, 60, 60)
-                sub_text_color   = QColor(100, 100, 100)
+            icon_bg_color     = QColor("#1e2535")
+            icon_border_color = QColor("#3a4d66")
+            icon_plus_color   = QColor("#8a95aa")
+            main_text_color   = QColor("#e8ecf4")
+            sub_text_color    = QColor("#8a95aa")
 
             painter.save()
             painter.resetTransform()
@@ -1083,6 +1110,9 @@ class PhotoView(QGraphicsView):
             self.fit_photo()
 
     def wheelEvent(self, event):
+        if not self._photo_scene.has_photo():
+            event.ignore()
+            return
         if event.angleDelta().y() > 0:
             self.zoom_in()
         else:

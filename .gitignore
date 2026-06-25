@@ -16,6 +16,7 @@ dist/
 
 # Build outputs — these go to GitHub Releases, not the repo
 lin/
+linux/
 win/
 *.dmg
 

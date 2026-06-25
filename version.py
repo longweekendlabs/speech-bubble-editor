@@ -44,9 +44,11 @@ History:
             to 80px; Caption and Text tools wired to add bubbles with correct
             default style; Delete key bound to delete selected item; complete
             dark.qss rewrite using exact v4 design tokens (accent #46ddcb).
+  v4.0.4 — Top-bar icon render fix; font dropdown uses QFontDatabase; video
+            slowdown control with magnetic 10/25/35/50/75/100% stops.
 """
 
-__version__  = "4.0.3"
+__version__  = "4.0.4"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

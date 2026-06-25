@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for Speech Bubble Editor — macOS arm64 (.app bundle).
+PyInstaller spec for Speech Bubble Editor — macOS native .app bundle.
 
 Build:
     pyinstaller --clean --noconfirm speech_bubble_macos.spec
@@ -10,6 +10,7 @@ Requires icons/icon.icns — generate it first (CI does this via iconutil).
 
 import os
 import importlib.util as _ilu
+import platform as _platform
 
 _app_dir = os.path.dirname(os.path.abspath(SPEC))
 
@@ -18,6 +19,7 @@ _vs = _ilu.spec_from_file_location("version", os.path.join(_app_dir, "version.py
 _vm = _ilu.module_from_spec(_vs)
 _vs.loader.exec_module(_vm)
 _VERSION = _vm.__version__
+_TARGET_ARCH = 'arm64' if _platform.machine().lower() == 'arm64' else 'x86_64'
 
 from PyInstaller.utils.hooks import collect_all as _collect_all
 import shutil as _shutil
@@ -71,7 +73,7 @@ exe = EXE(
     upx=False,
     console=False,
     argv_emulation=False,
-    target_arch='arm64',
+    target_arch=_TARGET_ARCH,
     codesign_identity=None,
     entitlements_file=None,
     icon=os.path.join(_app_dir, 'icons', 'icon.icns'),

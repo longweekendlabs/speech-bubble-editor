@@ -1,5 +1,5 @@
 """
-about_dialog.py — About dialog for Speech Bubble Editor v3.
+about_dialog.py — About dialog for Speech Bubble Editor.
 """
 
 import os
@@ -7,7 +7,7 @@ import os
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
 )
-from PyQt6.QtGui import QPixmap, QFont, QColor, QPalette
+from PyQt6.QtGui import QPixmap, QFont
 from PyQt6.QtCore import Qt
 
 from version import __version__, __app_name__, __org_name__, __copyright__
@@ -75,22 +75,24 @@ class AboutDialog(QDialog):
         line.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(line)
 
-        # ── GitHub link ──────────────────────────────────────────────────
-        github_label = QLabel(
+        # ── Project links ────────────────────────────────────────────────
+        links_label = QLabel(
+            '<a href="https://longweekendlabs.github.io/speech-bubble-editor/">'
+            'longweekendlabs.github.io/speech-bubble-editor</a><br>'
             '<a href="https://github.com/longweekendlabs/speech-bubble-editor">'
             'github.com/longweekendlabs/speech-bubble-editor</a>'
         )
-        github_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        github_label.setOpenExternalLinks(True)
-        github_label.setStyleSheet("font-size: 11px;")
-        layout.addWidget(github_label)
+        links_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        links_label.setOpenExternalLinks(True)
+        links_label.setStyleSheet("font-size: 11px;")
+        layout.addWidget(links_label)
 
         # ── License ──────────────────────────────────────────────────────
         license_text = (
-            "This software is provided for personal and commercial use.\n"
-            "Redistribution or resale without written permission from\n"
-            f"{__org_name__} is not permitted.\n\n"
-            "Built with: Python · PyQt6 · OpenCV · FFmpeg · Pillow"
+            "Official release builds: Windows x64, Linux x64,\n"
+            "macOS Intel, and macOS Apple Silicon.\n\n"
+            "Built with: Python · PyQt6 · OpenCV · FFmpeg · Pillow\n"
+            f"{__copyright__}"
         )
         lic_label = QLabel(license_text)
         lic_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)

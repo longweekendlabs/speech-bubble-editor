@@ -47,8 +47,8 @@ class TailHandle(QGraphicsEllipseItem):
         self._bubble   = parent_bubble
         self._dragging = False
 
-        self.setBrush(QBrush(QColor(220, 40, 40)))
-        self.setPen(QPen(QColor(255, 255, 255), 2.0))
+        self.setBrush(QBrush(QColor("#f87171")))
+        self.setPen(QPen(QColor("#0f1319"), 2.0))
         self.setZValue(10)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
         self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
@@ -100,8 +100,8 @@ class ResizeHandle(QGraphicsRectItem):
         self._start_mouse = QPointF()
         self._start_rect  = QRectF()
 
-        self.setBrush(QBrush(QColor(255, 255, 255)))
-        self.setPen(QPen(QColor(80, 120, 220), 1.5))
+        self.setBrush(QBrush(QColor("#46ddcb")))
+        self.setPen(QPen(QColor("#0f1319"), 1.5))
         self.setZValue(11)
         self.setCursor(QCursor(self.CURSORS[anchor]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
@@ -164,7 +164,7 @@ class BubbleItem(QGraphicsItem):
         hw, hh = DEFAULT_W / 2, DEFAULT_H / 2
         self._body_rect = QRectF(-hw, -hh, DEFAULT_W, DEFAULT_H)
 
-        self._style        = style
+        self._style        = DEFAULT_STYLE
         self._fill_color   = QColor(255, 255, 255, 240)
         self._border_color = QColor(20, 20, 20)
         self._border_width = 2.0
@@ -222,6 +222,8 @@ class BubbleItem(QGraphicsItem):
             h.setVisible(False)
             self._handles[anchor] = h
         self._update_handle_positions()
+        if style != DEFAULT_STYLE:
+            self.set_style(style)
 
     # ------------------------------------------------------------------
     # Getters (used by PropertiesPanel)
@@ -331,13 +333,23 @@ class BubbleItem(QGraphicsItem):
         if style == "caption" and prev_style != "caption":
             self._fill_color   = QColor(0, 0, 0, 0)     # transparent background
             self._border_color = QColor(0, 0, 0)         # black outline
-            self._border_width = 2.0                     # outline offset in px
+            self._border_width = 3.0                     # outline offset in px
             self._text_item.setDefaultTextColor(QColor(255, 255, 255))
-            cap_font = QFont("Anton", 40)
+            cap_font = QFont("Montserrat", 34)
+            if not cap_font.exactMatch():
+                cap_font = QFont("Arial Black", 34)
             cap_font.setCapitalization(QFont.Capitalization.AllUppercase)
-            self._font_pt = 40
+            self._font_pt = 34
             self._text_item.setFont(cap_font)
             self._text_item.setVisible(False)            # paint() draws stroke text
+            self._shadow = {
+                "enabled": True,
+                "color": QColor(0, 0, 0),
+                "blur": 10,
+                "offset_x": 2,
+                "offset_y": 3,
+                "opacity": 75,
+            }
             self._reposition_text()
 
         # Leaving caption: restore text item and defaults
@@ -564,7 +576,7 @@ class BubbleItem(QGraphicsItem):
         if self._style == "text":
             # No body — just show selection indicator when selected
             if self.isSelected():
-                painter.setPen(QPen(QColor(80, 130, 230), 1.5,
+                painter.setPen(QPen(QColor("#46ddcb"), 1.5,
                                     Qt.PenStyle.DashLine))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(self._body_rect.adjusted(2, 2, -2, -2))
@@ -601,7 +613,7 @@ class BubbleItem(QGraphicsItem):
                 painter.setPen(self._text_item.defaultTextColor())
                 painter.drawText(tr, flags, text)
             if self.isSelected():
-                painter.setPen(QPen(QColor(80, 130, 230), 1.5,
+                painter.setPen(QPen(QColor("#46ddcb"), 1.5,
                                     Qt.PenStyle.DashLine))
                 painter.setBrush(Qt.BrushStyle.NoBrush)
                 painter.drawRect(self._body_rect.adjusted(2, 2, -2, -2))
@@ -625,11 +637,11 @@ class BubbleItem(QGraphicsItem):
             painter.drawPath(self._thought_dots_path(tip))
 
         elif self._style == "rect":
-            self._paint_shadow(painter, self._build_body_path())
-            # Caption bar — no tail; just fill the rounded rectangle
+            path = self._rect_with_tail_path(tip)
+            self._paint_shadow(painter, path)
             painter.setBrush(brush)
             painter.setPen(pen)
-            painter.drawPath(self._build_body_path())
+            painter.drawPath(path)
 
         elif self._style == "scrim":
             self._paint_shadow(painter, self._build_body_path())
@@ -640,19 +652,20 @@ class BubbleItem(QGraphicsItem):
             painter.drawPath(self._build_body_path())
 
         else:
-            # Oval / spiky:
-            # Unite body + tail into ONE path → border is ONE seamless outline
-            body   = self._build_body_path()
-            tail   = self._triangle_tail_path(tip)
-            merged = body.united(tail)
-            self._paint_shadow(painter, merged)
+            if self._style == "oval":
+                path = self._oval_with_tail_path(tip)
+            elif self._style == "spiky":
+                path = self._spiky_with_tail_path(tip)
+            else:
+                path = self._build_body_path()
+            self._paint_shadow(painter, path)
             painter.setBrush(brush)
             painter.setPen(pen)
-            painter.drawPath(merged)
+            painter.drawPath(path)
 
         # Selection dashed rectangle
         if self.isSelected():
-            painter.setPen(QPen(QColor(80, 130, 230), 1.5,
+            painter.setPen(QPen(QColor("#46ddcb"), 1.5,
                                 Qt.PenStyle.DashLine))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self._body_rect)
@@ -695,52 +708,208 @@ class BubbleItem(QGraphicsItem):
 
     def _organic_oval_path(self, r: QRectF) -> QPainterPath:
         """
-        Smooth oval using cubic bezier curves — more organic than addEllipse.
-        Classic comics/manga speech bubble shape.
+        Asymmetric comic oval using cubic bezier curves.
+        It avoids the perfectly mechanical addEllipse() look.
         """
         cx, cy = r.center().x(), r.center().y()
         w2, h2 = r.width() / 2, r.height() / 2
-        # Bezier "magic number" for approximating an ellipse with cubics
-        k = 0.5523
 
         path = QPainterPath()
-        path.moveTo(cx, cy - h2)                               # top centre
-        path.cubicTo(cx + w2*k, cy - h2,                      # top-right
-                     cx + w2,   cy - h2*k,
-                     cx + w2,   cy)
-        path.cubicTo(cx + w2,   cy + h2*k,                    # bottom-right
-                     cx + w2*k, cy + h2,
-                     cx,        cy + h2)
-        path.cubicTo(cx - w2*k, cy + h2,                      # bottom-left
-                     cx - w2,   cy + h2*k,
-                     cx - w2,   cy)
-        path.cubicTo(cx - w2,   cy - h2*k,                    # top-left
-                     cx - w2*k, cy - h2,
-                     cx,        cy - h2)
+        path.moveTo(cx - w2 * 0.14, cy - h2 * 0.92)
+        path.cubicTo(cx + w2 * 0.30, cy - h2 * 1.03,
+                     cx + w2 * 0.88, cy - h2 * 0.76,
+                     cx + w2 * 0.98, cy - h2 * 0.10)
+        path.cubicTo(cx + w2 * 1.07, cy + h2 * 0.34,
+                     cx + w2 * 0.64, cy + h2 * 0.87,
+                     cx + w2 * 0.04, cy + h2 * 0.91)
+        path.cubicTo(cx - w2 * 0.50, cy + h2 * 0.98,
+                     cx - w2 * 1.02, cy + h2 * 0.58,
+                     cx - w2 * 0.97, cy + h2 * 0.02)
+        path.cubicTo(cx - w2 * 1.02, cy - h2 * 0.45,
+                     cx - w2 * 0.64, cy - h2 * 0.86,
+                     cx - w2 * 0.14, cy - h2 * 0.92)
         path.closeSubpath()
         return path
 
     def _triangle_tail_path(self, tip: QPointF) -> QPainterPath:
         """
-        Triangular wedge from bubble centre to tip.
-        When united() with the body, only the exterior part is visible —
-        a narrow, sharp manga-style tail emerging from the bubble edge.
+        Curved wedge from the bubble edge to the dragged tip.
+        The base is found on the body outline, so the tail reads like part of
+        the bubble instead of a triangle starting from the centre.
         """
         r  = self._body_rect
         cx, cy = r.center().x(), r.center().y()
         dx = tip.x() - cx
         dy = tip.y() - cy
         dist = math.hypot(dx, dy) or 1
-        # Perpendicular unit vector
+        ux, uy = dx / dist, dy / dist
         nx, ny = dy / dist, -dx / dist
-        HALF = self._tail_width / 2   # half-width at the base; tapers to a point at the tip
+        half = self._tail_width / 2
+        edge = self._body_edge_point(tip)
+        base = QPointF(edge.x() + ux * 2.0, edge.y() + uy * 2.0)
 
         path = QPainterPath()
-        path.moveTo(cx + nx * HALF, cy + ny * HALF)
-        path.lineTo(tip)
-        path.lineTo(cx - nx * HALF, cy - ny * HALF)
+        path.moveTo(base.x() + nx * half, base.y() + ny * half)
+        path.cubicTo(
+            base.x() + nx * half * 0.35 + ux * dist * 0.18,
+            base.y() + ny * half * 0.35 + uy * dist * 0.18,
+            tip.x() - nx * half * 0.18,
+            tip.y() - ny * half * 0.18,
+            tip.x(),
+            tip.y(),
+        )
+        path.cubicTo(
+            tip.x() + nx * half * 0.18,
+            tip.y() + ny * half * 0.18,
+            base.x() - nx * half * 0.35 + ux * dist * 0.16,
+            base.y() - ny * half * 0.35 + uy * dist * 0.16,
+            base.x() - nx * half,
+            base.y() - ny * half,
+        )
         path.closeSubpath()
         return path
+
+    def _oval_with_tail_path(self, tip: QPointF) -> QPainterPath:
+        r = self._body_rect
+        cx, cy = r.center().x(), r.center().y()
+        w2, h2 = r.width() / 2, r.height() / 2
+        side = self._tail_side(tip)
+
+        if side == "bottom":
+            left_base = QPointF(cx + w2 * 0.04, cy + h2 * 0.88)
+            right_base = QPointF(cx + w2 * 0.36, cy + h2 * 0.78)
+            path = QPainterPath(QPointF(cx - w2 * 0.14, cy - h2 * 0.92))
+            path.cubicTo(cx + w2 * 0.30, cy - h2 * 1.03, cx + w2 * 0.88, cy - h2 * 0.76, cx + w2 * 0.98, cy - h2 * 0.10)
+            path.cubicTo(cx + w2 * 1.07, cy + h2 * 0.34, cx + w2 * 0.64, cy + h2 * 0.87, right_base.x(), right_base.y())
+            path.lineTo(tip)
+            path.lineTo(left_base)
+            path.cubicTo(cx - w2 * 0.50, cy + h2 * 0.98, cx - w2 * 1.02, cy + h2 * 0.58, cx - w2 * 0.97, cy + h2 * 0.02)
+            path.cubicTo(cx - w2 * 1.02, cy - h2 * 0.45, cx - w2 * 0.64, cy - h2 * 0.86, cx - w2 * 0.14, cy - h2 * 0.92)
+        elif side == "top":
+            left_base = QPointF(cx - w2 * 0.40, cy - h2 * 0.74)
+            right_base = QPointF(cx - w2 * 0.08, cy - h2 * 0.92)
+            path = QPainterPath(right_base)
+            path.lineTo(tip)
+            path.lineTo(left_base)
+            path.cubicTo(cx - w2 * 1.02, cy - h2 * 0.45, cx - w2 * 0.97, cy + h2 * 0.02, cx - w2 * 0.97, cy + h2 * 0.02)
+            path.cubicTo(cx - w2 * 1.02, cy + h2 * 0.58, cx - w2 * 0.50, cy + h2 * 0.98, cx + w2 * 0.04, cy + h2 * 0.91)
+            path.cubicTo(cx + w2 * 0.64, cy + h2 * 0.87, cx + w2 * 1.07, cy + h2 * 0.34, cx + w2 * 0.98, cy - h2 * 0.10)
+            path.cubicTo(cx + w2 * 0.88, cy - h2 * 0.76, cx + w2 * 0.30, cy - h2 * 1.03, right_base.x(), right_base.y())
+        elif side == "left":
+            top_base = QPointF(cx - w2 * 0.92, cy - h2 * 0.24)
+            bottom_base = QPointF(cx - w2 * 0.86, cy + h2 * 0.18)
+            path = QPainterPath(QPointF(cx - w2 * 0.14, cy - h2 * 0.92))
+            path.cubicTo(cx + w2 * 0.30, cy - h2 * 1.03, cx + w2 * 0.88, cy - h2 * 0.76, cx + w2 * 0.98, cy - h2 * 0.10)
+            path.cubicTo(cx + w2 * 1.07, cy + h2 * 0.34, cx + w2 * 0.64, cy + h2 * 0.87, cx + w2 * 0.04, cy + h2 * 0.91)
+            path.cubicTo(cx - w2 * 0.50, cy + h2 * 0.98, cx - w2 * 1.02, cy + h2 * 0.58, bottom_base.x(), bottom_base.y())
+            path.lineTo(tip)
+            path.lineTo(top_base)
+            path.cubicTo(cx - w2 * 1.02, cy - h2 * 0.45, cx - w2 * 0.64, cy - h2 * 0.86, cx - w2 * 0.14, cy - h2 * 0.92)
+        else:
+            top_base = QPointF(cx + w2 * 0.88, cy - h2 * 0.20)
+            bottom_base = QPointF(cx + w2 * 0.90, cy + h2 * 0.22)
+            path = QPainterPath(QPointF(cx - w2 * 0.14, cy - h2 * 0.92))
+            path.cubicTo(cx + w2 * 0.30, cy - h2 * 1.03, cx + w2 * 0.88, cy - h2 * 0.76, top_base.x(), top_base.y())
+            path.lineTo(tip)
+            path.lineTo(bottom_base)
+            path.cubicTo(cx + w2 * 1.07, cy + h2 * 0.34, cx + w2 * 0.64, cy + h2 * 0.87, cx + w2 * 0.04, cy + h2 * 0.91)
+            path.cubicTo(cx - w2 * 0.50, cy + h2 * 0.98, cx - w2 * 1.02, cy + h2 * 0.58, cx - w2 * 0.97, cy + h2 * 0.02)
+            path.cubicTo(cx - w2 * 1.02, cy - h2 * 0.45, cx - w2 * 0.64, cy - h2 * 0.86, cx - w2 * 0.14, cy - h2 * 0.92)
+
+        path.closeSubpath()
+        return path
+
+    def _rect_with_tail_path(self, tip: QPointF) -> QPainterPath:
+        r = self._body_rect
+        side = self._tail_side(tip)
+        radius = min(16.0, r.width() * 0.12, r.height() * 0.30)
+        half = max(12.0, self._tail_width * 0.50)
+
+        def clamp(value, lo, hi):
+            return max(lo, min(hi, value))
+
+        if side in {"top", "bottom"}:
+            base_center = clamp(tip.x(), r.left() + radius + half, r.right() - radius - half)
+            left_base = base_center - half
+            right_base = base_center + half
+            if side == "bottom":
+                path = QPainterPath(QPointF(r.left() + radius, r.top()))
+                path.lineTo(r.right() - radius, r.top())
+                path.quadTo(r.right(), r.top(), r.right(), r.top() + radius)
+                path.lineTo(r.right(), r.bottom() - radius)
+                path.quadTo(r.right(), r.bottom(), r.right() - radius, r.bottom())
+                path.lineTo(right_base, r.bottom())
+                path.lineTo(tip)
+                path.lineTo(left_base, r.bottom())
+                path.lineTo(r.left() + radius, r.bottom())
+                path.quadTo(r.left(), r.bottom(), r.left(), r.bottom() - radius)
+                path.lineTo(r.left(), r.top() + radius)
+                path.quadTo(r.left(), r.top(), r.left() + radius, r.top())
+            else:
+                path = QPainterPath(QPointF(r.left() + radius, r.top()))
+                path.lineTo(left_base, r.top())
+                path.lineTo(tip)
+                path.lineTo(right_base, r.top())
+                path.lineTo(r.right() - radius, r.top())
+                path.quadTo(r.right(), r.top(), r.right(), r.top() + radius)
+                path.lineTo(r.right(), r.bottom() - radius)
+                path.quadTo(r.right(), r.bottom(), r.right() - radius, r.bottom())
+                path.lineTo(r.left() + radius, r.bottom())
+                path.quadTo(r.left(), r.bottom(), r.left(), r.bottom() - radius)
+                path.lineTo(r.left(), r.top() + radius)
+                path.quadTo(r.left(), r.top(), r.left() + radius, r.top())
+        else:
+            base_center = clamp(tip.y(), r.top() + radius + half, r.bottom() - radius - half)
+            top_base = base_center - half
+            bottom_base = base_center + half
+            path = QPainterPath(QPointF(r.left() + radius, r.top()))
+            path.lineTo(r.right() - radius, r.top())
+            path.quadTo(r.right(), r.top(), r.right(), r.top() + radius)
+            if side == "right":
+                path.lineTo(r.right(), top_base)
+                path.lineTo(tip)
+                path.lineTo(r.right(), bottom_base)
+            path.lineTo(r.right(), r.bottom() - radius)
+            path.quadTo(r.right(), r.bottom(), r.right() - radius, r.bottom())
+            path.lineTo(r.left() + radius, r.bottom())
+            path.quadTo(r.left(), r.bottom(), r.left(), r.bottom() - radius)
+            if side == "left":
+                path.lineTo(r.left(), bottom_base)
+                path.lineTo(tip)
+                path.lineTo(r.left(), top_base)
+            path.lineTo(r.left(), r.top() + radius)
+            path.quadTo(r.left(), r.top(), r.left() + radius, r.top())
+
+        path.closeSubpath()
+        return path
+
+    def _tail_side(self, tip: QPointF) -> str:
+        r = self._body_rect
+        c = r.center()
+        dx = tip.x() - c.x()
+        dy = tip.y() - c.y()
+        if abs(dx) > abs(dy) * 1.15:
+            return "right" if dx > 0 else "left"
+        return "bottom" if dy >= 0 else "top"
+
+    def _body_edge_point(self, tip: QPointF) -> QPointF:
+        r = self._body_rect
+        cx, cy = r.center().x(), r.center().y()
+        dx = tip.x() - cx
+        dy = tip.y() - cy
+        dist = math.hypot(dx, dy) or 1
+        ux, uy = dx / dist, dy / dist
+        body = self._build_body_path()
+        max_search = min(dist, max(r.width(), r.height()) * 1.5)
+        lo, hi = 0.0, max_search
+        for _ in range(22):
+            mid = (lo + hi) / 2.0
+            pt = QPointF(cx + ux * mid, cy + uy * mid)
+            if body.contains(pt):
+                lo = mid
+            else:
+                hi = mid
+        return QPointF(cx + ux * lo, cy + uy * lo)
 
     def _cloud_edge_distance(self, tip: QPointF) -> float:
         """
@@ -863,6 +1032,56 @@ class BubbleItem(QGraphicsItem):
                 path.moveTo(px, py)
             else:
                 path.lineTo(px, py)
+        path.closeSubpath()
+        return path
+
+    def _spiky_with_tail_path(self, tip: QPointF) -> QPainterPath:
+        """
+        Starburst with the dragged tail as one native spike.
+        This avoids drawing a separate triangle onto the burst silhouette.
+        """
+        r = self._body_rect
+        cx, cy = r.center().x(), r.center().y()
+        rx, ry = r.width() / 2, r.height() / 2
+        spikes = 18
+        points = []
+
+        tail_angle = math.atan2(tip.y() - cy, tip.x() - cx)
+        best_outer = 0
+        best_delta = math.inf
+
+        for i in range(spikes * 2):
+            angle = math.pi * i / spikes - math.pi / 2
+            is_outer = i % 2 == 0
+            if is_outer:
+                delta = abs(math.atan2(math.sin(angle - tail_angle), math.cos(angle - tail_angle)))
+                if delta < best_delta:
+                    best_delta = delta
+                    best_outer = i
+                variation = 1.0 + 0.22 * math.sin(i * 1.9 + 0.8)
+                px = cx + math.cos(angle) * rx * variation
+                py = cy + math.sin(angle) * ry * variation
+            else:
+                px = cx + math.cos(angle) * rx * 0.64
+                py = cy + math.sin(angle) * ry * 0.64
+            points.append(QPointF(px, py))
+
+        prev_i = (best_outer - 1) % len(points)
+        next_i = (best_outer + 1) % len(points)
+        edge = self._body_edge_point(tip)
+        dx = tip.x() - cx
+        dy = tip.y() - cy
+        dist = math.hypot(dx, dy) or 1.0
+        nx, ny = dy / dist, -dx / dist
+        half = max(10.0, self._tail_width * 0.42)
+
+        points[prev_i] = QPointF(edge.x() + nx * half, edge.y() + ny * half)
+        points[best_outer] = QPointF(tip)
+        points[next_i] = QPointF(edge.x() - nx * half, edge.y() - ny * half)
+
+        path = QPainterPath(points[0])
+        for point in points[1:]:
+            path.lineTo(point)
         path.closeSubpath()
         return path
 

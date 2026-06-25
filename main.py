@@ -120,6 +120,14 @@ def _load_fonts():
 
 def main():
     try:
+        if (
+            sys.platform.startswith("linux")
+            and os.environ.get("QT_QPA_PLATFORM") != "offscreen"
+            and os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+            and (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("DISPLAY"))
+        ):
+            os.environ.setdefault("QT_QPA_PLATFORMTHEME", "xdgdesktopportal")
+
         _logger.info("importing QApplication…")
         from PyQt6.QtWidgets import QApplication
         from PyQt6.QtGui import QIcon, QFont

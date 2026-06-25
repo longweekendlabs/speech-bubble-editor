@@ -6,10 +6,11 @@ main_window.py — MainWindow: v4 layout with TopBar, ContextToolbar,
 import os
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QFileDialog,
-    QMessageBox, QApplication,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QMessageBox, QApplication, QLineEdit, QTextEdit, QPlainTextEdit,
+    QComboBox, QSpinBox, QDoubleSpinBox,
 )
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QEvent
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from canvas import PhotoScene, PhotoView, ZoomBar
@@ -23,7 +24,9 @@ from media_item import MediaItem
 from editor_controller import EditorController
 from version import __version__, __app_name__
 from constants import VIDEO_EXTENSIONS, ALL_EXTENSIONS
+from file_dialogs import open_file
 from about_dialog import AboutDialog
+from shortcuts_dialog import ShortcutsDialog
 
 import export as exporter
 
@@ -37,6 +40,7 @@ class MainWindow(QMainWindow):
         self.resize(1440, 900)
         self._build_ui()
         self._connect_signals()
+        QApplication.instance().installEventFilter(self)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -68,7 +72,7 @@ class MainWindow(QMainWindow):
         self.zoom_bar.setVisible(False)   # zoom lives in TopBar only
 
         # Content row: sidebar | canvas | inspector (no splitter — inspector is fixed width)
-        self.inspector.setFixedWidth(300)
+        self.inspector.setFixedWidth(320)
         content = QWidget()
         content_hbox = QHBoxLayout(content)
         content_hbox.setContentsMargins(0, 0, 0, 0)
@@ -105,12 +109,14 @@ class MainWindow(QMainWindow):
         tb.export_requested.connect(self._on_export)
         tb.undo_requested.connect(self.controller.undo_stack.undo)
         tb.redo_requested.connect(self.controller.undo_stack.redo)
+        tb.reset_requested.connect(self._on_reset_project)
         tb.about_requested.connect(self._on_about)
+        tb.shortcuts_requested.connect(self._on_shortcuts)
         tb.zoom_changed.connect(self._on_zoom_level)
-        tb.theme_change_requested.connect(self._apply_theme)
 
         # ToolSidebar
         sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
+        sb.add_text_requested.connect(lambda: self._on_add_bubble_with_style("text"))
         sb.add_layer_requested.connect(self._on_add_layer)
         sb.meme_toggled.connect(self._on_meme_toggled)
         sb.dual_toggled.connect(self._on_dual_toggled)
@@ -119,9 +125,8 @@ class MainWindow(QMainWindow):
         ctx.align_requested.connect(self._on_context_align)
         ctx.z_requested.connect(self._on_context_z)
         ctx.delete_requested.connect(self._on_context_delete)
-        # flip signals are connected but have no-op handlers (unimplemented)
-        ctx.flip_h_requested.connect(lambda: None)
-        ctx.flip_v_requested.connect(lambda: None)
+        ctx.flip_h_requested.connect(lambda: self._on_context_flip("h"))
+        ctx.flip_v_requested.connect(lambda: self._on_context_flip("v"))
 
         # Undo/Redo state
         self.controller.undo_stack.canUndoChanged.connect(tb.set_undo_enabled)
@@ -149,19 +154,51 @@ class MainWindow(QMainWindow):
         vc.cut_requested.connect(self._on_cut)
         vc.cuts_cleared.connect(self._on_clear_cuts)
         vc.reverse_toggled.connect(self._on_reverse)
+        vc.fullscreen_requested.connect(self._toggle_fullscreen)
 
         # Inspector dual settings
         self.props.dual_gap_changed.connect(self.scene.set_dual_gap)
         self.props.dual_border_changed.connect(self.scene.set_dual_border)
         self.props.dual_feather_changed.connect(self.scene.set_dual_feather)
+        self.props.add_bubble_requested.connect(self._on_add_bubble_with_style)
 
         # Keyboard shortcuts
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self).activated.connect(
             self.controller.undo_stack.redo
         )
-        QShortcut(QKeySequence("Delete"), self).activated.connect(
-            self._on_context_delete
+        QShortcut(QKeySequence("Ctrl+/"), self).activated.connect(
+            self._on_shortcuts
         )
+        self._video_shortcuts = {
+            Qt.Key.Key_Space: vc.toggle_playback,
+            Qt.Key.Key_Left: vc.step_back,
+            Qt.Key.Key_Right: vc.step_forward,
+            Qt.Key.Key_Home: vc.first_frame,
+            Qt.Key.Key_End: vc.last_frame,
+            Qt.Key.Key_BracketLeft: vc.set_trim_in_to_current_frame,
+            Qt.Key.Key_BracketRight: vc.set_trim_out_to_current_frame,
+            Qt.Key.Key_F: self._toggle_fullscreen,
+        }
+
+    def eventFilter(self, obj, event):
+        if not self.isActiveWindow():
+            return super().eventFilter(obj, event)
+        if event.type() == QEvent.Type.KeyPress:
+            if event.key() == Qt.Key.Key_Delete and not self._focus_accepts_text():
+                self._on_context_delete()
+                return True
+            callback = getattr(self, "_video_shortcuts", {}).get(event.key())
+            if callback and self.video_controls.isVisible() and not self._focus_accepts_text():
+                callback()
+                return True
+        return super().eventFilter(obj, event)
+
+    def _focus_accepts_text(self) -> bool:
+        widget = QApplication.focusWidget()
+        return isinstance(widget, (
+            QLineEdit, QTextEdit, QPlainTextEdit,
+            QComboBox, QSpinBox, QDoubleSpinBox,
+        ))
 
     # ------------------------------------------------------------------
     # Media loading
@@ -173,6 +210,7 @@ class MainWindow(QMainWindow):
 
     def _on_media_loaded(self, path: str, is_video: bool):
         self.top_bar.set_media_loaded(True)
+        self.top_bar.set_reset_enabled(True)
         self.tool_sidebar.set_media_loaded(True)
         self.tool_sidebar.set_meme_checked(False)
         self.tool_sidebar.set_dual_checked(False)
@@ -198,9 +236,10 @@ class MainWindow(QMainWindow):
 
     def _on_open_right_media(self):
         ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Right Media", "",
-            f"All supported media ({ext_list})"
+        path = open_file(
+            self,
+            "Open Right Media",
+            f"All supported media ({ext_list})",
         )
         if path:
             self._on_right_media_dropped(path)
@@ -222,15 +261,16 @@ class MainWindow(QMainWindow):
         if not self.scene.has_photo():
             return
         ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Add Layer", "",
-            f"All supported media ({ext_list})"
-        )
+        path = open_file(self, "Add Layer", f"All supported media ({ext_list})")
         if not path:
             return
         item = self.controller.add_overlay(path)
         if item is None:
             QMessageBox.warning(self, "Add Layer", f"Cannot open:\n{path}")
+            return
+        if hasattr(item, "has_video") and item.has_video():
+            self.video_controls.set_player(item.video_player())
+            self.video_controls.set_right_player(None)
 
     # ------------------------------------------------------------------
     # Export
@@ -344,7 +384,20 @@ class MainWindow(QMainWindow):
         if player:
             player.toggle_reverse()
 
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
     def _active_player(self):
+        active = getattr(self.video_controls, "_active_player", None)
+        if (
+            active
+            and active is not self.scene.video_player
+            and active is not self.scene.video_player_right
+        ):
+            return active
         if self.video_controls.active_side == "right":
             return self.scene.video_player_right
         return self.scene.video_player
@@ -355,12 +408,25 @@ class MainWindow(QMainWindow):
 
     def _show_open_dialog(self):
         ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Media", "",
-            f"All supported media ({ext_list})"
-        )
+        path = open_file(self, "Open Media", f"All supported media ({ext_list})")
         if path:
             self._on_open_media(path)
+
+    def _on_reset_project(self):
+        self.video_controls.stop()
+        self.controller.reset_project()
+        self.video_controls.set_right_player(None)
+        self.video_controls.set_player(None)
+        self.props.clear()
+        self.ctx_toolbar.hide_toolbar()
+        self.top_bar.set_media_loaded(False)
+        self.top_bar.set_reset_enabled(False)
+        self.tool_sidebar.set_media_loaded(False)
+        self.tool_sidebar.set_meme_checked(False)
+        self.tool_sidebar.set_dual_checked(False)
+        self.view.resetTransform()
+        self.view.viewport().update()
+        self.statusBar().showMessage("Ready")
 
     def _on_add_bubble_clicked(self):
         if not self.scene.has_photo():
@@ -386,7 +452,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_selection_changed(self):
-        selected = self.scene.selectedItems()
+        try:
+            selected = self.scene.selectedItems()
+        except RuntimeError:
+            return
         bubbles  = [i for i in selected if isinstance(i, BubbleItem)]
         media    = [i for i in selected if isinstance(i, MediaItem)]
         if bubbles:
@@ -395,6 +464,9 @@ class MainWindow(QMainWindow):
         elif media:
             self.props.update_for_media(media[0])
             self.ctx_toolbar.show_for_media()
+            if hasattr(media[0], "has_video") and media[0].has_video():
+                self.video_controls.set_player(media[0].video_player())
+                self.video_controls.set_right_player(None)
         elif self.scene.is_dual_mode():
             self.props.show_dual_settings()
             self.ctx_toolbar.hide_toolbar()
@@ -411,47 +483,115 @@ class MainWindow(QMainWindow):
         if not selected:
             return
         item = selected[0]
-        if not isinstance(item, BubbleItem):
+        if not isinstance(item, (BubbleItem, MediaItem)):
             return
         sr  = self.scene.sceneRect()
-        r   = item.body_rect
         pos = item.pos()
         new_pos = QPointF(pos)
+        if isinstance(item, BubbleItem):
+            r = item.body_rect
+            left = r.left()
+            right = r.right()
+            top = r.top()
+            bottom = r.bottom()
+            center_offset_x = 0
+            center_offset_y = 0
+        else:
+            r = item.boundingRect()
+            left = r.left()
+            right = r.right()
+            top = r.top()
+            bottom = r.bottom()
+            center_offset_x = r.width() / 2
+            center_offset_y = r.height() / 2
         if mode == "left":
-            new_pos.setX(sr.left() - r.left())
+            new_pos.setX(sr.left() - left)
         elif mode == "hcenter":
-            new_pos.setX(sr.center().x())
+            new_pos.setX(sr.center().x() - center_offset_x)
         elif mode == "right":
-            new_pos.setX(sr.right() - r.right())
+            new_pos.setX(sr.right() - right)
         elif mode == "top":
-            new_pos.setY(sr.top() - r.top())
+            new_pos.setY(sr.top() - top)
         elif mode == "vcenter":
-            new_pos.setY(sr.center().y())
+            new_pos.setY(sr.center().y() - center_offset_y)
         elif mode == "bottom":
-            new_pos.setY(sr.bottom() - r.bottom())
+            new_pos.setY(sr.bottom() - bottom)
         if (new_pos - pos).manhattanLength() > 0.5:
-            from undo_commands import MoveBubbleCommand
-            self.controller.undo_stack.push(MoveBubbleCommand(item, pos, new_pos))
+            if isinstance(item, BubbleItem):
+                from undo_commands import MoveBubbleCommand
+                self.controller.undo_stack.push(MoveBubbleCommand(item, pos, new_pos))
+            else:
+                from undo_commands import MoveMediaCommand
+                self.controller.undo_stack.push(MoveMediaCommand(self.scene, item, pos, new_pos))
 
     def _on_context_z(self, mode: str):
         selected = self.scene.selectedItems()
         if not selected:
             return
-        item = selected[0]
-        old  = item.zValue()
+        ordered = self._stack_items_bottom_to_top()
+        candidates = [i for i in selected if i in ordered]
+        if not candidates:
+            return
+        item = max(candidates, key=lambda i: i.zValue())
+        self._apply_stack_order(ordered)
+        ordered = self._stack_items_bottom_to_top()
+        index = ordered.index(item)
         if mode == "front":
-            new = old + 10.0
+            new_index = len(ordered) - 1
         elif mode == "forward":
-            new = old + 1.0
+            new_index = min(len(ordered) - 1, index + 1)
         elif mode == "backward":
-            new = max(0.0, old - 1.0)
+            new_index = max(0, index - 1)
         elif mode == "back":
-            new = max(0.0, old - 10.0)
+            new_index = 0
         else:
             return
-        if abs(old - new) > 0.01:
-            from undo_commands import ZValueChangeCommand
-            self.controller.undo_stack.push(ZValueChangeCommand(item, old, new))
+        if new_index == index:
+            return
+        moved = ordered.pop(index)
+        ordered.insert(new_index, moved)
+        self._apply_stack_order(ordered)
+        item.setSelected(True)
+        self._refresh_layers_panel()
+        self.statusBar().showMessage("Layer order changed")
+
+    def _stack_items_bottom_to_top(self):
+        items = [
+            i for i in self.scene.items()
+            if isinstance(i, BubbleItem)
+            or (isinstance(i, MediaItem) and getattr(i, "_is_overlay", False))
+        ]
+        return sorted(items, key=lambda i: i.zValue())
+
+    def _apply_stack_order(self, ordered):
+        for idx, item in enumerate(ordered):
+            item.setZValue(float(10 + idx * 10))
+        self.scene.update()
+
+    def _refresh_layers_panel(self):
+        refresh = getattr(self.props, "_refresh_layers", None)
+        if callable(refresh):
+            refresh()
+
+    def _on_context_flip(self, axis: str):
+        selected = self.scene.selectedItems()
+        if not selected:
+            return
+        item = selected[0]
+        if isinstance(item, MediaItem):
+            if axis == "h" and hasattr(item, "flip_horizontal"):
+                item.flip_horizontal()
+            elif axis == "v" and hasattr(item, "flip_vertical"):
+                item.flip_vertical()
+            else:
+                return
+            self.scene.update()
+        elif isinstance(item, BubbleItem):
+            if axis == "h":
+                item.setScale(item.scale() * -1)
+            else:
+                item.setTransform(item.transform().scale(1, -1), True)
+            item.update()
 
     def _on_context_delete(self):
         selected = self.scene.selectedItems()
@@ -465,58 +605,11 @@ class MainWindow(QMainWindow):
             self.controller.undo_stack.push(RemoveOverlayCommand(self.scene, item))
 
     # ------------------------------------------------------------------
-    # Theme switching
-    # ------------------------------------------------------------------
-
-    _THEME_OVERRIDES = {
-        "dark": "",   # base QSS is the dark theme — no overrides needed
-        "oled": """
-            QWidget                  { background-color: #000000; }
-            QMainWindow, QDialog     { background-color: #000000; }
-            #TopBar                  { background-color: #0a0a0a; border-bottom: 1px solid #1a1a1a; }
-            #InspectorDock           { background-color: #0a0a0a; border-left: 1px solid #1a1a1a; }
-            #ToolSidebar             { background-color: #0a0a0a; border-right: 1px solid #1a1a1a; }
-            #CanvasArea, QGraphicsView { background-color: #000000; }
-            #InspectorPage, #InspectorSection, #InspectorSectionHeader,
-            #InspectorSectionBody    { background-color: #0a0a0a; }
-            QScrollArea              { background-color: #000000; }
-            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit,
-            QSlider::groove:horizontal { background-color: #111111; }
-            #StyleButton, #AlignButton, #ArrangeButton { background-color: #111111; }
-        """,
-        "slate": """
-            QWidget                  { background-color: #0f1623; color: #ccd6f6; }
-            QMainWindow, QDialog     { background-color: #0f1623; }
-            #TopBar                  { background-color: #131c2e; border-bottom: 1px solid #1e2d47; }
-            #InspectorDock           { background-color: #131c2e; border-left: 1px solid #1e2d47; }
-            #ToolSidebar             { background-color: #131c2e; border-right: 1px solid #1e2d47; }
-            #CanvasArea, QGraphicsView { background-color: #0a1020; }
-            #InspectorPage, #InspectorSection, #InspectorSectionHeader,
-            #InspectorSectionBody    { background-color: #172038; }
-            QScrollArea              { background-color: #0f1623; }
-            QComboBox, QFontComboBox, QSpinBox, QDoubleSpinBox, QTextEdit { background-color: #1e2d47; border-color: #253659; }
-            QSlider::groove:horizontal { background-color: #1e2d47; }
-            QSlider::handle:horizontal { background-color: #7c83ff; }
-            QSlider::sub-page:horizontal { background-color: #7c83ff; }
-            #StyleButton, #AlignButton, #ArrangeButton { background-color: #1e2d47; border-color: #253659; }
-            #StyleButton:checked { background-color: rgba(124,131,255,0.15); border-color: #7c83ff; color: #7c83ff; }
-            #ContextToolbar          { background-color: #172038; border-bottom: 1px solid rgba(124,131,255,0.3); }
-            #ContextChip             { background-color: rgba(124,131,255,0.12); border-color: rgba(124,131,255,0.4); color: #7c83ff; }
-            #BtnExport               { background-color: #5865f2; }
-            #BtnExport:hover         { background-color: #6b74ff; }
-        """,
-    }
-
-    def _apply_theme(self, name: str):
-        base_path = os.path.join(os.path.dirname(__file__), "theme", "dark.qss")
-        with open(base_path) as f:
-            base_qss = f.read()
-        override = self._THEME_OVERRIDES.get(name, "")
-        QApplication.instance().setStyleSheet(base_qss + override)
-
-    # ------------------------------------------------------------------
     # About
     # ------------------------------------------------------------------
 
     def _on_about(self):
         AboutDialog(self).exec()
+
+    def _on_shortcuts(self):
+        ShortcutsDialog(self).exec()

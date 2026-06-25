@@ -1,8 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for Speech Bubble Editor v3.1.
-Supports Linux (x86_64, aarch64) and Windows (x64, ARM64).
-macOS support was removed in v3.1.
+PyInstaller spec for Speech Bubble Editor v4 cross-platform builds.
+Supports Linux (x86_64, aarch64) and Windows (x64, ARM64-compatible).
 
 Build:
     pyinstaller --clean --noconfirm speech_bubble_v3.spec
@@ -10,6 +9,7 @@ Build:
 
 import os
 import sys as _sys
+import shutil as _shutil
 
 _app_dir = os.path.dirname(os.path.abspath(SPEC))
 
@@ -17,6 +17,12 @@ _app_dir = os.path.dirname(os.path.abspath(SPEC))
 # (libqcocoa.dylib on macOS, qwindows.dll on Windows) are never missing.
 from PyInstaller.utils.hooks import collect_all as _collect_all
 _qt_datas, _qt_binaries, _qt_hidden = _collect_all('PyQt6')
+
+# Bundle FFmpeg when present on PATH. GitHub Actions installs it before
+# packaging so exported builds can preserve or mute audio without requiring
+# a separate user install.
+_ffmpeg_bin = _shutil.which('ffmpeg')
+_extra_binaries = [(_ffmpeg_bin, '.')] if _ffmpeg_bin else []
 
 _hidden = [
     'cv2',
@@ -33,7 +39,7 @@ _hidden = [
 a = Analysis(
     ['main.py'],
     pathex=[_app_dir],
-    binaries=_qt_binaries,
+    binaries=_qt_binaries + _extra_binaries,
     datas=[
         (os.path.join(_app_dir, 'fonts'), 'fonts'),
         (os.path.join(_app_dir, 'icons'), 'icons'),

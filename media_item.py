@@ -45,8 +45,8 @@ class MediaResizeHandle(QGraphicsRectItem):
         self._start_h     = 0.0
         self._start_pos   = QPointF()
 
-        self.setBrush(QBrush(QColor(59, 130, 246)))
-        self.setPen(QPen(QColor(255, 255, 255), 1.5))
+        self.setBrush(QBrush(QColor("#46ddcb")))
+        self.setPen(QPen(QColor("#0f1319"), 1.5))
         self.setZValue(5)
         self.setCursor(QCursor(self.CURSORS[corner]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
@@ -169,6 +169,9 @@ class MediaItem(QGraphicsObject):
         self._native_w  = float(pixmap.width())
         self._native_h  = float(pixmap.height())
         self._is_overlay = is_overlay
+        self._flip_h = False
+        self._flip_v = False
+        self._video_player = None
 
         # Drag-state
         self._resizing:       bool           = False   # True while handle active
@@ -214,6 +217,15 @@ class MediaItem(QGraphicsObject):
         self._pixmap = pixmap
         self.update()
 
+    def set_video_player(self, player):
+        self._video_player = player
+
+    def video_player(self):
+        return self._video_player
+
+    def has_video(self) -> bool:
+        return self._video_player is not None and self._video_player.is_loaded()
+
     def set_display_size(self, w: float, h: float):
         self.prepareGeometryChange()
         self._display_w = max(MIN_DISPLAY, float(w))
@@ -230,6 +242,14 @@ class MediaItem(QGraphicsObject):
         self.update()
         self.setPos(0, 0)
 
+    def flip_horizontal(self):
+        self._flip_h = not self._flip_h
+        self.update()
+
+    def flip_vertical(self):
+        self._flip_v = not self._flip_v
+        self.update()
+
     # ------------------------------------------------------------------
     # QGraphicsItem overrides
     # ------------------------------------------------------------------
@@ -239,13 +259,20 @@ class MediaItem(QGraphicsObject):
 
     def paint(self, painter: QPainter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.save()
+        if self._flip_h or self._flip_v:
+            painter.translate(self._display_w if self._flip_h else 0,
+                              self._display_h if self._flip_v else 0)
+            painter.scale(-1 if self._flip_h else 1,
+                          -1 if self._flip_v else 1)
         painter.drawPixmap(
             QRectF(0, 0, self._display_w, self._display_h),
             self._pixmap,
             QRectF(self._pixmap.rect()),
         )
+        painter.restore()
         if self.isSelected():
-            pen = QPen(QColor(59, 130, 246), 2, Qt.PenStyle.DashLine)
+            pen = QPen(QColor("#46ddcb"), 2, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(1, 1, self._display_w - 2, self._display_h - 2))

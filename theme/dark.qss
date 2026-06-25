@@ -1,5 +1,5 @@
 /*
- * Speech Bubble Editor — dark theme (v4.0.3)
+ * Speech Bubble Editor — dark theme (v4.0.4)
  *
  * Design tokens:
  *   App background:      #141820
@@ -568,29 +568,6 @@ QSplitter::handle:horizontal {
     border-color: #46ddcb;
 }
 
-/* ── Section chevron ──────────────────────────────────────────────── */
-#SectionChevron {
-    background-color: #252d3d;
-    border: 1px solid #2e3a50;
-    border-radius: 4px;
-    color: #4e5a6e;
-    font-size: 8px;
-    padding: 0;
-    min-width: 0;
-}
-
-#SectionChevron[open="true"] {
-    background-color: rgba(70, 221, 203, 0.1);
-    border-color: rgba(70, 221, 203, 0.25);
-    color: #46ddcb;
-}
-
-#SectionChevron[open="false"] {
-    background-color: #252d3d;
-    border-color: #2e3a50;
-    color: #4e5a6e;
-}
-
 /* ── Style picker buttons ─────────────────────────────────────────── */
 #StyleButton {
     background-color: #252d3d;
@@ -667,7 +644,7 @@ QSplitter::handle:horizontal {
 
 /* ── Layers list ──────────────────────────────────────────────────── */
 #LayersList {
-    background-color: #252d3d;
+    background-color: #1a1f2e;
     color: #e8ecf4;
     border: 1px solid #2e3a50;
     border-radius: 6px;
@@ -675,18 +652,35 @@ QSplitter::handle:horizontal {
 }
 
 #LayersList::item {
-    padding: 7px 8px;
-    border-bottom: 1px solid #1a1f2e;
+    min-height: 32px;
+    padding: 7px 10px;
+    margin: 3px 0;
+    background-color: #252d3d;
+    border: 1px solid #2e3a50;
+    border-radius: 6px;
 }
 
 #LayersList::item:selected {
     background-color: rgba(70, 221, 203, 0.15);
     color: #e8ecf4;
-    border-left: 2px solid #46ddcb;
+    border: 1px solid #46ddcb;
 }
 
 #LayersList::item:hover:!selected {
     background-color: #2a3347;
+}
+
+#LayerActionButton {
+    background-color: #252d3d;
+    color: #e8ecf4;
+    border: 1px solid #2e3a50;
+    border-radius: 6px;
+    padding: 0 10px;
+}
+
+#LayerActionButton:hover {
+    background-color: #2a3347;
+    border-color: #46ddcb;
 }
 
 /* ── Timecode label ───────────────────────────────────────────────── */

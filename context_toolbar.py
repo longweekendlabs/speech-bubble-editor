@@ -47,8 +47,9 @@ class ContextToolbar(QWidget):
         super().__init__(parent)
         self.setObjectName("ContextToolbar")
         self.setFixedHeight(38)
+        self._action_widgets = []
         self._build_ui()
-        self.setVisible(False)
+        self.hide_toolbar()
 
     # ------------------------------------------------------------------
 
@@ -76,6 +77,7 @@ class ContextToolbar(QWidget):
         for svg, mode, tip in ALIGN:
             btn = self._ctx_btn(svg, tip)
             btn.clicked.connect(lambda _, m=mode: self.align_requested.emit(m))
+            self._action_widgets.append(btn)
             lay.addWidget(btn)
 
         lay.addWidget(self._sep())
@@ -90,6 +92,7 @@ class ContextToolbar(QWidget):
         for svg, mode, tip in ORDER:
             btn = self._ctx_btn(svg, tip)
             btn.clicked.connect(lambda _, m=mode: self.z_requested.emit(m))
+            self._action_widgets.append(btn)
             lay.addWidget(btn)
 
         lay.addWidget(self._sep())
@@ -97,10 +100,12 @@ class ContextToolbar(QWidget):
         # ── Transform ─────────────────────────────────────────────────
         flip_h_btn = self._ctx_btn(ICON_FLIP_H, "Flip horizontal")
         flip_h_btn.clicked.connect(self.flip_h_requested)
+        self._action_widgets.append(flip_h_btn)
         lay.addWidget(flip_h_btn)
 
         flip_v_btn = self._ctx_btn(ICON_FLIP_V, "Flip vertical")
         flip_v_btn.clicked.connect(self.flip_v_requested)
+        self._action_widgets.append(flip_v_btn)
         lay.addWidget(flip_v_btn)
 
         lay.addWidget(self._sep())
@@ -110,6 +115,7 @@ class ContextToolbar(QWidget):
                                 danger=True)
         del_btn.setObjectName("ContextDeleteBtn")
         del_btn.clicked.connect(self.delete_requested)
+        self._action_widgets.append(del_btn)
         lay.addWidget(del_btn)
 
         lay.addStretch()
@@ -120,9 +126,9 @@ class ContextToolbar(QWidget):
         color = DANGER if danger else FG
         btn = QPushButton()
         btn.setObjectName("ContextDeleteBtn" if danger else "ContextBtn")
-        btn.setIcon(make_icon(svg, 14, color))
-        btn.setIconSize(QSize(14, 14))
-        btn.setFixedSize(28, 26)
+        btn.setIcon(make_icon(svg, 20, color))
+        btn.setIconSize(QSize(18, 18))
+        btn.setFixedSize(30, 26)
         btn.setToolTip(tip)
         btn.setFlat(True)
         return btn
@@ -140,11 +146,16 @@ class ContextToolbar(QWidget):
 
     def show_for_bubble(self):
         self._chip.setText("Bubble selected")
-        self.setVisible(True)
+        self._set_actions_enabled(True)
 
     def show_for_media(self):
         self._chip.setText("Layer selected")
-        self.setVisible(True)
+        self._set_actions_enabled(True)
 
     def hide_toolbar(self):
-        self.setVisible(False)
+        self._chip.setText("No selection")
+        self._set_actions_enabled(False)
+
+    def _set_actions_enabled(self, enabled: bool):
+        for widget in self._action_widgets:
+            widget.setEnabled(enabled)

@@ -1,9 +1,9 @@
 @echo off
-REM build_windows.bat -- Build Speech Bubble Editor v2 for Windows
+REM build_windows.bat -- Build Speech Bubble Editor for Windows
 REM
 REM Outputs to: win\
-REM   SpeechBubbleEditor-2.1.10-win64-portable.zip  (always created)
-REM   SpeechBubbleEditor-2.1.10-win64-Setup.exe     (requires Inno Setup 6)
+REM   SpeechBubbleEditor-<version>-win64-portable.zip  (always created)
+REM   SpeechBubbleEditor-<version>-win64-Setup.exe     (requires Inno Setup 6)
 REM
 REM Requirements:
 REM   Python 3.11+ in PATH
@@ -14,7 +14,7 @@ setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
 set APP_NAME=SpeechBubbleEditor
-set VERSION=2.1.10
+for /f "usebackq tokens=*" %%V in (`python -c "import version; print(version.__version__)"`) do set VERSION=%%V
 set WIN_DIR=%~dp0win
 
 echo === Speech Bubble Editor v%VERSION% -- Windows Build ===
@@ -38,7 +38,7 @@ python create_icon.py
 REM -- 3. PyInstaller ----------------------------------------------------------
 echo.
 echo [3/5] Building binary with PyInstaller...
-python -m PyInstaller --clean --noconfirm speech_bubble_v2.spec
+python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
 
 call .build_venv\Scripts\deactivate.bat
 rmdir /s /q .build_venv
@@ -80,7 +80,7 @@ if not defined ISCC (
 if defined ISCC (
     echo   Found: !ISCC!
     echo   Running Inno Setup...
-    "!ISCC!" installer.iss /O"%WIN_DIR%" /F"%APP_NAME%-%VERSION%-win64-Setup"
+    "!ISCC!" installer.iss /DAppVersion=%VERSION% /O"%WIN_DIR%" /F"%APP_NAME%-%VERSION%-win64-Setup"
     if errorlevel 1 (
         echo   ERROR: Inno Setup returned an error.
     ) else (

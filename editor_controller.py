@@ -77,6 +77,11 @@ class EditorController(QObject):
             self.right_media_loaded.emit(path, is_video)
         return ok
 
+    def reset_project(self):
+        """Return the editor to a blank launch state."""
+        self._scene.reset_project()
+        self._model = AppModel()
+
     # ------------------------------------------------------------------
     # Bubbles & overlays
     # ------------------------------------------------------------------

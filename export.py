@@ -205,7 +205,7 @@ def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_pat
     H   = player.height
     W   = W if W % 2 == 0 else W + 1
     H   = H if H % 2 == 0 else H + 1
-    fps = player.fps
+    fps = player.playback_fps
 
     # Pause background decode workers so they don't race the export loop.
     scene.pause_decode_workers()
@@ -247,7 +247,7 @@ def _export_single_video(parent, scene, photo_item, player: VideoPlayer, out_pat
         _safe_remove(tmp_video)
         return
 
-    _mux_audio(player.path, tmp_video, out_path, frames, fps)
+    _finish_video_audio(player, tmp_video, out_path, frames)
     _safe_remove(tmp_video)
 
     QMessageBox.information(parent, "Export", f"Video saved to:\n{out_path}")
@@ -297,7 +297,7 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
     LH  = left_player.height if left_has_video  else left_item.pixmap().height()
     LW  = LW if LW % 2 == 0 else LW + 1
     LH  = LH if LH % 2 == 0 else LH + 1
-    fps = driver.fps
+    fps = driver.playback_fps
 
     # Determine output dimensions for the right panel at native resolution
     if right_has_video:
@@ -388,7 +388,7 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
         _safe_remove(tmp_video)
         return
 
-    _mux_audio(driver.path, tmp_video, out_path, frames, fps)
+    _finish_video_audio(driver, tmp_video, out_path, frames)
     _safe_remove(tmp_video)
 
     QMessageBox.information(parent, "Export", f"Dual video saved to:\n{out_path}")
@@ -398,8 +398,18 @@ def _export_dual_video(parent, scene, left_item, left_player: VideoPlayer,
 # FFmpeg audio muxing
 # ---------------------------------------------------------------------------
 
+def _finish_video_audio(player: VideoPlayer, rendered_video: str, out_path: str,
+                        export_frames: list[int]):
+    """Move or mux the rendered no-audio video according to the player audio setting."""
+    if player.audio_muted:
+        shutil.move(rendered_video, out_path)
+        return
+    _mux_audio(player.path, rendered_video, out_path, export_frames,
+               player.fps, player.speed_factor)
+
+
 def _mux_audio(src_video: str, rendered_video: str, out_path: str,
-               export_frames: list[int], fps: float):
+               export_frames: list[int], source_fps: float, speed_factor: float = 1.0):
     """
     Attempt to mux audio from src_video into rendered_video → out_path.
     Falls back to just renaming rendered_video if FFmpeg is unavailable or fails.
@@ -411,7 +421,7 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
 
     # Calculate start time offset based on first export frame
     start_frame = export_frames[0] if export_frames else 0
-    start_time = start_frame / fps if fps else 0.0
+    start_time = start_frame / source_fps if source_fps else 0.0
 
     # Scale timeout: 120 s base + 1 s per export frame, minimum 120 s.
     timeout_s = max(120, 120 + len(export_frames))
@@ -422,14 +432,23 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
         "-ss", str(start_time),
         "-i", src_video,
         "-map", "0:v:0",
-        "-map", "1:a:0?",   # ? makes audio optional (no error if no audio stream)
         "-c:v", "libx264",
         "-preset", "veryfast",
         "-crf", "18",
-        "-c:a", "aac",
-        "-shortest",
-        out_path,
     ]
+    if speed_factor < 0.999:
+        cmd += [
+            "-filter_complex",
+            f"[1:a:0]{_atempo_chain(speed_factor)}[a]",
+            "-map", "[a]",
+            "-c:a", "aac",
+        ]
+    else:
+        cmd += [
+            "-map", "1:a:0?",
+            "-c:a", "aac",
+        ]
+    cmd += ["-shortest", out_path]
     try:
         subprocess.run(cmd, check=True, timeout=timeout_s,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -438,6 +457,17 @@ def _mux_audio(src_video: str, rendered_video: str, out_path: str,
         # Remove any partial output FFmpeg may have created before falling back.
         _safe_remove(out_path)
         shutil.move(rendered_video, out_path)
+
+
+def _atempo_chain(speed_factor: float) -> str:
+    """Build an FFmpeg atempo chain. atempo supports 0.5..100 per filter."""
+    speed = max(0.10, min(1.0, float(speed_factor)))
+    parts = []
+    while speed < 0.5:
+        parts.append("atempo=0.5")
+        speed /= 0.5
+    parts.append(f"atempo={speed:.4f}")
+    return ",".join(parts)
 
 
 def _safe_remove(path: str):

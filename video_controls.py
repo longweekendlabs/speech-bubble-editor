@@ -7,7 +7,7 @@ Supports dual video: a Left/Right toggle appears when a right player is set.
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
-    QFrame, QToolButton,
+    QFrame, QToolButton, QSlider, QCheckBox,
 )
 from PyQt6.QtCore import Qt, QTimer, QRect, QPoint, pyqtSignal, QSize
 from PyQt6.QtGui import QPainter, QColor, QPen, QPolygon, QIcon
@@ -16,7 +16,7 @@ from video_player import VideoPlayer
 from icons import (
     make_icon, ACCENT, FG, MUTED,
     ICON_TO_START, ICON_STEP_BACK, ICON_PLAY, ICON_PAUSE,
-    ICON_STEP_FWD, ICON_TO_END, ICON_VOLUME, ICON_FULLSCREEN,
+    ICON_STEP_FWD, ICON_TO_END, ICON_FULLSCREEN,
     ICON_SET_IN, ICON_SET_OUT, ICON_CUT, ICON_MARKER, ICON_REVERSE,
 )
 
@@ -193,6 +193,9 @@ class VideoControls(QWidget):
     cut_requested       = pyqtSignal()
     cuts_cleared        = pyqtSignal()
     reverse_toggled     = pyqtSignal()
+    speed_changed       = pyqtSignal(int)
+    audio_muted_changed = pyqtSignal(bool)
+    fullscreen_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -201,6 +204,7 @@ class VideoControls(QWidget):
         self._active_side    = "left"
         self._current_frame  = 0
         self._playing        = False
+        self._snap_speed     = False
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._advance_frame)
@@ -261,9 +265,11 @@ class VideoControls(QWidget):
                   self._btn_stepf, self._btn_last):
             btn_row.addWidget(b)
 
-        # Volume
-        vol_btn = transport_btn(ICON_VOLUME, "Volume")
-        btn_row.addWidget(vol_btn)
+        self._mute_check = QCheckBox("Mute")
+        self._mute_check.setObjectName("MuteAudioCheck")
+        self._mute_check.setToolTip("Mute this video's audio during preview and export")
+        self._mute_check.toggled.connect(self._on_audio_muted)
+        btn_row.addWidget(self._mute_check)
 
         self._time_label = QLabel("0:00 / 0:00")
         self._time_label.setFixedWidth(120)
@@ -299,8 +305,27 @@ class VideoControls(QWidget):
         for b in (btn_in, btn_out, btn_cut, btn_clr, self._btn_reverse):
             btn_row.addWidget(b)
 
+        btn_row.addSpacing(6)
+        self._speed_label = QLabel("100%")
+        self._speed_label.setObjectName("TimecodeLabel")
+        self._speed_label.setFixedWidth(42)
+        self._speed_label.setToolTip("Playback/export speed")
+        btn_row.addWidget(self._speed_label)
+
+        self._speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self._speed_slider.setRange(10, 100)
+        self._speed_slider.setValue(100)
+        self._speed_slider.setFixedWidth(120)
+        self._speed_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self._speed_slider.setTickInterval(5)
+        self._speed_slider.setToolTip("Slow down video: magnetic stops at 10%, 25%, 35%, 50%, 75%, 100%")
+        self._speed_slider.valueChanged.connect(self._on_speed_slider)
+        self._speed_slider.sliderReleased.connect(self._snap_speed_slider)
+        btn_row.addWidget(self._speed_slider)
+
         # Fullscreen
-        fs_btn = transport_btn(ICON_FULLSCREEN, "Toggle fullscreen canvas  (F)")
+        fs_btn = transport_btn(ICON_FULLSCREEN, "Toggle fullscreen window  (F)")
+        fs_btn.clicked.connect(self.fullscreen_requested)
         btn_row.addWidget(fs_btn)
 
         layout.addLayout(btn_row)
@@ -333,6 +358,8 @@ class VideoControls(QWidget):
         if player and player.is_loaded():
             self._update_time_label(0)
             self._btn_reverse.setChecked(player.is_reversed)
+            self._sync_speed_from_player(player)
+            self._sync_audio_muted_from_player(player)
             self.setVisible(True)
         else:
             if not (self._player_right and self._player_right.is_loaded()):
@@ -350,6 +377,8 @@ class VideoControls(QWidget):
             if self._active_side == "right":
                 self._scrubber.set_player(player)
                 self._btn_reverse.setChecked(player.is_reversed)
+                self._sync_speed_from_player(player)
+                self._sync_audio_muted_from_player(player)
                 self._update_time_label_for(player, 0)
             self.setVisible(True)
         else:
@@ -360,6 +389,8 @@ class VideoControls(QWidget):
                 self._scrubber.set_player(self._player)
                 if self._player and self._player.is_loaded():
                     self._btn_reverse.setChecked(self._player.is_reversed)
+                    self._sync_speed_from_player(self._player)
+                    self._sync_audio_muted_from_player(self._player)
             if not has_left:
                 self.setVisible(False)
         self._update_side_toggle_visibility()
@@ -373,6 +404,27 @@ class VideoControls(QWidget):
     @property
     def current_frame(self) -> int:
         return self._current_frame
+
+    def toggle_playback(self):
+        self._toggle_play()
+
+    def first_frame(self):
+        self._on_first_frame()
+
+    def last_frame(self):
+        self._on_last_frame()
+
+    def step_back(self):
+        self._on_step_back()
+
+    def step_forward(self):
+        self._on_step_forward()
+
+    def set_trim_in_to_current_frame(self):
+        self._on_set_in()
+
+    def set_trim_out_to_current_frame(self):
+        self._on_set_out()
 
     def stop(self):
         self._stop_playback()
@@ -412,7 +464,7 @@ class VideoControls(QWidget):
                 start = active.trim_out if active.is_reversed else active.trim_in
                 self._current_frame = start
                 self._scrubber.set_current_frame(self._current_frame)
-            ms = max(1, int(1000 / active.fps))
+            ms = max(1, int(1000 / active.playback_fps))
             self._timer.start(ms)
         else:
             self._timer.stop()
@@ -492,6 +544,34 @@ class VideoControls(QWidget):
     def _on_reverse(self):
         self.reverse_toggled.emit()
 
+    def _on_speed_slider(self, value: int):
+        if self._snap_speed:
+            return
+        player = self._active_player
+        if player:
+            player.set_speed_percent(value)
+        self._speed_label.setText(f"{value}%")
+        self.speed_changed.emit(value)
+        if player:
+            self._update_time_label_for(player, self._active_frame())
+        if self._playing and player:
+            self._timer.start(max(1, int(1000 / player.playback_fps)))
+
+    def _snap_speed_slider(self):
+        stops = (10, 25, 35, 50, 75, 100)
+        value = self._speed_slider.value()
+        snapped = min(stops, key=lambda stop: abs(stop - value))
+        self._snap_speed = True
+        self._speed_slider.setValue(snapped)
+        self._snap_speed = False
+        self._on_speed_slider(snapped)
+
+    def _on_audio_muted(self, muted: bool):
+        player = self._active_player
+        if player:
+            player.set_audio_muted(muted)
+        self.audio_muted_changed.emit(muted)
+
     def _on_first_frame(self):
         self._go_to_frame(0)
 
@@ -529,6 +609,8 @@ class VideoControls(QWidget):
         self._scrubber.set_player(player)
         if player and player.is_loaded():
             self._btn_reverse.setChecked(player.is_reversed)
+            self._sync_speed_from_player(player)
+            self._sync_audio_muted_from_player(player)
             frame = self._current_frame if side == "left" \
                 else min(self._current_frame, player.frame_count - 1)
             self._update_time_label_for(player, frame)
@@ -550,7 +632,7 @@ class VideoControls(QWidget):
             self._update_time_label_for(self._player, frame)
 
     def _update_time_label_for(self, player: "VideoPlayer", frame: int):
-        fps = player.fps or 25.0
+        fps = player.playback_fps or 25.0
         if player.trim_in > 0 or player.trim_out < player.frame_count - 1:
             in_s  = player.trim_in  / fps
             out_s = player.trim_out / fps
@@ -559,6 +641,17 @@ class VideoControls(QWidget):
             curr  = frame / fps
             total = player.frame_count / fps
             self._time_label.setText(f"{self._fmt(curr)} / {self._fmt(total)}")
+
+    def _sync_speed_from_player(self, player: "VideoPlayer"):
+        self._snap_speed = True
+        self._speed_slider.setValue(player.speed_percent)
+        self._snap_speed = False
+        self._speed_label.setText(f"{player.speed_percent}%")
+
+    def _sync_audio_muted_from_player(self, player: "VideoPlayer"):
+        self._mute_check.blockSignals(True)
+        self._mute_check.setChecked(player.audio_muted)
+        self._mute_check.blockSignals(False)
 
     @staticmethod
     def _fmt(seconds: float) -> str:

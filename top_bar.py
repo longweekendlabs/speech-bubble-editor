@@ -2,12 +2,12 @@
 top_bar.py — TopBar: application header bar (v4 redesign).
 
 Layout (left → right):
-  Logo icon · App name · Byline  ···  Open  Export  | Undo  Redo  | Zoom ▾  ···  Sun  Gear  | ⋮
+  Logo icon · App name · Byline  ···  Open  Export  | Undo  Redo  | Zoom ▾  ···  Gear  | ⋮
 """
 
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QPushButton, QLabel, QToolButton,
-    QFileDialog, QFrame, QMenu, QSizePolicy, QWidgetAction,
+    QFrame, QMenu, QSizePolicy, QWidgetAction,
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QKeySequence, QAction, QIcon, QPixmap, QPainter, QColor
@@ -15,10 +15,11 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import QByteArray
 
 from constants import ALL_EXTENSIONS
+from file_dialogs import open_file
 from icons import (
     make_icon, ACCENT, FG, MUTED,
     ICON_OPEN, ICON_EXPORT, ICON_UNDO, ICON_REDO,
-    ICON_ZOOM, ICON_SUN, ICON_GEAR, ICON_MORE,
+    ICON_RESET, ICON_ZOOM, ICON_KEYBOARD, ICON_MORE,
 )
 
 
@@ -28,22 +29,14 @@ class TopBar(QWidget):
     export_requested      = pyqtSignal()
     undo_requested        = pyqtSignal()
     redo_requested        = pyqtSignal()
+    reset_requested       = pyqtSignal()
     about_requested       = pyqtSignal()
+    shortcuts_requested   = pyqtSignal()
     zoom_changed          = pyqtSignal(object)   # int (percent) or str ("fit-width"/"fit-window")
-    theme_change_requested = pyqtSignal(str)      # "dark" | "oled" | "slate"
-
-    _THEMES     = ["dark", "oled", "slate"]
-    _THEME_TIPS = {
-        "dark":  "Theme: Dark — click to switch to OLED",
-        "oled":  "Theme: OLED — click to switch to Slate",
-        "slate": "Theme: Slate — click to switch to Dark",
-    }
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(52)
         self.setObjectName("TopBar")
-        self._current_theme = "dark"
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -74,7 +67,7 @@ class TopBar(QWidget):
 
         # ── Open ──────────────────────────────────────────────────────
         self.btn_open = self._action_btn(
-            icon=make_icon(ICON_OPEN, 14, FG),
+            icon=make_icon(ICON_OPEN, 20, FG),
             label="Open…",
             tooltip="Open photo or video  (Ctrl+O)",
             shortcut="Ctrl+O",
@@ -84,7 +77,7 @@ class TopBar(QWidget):
 
         # ── Export ────────────────────────────────────────────────────
         self.btn_export = self._action_btn(
-            icon=make_icon(ICON_EXPORT, 14, "#ffffff"),
+            icon=make_icon(ICON_EXPORT, 20, "#ffffff"),
             label="Export…",
             tooltip="Export with bubbles  (Ctrl+E)",
             shortcut="Ctrl+E",
@@ -99,7 +92,7 @@ class TopBar(QWidget):
 
         # ── Undo / Redo ───────────────────────────────────────────────
         self.btn_undo = self._action_btn(
-            icon=make_icon(ICON_UNDO, 14, MUTED),
+            icon=make_icon(ICON_UNDO, 20, MUTED),
             label="Undo",
             tooltip="Undo  (Ctrl+Z)",
             shortcut="Ctrl+Z",
@@ -109,7 +102,7 @@ class TopBar(QWidget):
         lay.addWidget(self.btn_undo)
 
         self.btn_redo = self._action_btn(
-            icon=make_icon(ICON_REDO, 14, MUTED),
+            icon=make_icon(ICON_REDO, 20, MUTED),
             label="Redo",
             tooltip="Redo  (Ctrl+Y / Ctrl+Shift+Z)",
             shortcut="Ctrl+Y",
@@ -117,6 +110,16 @@ class TopBar(QWidget):
         self.btn_redo.setEnabled(False)
         self.btn_redo.clicked.connect(self.redo_requested)
         lay.addWidget(self.btn_redo)
+
+        self.btn_reset = self._action_btn(
+            icon=make_icon(ICON_RESET, 20, MUTED),
+            label="Reset",
+            tooltip="Start a fresh project  (Ctrl+N)",
+            shortcut="Ctrl+N",
+        )
+        self.btn_reset.setEnabled(False)
+        self.btn_reset.clicked.connect(self.reset_requested)
+        lay.addWidget(self.btn_reset)
 
         lay.addWidget(self._separator())
 
@@ -126,8 +129,8 @@ class TopBar(QWidget):
         self.btn_zoom.setObjectName("ZoomBtn")
         self.btn_zoom.setFixedHeight(32)
         self.btn_zoom.setMinimumWidth(110)
-        self.btn_zoom.setIcon(make_icon(ICON_ZOOM, 13, MUTED))
-        self.btn_zoom.setIconSize(QSize(13, 13))
+        self.btn_zoom.setIcon(make_icon(ICON_ZOOM, 20, MUTED))
+        self.btn_zoom.setIconSize(QSize(14, 14))
         self.btn_zoom.setToolTip("Zoom level — click to change")
         self.btn_zoom.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
         self._update_zoom_label()
@@ -137,24 +140,19 @@ class TopBar(QWidget):
         lay.addStretch(1)
 
         # ── Right icon buttons ─────────────────────────────────────────
-        self.btn_theme = self._icon_btn(
-            make_icon(ICON_SUN, 15, MUTED),
-            self._THEME_TIPS["dark"],
+        self.btn_shortcuts = self._icon_btn(
+            make_icon(ICON_KEYBOARD, 20, MUTED),
+            "Keyboard shortcuts  (Ctrl+/)",
         )
-        self.btn_theme.clicked.connect(self._cycle_theme)
-        lay.addWidget(self.btn_theme)
-
-        self.btn_prefs = self._icon_btn(
-            make_icon(ICON_GEAR, 15, MUTED),
-            "Preferences — keyboard shortcuts, export defaults, canvas settings",
-        )
-        lay.addWidget(self.btn_prefs)
+        self.btn_shortcuts.setShortcut(QKeySequence("Ctrl+/"))
+        self.btn_shortcuts.clicked.connect(self.shortcuts_requested)
+        lay.addWidget(self.btn_shortcuts)
 
         lay.addWidget(self._separator())
 
         # ── ⋮ More menu ───────────────────────────────────────────────
         self.btn_more = self._icon_btn(
-            make_icon(ICON_MORE, 15, MUTED),
+            make_icon(ICON_MORE, 20, MUTED),
             "More options — about, help, feedback",
         )
         self.btn_more.clicked.connect(self._show_more_menu)
@@ -168,7 +166,7 @@ class TopBar(QWidget):
                     shortcut: str = "", accent: bool = False) -> QPushButton:
         btn = QPushButton(label)
         btn.setIcon(icon)
-        btn.setIconSize(QSize(14, 14))
+        btn.setIconSize(QSize(15, 15))
         btn.setFixedHeight(32)
         btn.setToolTip(tooltip)
         if shortcut:
@@ -264,6 +262,8 @@ class TopBar(QWidget):
         menu = QMenu(self)
 
         ITEMS = [
+            ("Keyboard Shortcuts",        self.shortcuts_requested.emit),
+            None,
             ("About Speech Bubble Editor",  self.about_requested.emit),
             ("Release Notes",               None),
             ("Help & Documentation",        None),
@@ -292,25 +292,12 @@ class TopBar(QWidget):
         menu.exec(pos)
 
     # ------------------------------------------------------------------
-    # Theme cycling
-    # ------------------------------------------------------------------
-
-    def _cycle_theme(self):
-        idx = self._THEMES.index(self._current_theme)
-        self._current_theme = self._THEMES[(idx + 1) % len(self._THEMES)]
-        self.btn_theme.setToolTip(self._THEME_TIPS[self._current_theme])
-        self.theme_change_requested.emit(self._current_theme)
-
-    # ------------------------------------------------------------------
     # Open dialog
     # ------------------------------------------------------------------
 
     def _on_open(self):
         ext_list = " ".join(f"*{e}" for e in ALL_EXTENSIONS)
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Open Media", "",
-            f"All supported media ({ext_list})"
-        )
+        path = open_file(self, "Open Media", f"All supported media ({ext_list})")
         if path:
             self.open_media_requested.emit(path)
 
@@ -326,6 +313,9 @@ class TopBar(QWidget):
 
     def set_redo_enabled(self, enabled: bool):
         self.btn_redo.setEnabled(enabled)
+
+    def set_reset_enabled(self, enabled: bool):
+        self.btn_reset.setEnabled(enabled)
 
     def update_zoom(self, percent: int):
         """Called by PhotoView.zoom_changed signal."""

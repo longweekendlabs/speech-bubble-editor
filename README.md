@@ -18,7 +18,7 @@ A truly cross-platform tool for adding expressive text to your media. Built for 
 - **Dual mode** — side-by-side before/after layout with configurable gap and border
 - **Overlay layers** — stack multiple photos or videos on the canvas; right-click to control z-order
 - **Meme mode** — Impact/Anton-style top and bottom caption bars
-- **Full-resolution export** — PNG, JPEG, WebP; video export via FFmpeg (audio preserved)
+- **Full-resolution export** — PNG, JPEG, WebP; video export via bundled FFmpeg, with optional audio mute
 - **Drag & resize** — 8-anchor handles, draggable tail, undo/redo for everything
 - **Font controls** — family, size, bold, italic, colour; auto-shrink to fit
 - **Single instance** — re-activates the existing window instead of opening a second copy
@@ -29,10 +29,11 @@ Head to the **[Releases page](https://github.com/longweekendlabs/speech-bubble-e
 
 | Platform | Package | Notes |
 |---|---|---|
-| **macOS Apple Silicon** | `.dmg` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time. |
-| **Linux (any distro)** | `.AppImage` | Double-click to run, no install needed. |
-| **Windows (installer)** | `-Setup.exe` | Standard Windows installer. |
-| **Windows (portable)** | `.zip` | No install needed, run anywhere. |
+| **Windows x64** | `SpeechBubbleEditor-vX.Y.Z-windows-x64-portable.zip` | No install needed; unzip and run. |
+| **Linux x64** | `SpeechBubbleEditor-vX.Y.Z-linux-x64.tar.gz` | Portable binary archive. |
+| **macOS Intel** | `SpeechBubbleEditor-vX.Y.Z-macos-x64.zip` | macOS 12+. Right-click → Open first time. |
+| **macOS Apple Silicon** | `SpeechBubbleEditor-vX.Y.Z-macos-arm64.zip` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time. |
+| **Source code** | `source.zip` / `source.tar.gz` | Also generated automatically by GitHub Releases. |
 
 ## Building from Source
 
@@ -50,7 +51,7 @@ python main.py
 ### Build release packages:
 
 ```bash
-# macOS (Apple Silicon)
+# macOS (native Intel or Apple Silicon, depending on build machine)
 python create_icon.py
 iconutil -c icns icons/icon.iconset -o icons/icon.icns
 python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
@@ -67,7 +68,18 @@ build_windows.bat
 - **PyQt6** — UI framework
 - **OpenCV** — video decoding
 - **Pillow** — image export
-- **FFmpeg** — video export with audio (bundled in macOS; required on PATH for Linux/Windows)
+- **FFmpeg** — video export with audio; bundled into official release builds when available in CI
+
+## Release Builds
+
+Release artifacts are built by GitHub Actions from tags named `v*`, for example:
+
+```bash
+git tag v4.0.4
+git push origin v4.0.4
+```
+
+The workflow builds Windows x64, Linux x64, macOS Intel, macOS Apple Silicon, and source archives, then attaches them to the GitHub Release.
 
 ## License
 

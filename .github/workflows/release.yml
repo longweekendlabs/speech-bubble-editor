@@ -1,0 +1,224 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release, for example v4.0.4. Leave blank to build artifacts only."
+        required: false
+        type: string
+      prerelease:
+        description: "Mark the GitHub release as a prerelease"
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  APP_NAME: SpeechBubbleEditor
+
+jobs:
+  source:
+    name: Source archive
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: echo "version=$(python -c 'import version; print(version.__version__)')" >> "$GITHUB_OUTPUT"
+
+      - name: Create source archives
+        shell: bash
+        run: |
+          mkdir -p release
+          git archive --format=zip \
+            --output="release/${APP_NAME}-v${{ steps.version.outputs.version }}-source.zip" HEAD
+          git archive --format=tar.gz \
+            --output="release/${APP_NAME}-v${{ steps.version.outputs.version }}-source.tar.gz" HEAD
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: release/*
+          if-no-files-found: error
+
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build portable Linux package
+        shell: bash
+        run: bash ./build_linux.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: linux/*
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install FFmpeg
+        shell: pwsh
+        run: choco install ffmpeg -y --no-progress
+
+      - name: Install Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          python create_icon.py
+          python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+          $version = python -c "import version; print(version.__version__)"
+          New-Item -ItemType Directory -Force -Path win | Out-Null
+          Compress-Archive -Path "dist/SpeechBubbleEditor.exe" `
+            -DestinationPath "win/SpeechBubbleEditor-v$version-windows-x64-portable.zip" `
+            -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: win/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            label: intel
+            artifact_suffix: macos-x64
+          - runner: macos-14
+            label: apple-silicon
+            artifact_suffix: macos-arm64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install FFmpeg
+        shell: bash
+        run: brew install ffmpeg
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Build macOS app bundle
+        shell: bash
+        run: |
+          python create_icon.py
+          iconutil -c icns icons/icon.iconset -o icons/icon.icns
+          python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
+          VERSION="$(python -c 'import version; print(version.__version__)')"
+          mkdir -p mac
+          ditto -c -k --keepParent "dist/SpeechBubbleEditor.app" \
+            "mac/SpeechBubbleEditor-v${VERSION}-${{ matrix.artifact_suffix }}.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_suffix }}
+          path: mac/*
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    needs: [source, linux, windows, macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ steps.release.outputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease || false }}
+        shell: bash
+        run: |
+          NOTES="Automated cross-platform build for ${TAG_NAME}."
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" release-assets/* --clobber
+          else
+            prerelease_flag=""
+            if [ "$PRERELEASE" = "true" ]; then
+              prerelease_flag="--prerelease"
+            fi
+            gh release create "$TAG_NAME" release-assets/* \
+              --title "Speech Bubble Editor ${TAG_NAME}" \
+              --notes "$NOTES" \
+              $prerelease_flag
+          fi

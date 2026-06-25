@@ -207,6 +207,8 @@ class VideoPlayer:
         self._trim_out    = 0
         self._cuts: list[tuple[int, int]] = []
         self._reversed    = False
+        self._speed_percent = 100
+        self._audio_muted = False
         self._last_read   = -1   # track last frame read for sequential optimisation
         self._cache: FrameCache | None = None
 
@@ -238,6 +240,8 @@ class VideoPlayer:
         self._trim_out    = fc - 1
         self._cuts        = []
         self._reversed    = False
+        self._speed_percent = 100
+        self._audio_muted = False
         self._last_read   = -1
         self._cache       = FrameCache()
         return True
@@ -316,6 +320,14 @@ class VideoPlayer:
     def is_reversed(self) -> bool: return self._reversed
     @property
     def cuts(self) -> list[tuple[int, int]]: return list(self._cuts)
+    @property
+    def speed_percent(self) -> int: return self._speed_percent
+    @property
+    def speed_factor(self) -> float: return max(0.10, min(1.0, self._speed_percent / 100.0))
+    @property
+    def playback_fps(self) -> float: return max(1.0, self._fps * self.speed_factor)
+    @property
+    def audio_muted(self) -> bool: return self._audio_muted
 
     @property
     def original_fourcc(self) -> str:
@@ -349,12 +361,20 @@ class VideoPlayer:
     def toggle_reverse(self):
         self._reversed = not self._reversed
 
+    def set_speed_percent(self, value: int):
+        self._speed_percent = max(10, min(100, int(value)))
+
+    def set_audio_muted(self, muted: bool):
+        self._audio_muted = bool(muted)
+
     def reset_edits(self):
         """Reset trim, cuts, and reverse to defaults."""
         self._trim_in  = 0
         self._trim_out = self._frame_count - 1
         self._cuts.clear()
         self._reversed = False
+        self._speed_percent = 100
+        self._audio_muted = False
 
     # ------------------------------------------------------------------
     # Export helpers

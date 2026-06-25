@@ -63,15 +63,24 @@ ICON_EXPORT = """
 """
 
 ICON_UNDO = """
-<path d="M3 8v5h5" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<path d="M3 13 C4 7 9 4 14 5.5 a7 7 0 0 1 4 6"
-  stroke="{color}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+<path d="M8.2 4.2L3.2 9.2L8.2 14.2"
+  stroke="{color}" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M3.8 9.2H13.2C16.0 9.2 17.8 11.0 17.8 13.6C17.8 16.2 16.0 18.0 13.2 18.0H11.2"
+  stroke="{color}" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 """
 
 ICON_REDO = """
-<path d="M17 8v5h-5" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<path d="M17 13 C16 7 11 4 6 5.5 a7 7 0 0 0-4 6"
-  stroke="{color}" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+<path d="M11.8 4.2L16.8 9.2L11.8 14.2"
+  stroke="{color}" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M16.2 9.2H6.8C4.0 9.2 2.2 11.0 2.2 13.6C2.2 16.2 4.0 18.0 6.8 18.0H8.8"
+  stroke="{color}" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+"""
+
+ICON_RESET = """
+<circle cx="10" cy="10" r="6.5"
+  stroke="{color}" stroke-width="1.7" fill="none"/>
+<path d="M7.2 7.2L12.8 12.8M12.8 7.2L7.2 12.8"
+  stroke="{color}" stroke-width="1.85" stroke-linecap="round"/>
 """
 
 ICON_ZOOM = """
@@ -93,6 +102,15 @@ ICON_GEAR = """
          a8.5 8.5 0 0 1-3-.8l-.5-1.5a6 6 0 0 1-2.7-2.7l-1.5-.5A8.5 8.5 0 0 1 1.5 10
          a8.5 8.5 0 0 1 .8-3l1.5-.5a6 6 0 0 1 2.7-2.7l.5-1.5A8.5 8.5 0 0 1 10 1.5z"
   stroke="{color}" stroke-width="1.4" fill="none"/>
+"""
+
+ICON_KEYBOARD = """
+<rect x="2.5" y="5" width="15" height="10" rx="2"
+  stroke="{color}" stroke-width="1.6" fill="none"/>
+<path d="M5.5 8h1M8.5 8h1M11.5 8h1M14.5 8h1
+         M5.5 10.5h1M8.5 10.5h1M11.5 10.5h1M14.5 10.5h1"
+  stroke="{color}" stroke-width="1.7" stroke-linecap="round"/>
+<path d="M7 13h6" stroke="{color}" stroke-width="1.7" stroke-linecap="round"/>
 """
 
 ICON_MORE = """
@@ -151,84 +169,83 @@ ICON_DUAL = """
 
 # Context toolbar
 ICON_ALIGN_LEFT = """
-<rect x="0" y="2" width="2" height="10" rx="1" fill="{color}"/>
-<rect x="2" y="3" width="7" height="3.5" rx="1" fill="{color}"/>
-<rect x="2" y="7.5" width="10" height="3.5" rx="1" fill="{color}"/>
+<rect x="3" y="3" width="2" height="14" rx="1" fill="{color}"/>
+<rect x="7" y="5" width="9" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="7" y="9" width="6" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="7" y="13" width="9" height="2.5" rx="1.2" fill="{color}"/>
 """
 
 ICON_ALIGN_HCENTER = """
-<rect x="6" y="2" width="2" height="10" rx="1" fill="{color}"/>
-<rect x="2" y="3" width="10" height="3.5" rx="1" fill="{color}"/>
-<rect x="3" y="7.5" width="8" height="3.5" rx="1" fill="{color}"/>
+<rect x="9" y="3" width="2" height="14" rx="1" fill="{color}" opacity="0.75"/>
+<rect x="5" y="5" width="10" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="7" y="9" width="6" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="5" y="13" width="10" height="2.5" rx="1.2" fill="{color}"/>
 """
 
 ICON_ALIGN_RIGHT = """
-<rect x="12" y="2" width="2" height="10" rx="1" fill="{color}"/>
-<rect x="5" y="3" width="7" height="3.5" rx="1" fill="{color}"/>
-<rect x="2" y="7.5" width="10" height="3.5" rx="1" fill="{color}"/>
+<rect x="15" y="3" width="2" height="14" rx="1" fill="{color}"/>
+<rect x="4" y="5" width="9" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="7" y="9" width="6" height="2.5" rx="1.2" fill="{color}"/>
+<rect x="4" y="13" width="9" height="2.5" rx="1.2" fill="{color}"/>
 """
 
 ICON_ALIGN_TOP = """
-<rect x="2" y="0" width="10" height="2" rx="1" fill="{color}"/>
-<rect x="3" y="2" width="3.5" height="7" rx="1" fill="{color}"/>
-<rect x="7.5" y="2" width="3.5" height="10" rx="1" fill="{color}"/>
+<rect x="3" y="3" width="14" height="2" rx="1" fill="{color}"/>
+<rect x="5" y="7" width="2.5" height="9" rx="1.2" fill="{color}"/>
+<rect x="9" y="7" width="2.5" height="6" rx="1.2" fill="{color}"/>
+<rect x="13" y="7" width="2.5" height="9" rx="1.2" fill="{color}"/>
 """
 
 ICON_ALIGN_VCENTER = """
-<rect x="2" y="6" width="10" height="2" rx="1" fill="{color}"/>
-<rect x="3" y="2" width="3.5" height="10" rx="1" fill="{color}"/>
-<rect x="7.5" y="1" width="3.5" height="12" rx="1" fill="{color}"/>
+<rect x="3" y="9" width="14" height="2" rx="1" fill="{color}" opacity="0.75"/>
+<rect x="5" y="5" width="2.5" height="10" rx="1.2" fill="{color}"/>
+<rect x="9" y="7" width="2.5" height="6" rx="1.2" fill="{color}"/>
+<rect x="13" y="5" width="2.5" height="10" rx="1.2" fill="{color}"/>
 """
 
 ICON_ALIGN_BOTTOM = """
-<rect x="2" y="12" width="10" height="2" rx="1" fill="{color}"/>
-<rect x="3" y="5" width="3.5" height="7" rx="1" fill="{color}"/>
-<rect x="7.5" y="2" width="3.5" height="10" rx="1" fill="{color}"/>
+<rect x="3" y="15" width="14" height="2" rx="1" fill="{color}"/>
+<rect x="5" y="4" width="2.5" height="9" rx="1.2" fill="{color}"/>
+<rect x="9" y="7" width="2.5" height="6" rx="1.2" fill="{color}"/>
+<rect x="13" y="4" width="2.5" height="9" rx="1.2" fill="{color}"/>
 """
 
 ICON_TO_FRONT = """
-<rect x="1" y="5" width="7" height="7" rx="1" stroke="{color}" stroke-width="1.3"
-  stroke-dasharray="2 1.5" fill="none"/>
-<rect x="5" y="1" width="8" height="8" rx="1" fill="{color}" opacity="0.25" stroke="{color}" stroke-width="1.3"/>
-<path d="M11 -1v4M11 -1L9 2M11 -1l2 3" transform="translate(0,1)"
-  stroke="{color}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="4" y="8" width="7" height="7" rx="1.4" stroke="{color}" stroke-width="1.7" fill="none" opacity="0.5"/>
+<rect x="9" y="4" width="7" height="7" rx="1.4" fill="{color}"/>
+<path d="M15 3.2l2.4 2.4l-2.4 2.4" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 """
 
 ICON_BRING_FWD = """
-<rect x="1" y="4" width="7" height="7" rx="1" fill="none" stroke="{color}" stroke-width="1.3"/>
-<rect x="5" y="1" width="7" height="7" rx="1" fill="{color}" opacity="0.35"/>
-<path d="M11 6V2M11 2L9 4M11 2l2 2"
-  stroke="{color}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="4" y="8" width="7" height="7" rx="1.4" stroke="{color}" stroke-width="1.7" fill="none" opacity="0.5"/>
+<rect x="9" y="4" width="7" height="7" rx="1.4" fill="{color}"/>
 """
 
 ICON_SEND_BACK = """
-<rect x="5" y="1" width="7" height="7" rx="1" fill="none" stroke="{color}" stroke-width="1.3"/>
-<rect x="1" y="4" width="7" height="7" rx="1" fill="{color}" opacity="0.35"/>
-<path d="M4 9v4M4 13l-2-2M4 13l2-2"
-  stroke="{color}" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="9" y="4" width="7" height="7" rx="1.4" stroke="{color}" stroke-width="1.7" fill="none" opacity="0.5"/>
+<rect x="4" y="8" width="7" height="7" rx="1.4" fill="{color}"/>
 """
 
 ICON_TO_BACK = """
-<rect x="5" y="1" width="8" height="8" rx="1" stroke="{color}" stroke-width="1.3"
-  stroke-dasharray="2 1.5" fill="none"/>
-<rect x="1" y="4" width="7" height="7" rx="1" fill="{color}" opacity="0.25" stroke="{color}" stroke-width="1.3"/>
+<rect x="9" y="4" width="7" height="7" rx="1.4" stroke="{color}" stroke-width="1.7" fill="none" opacity="0.5"/>
+<rect x="4" y="8" width="7" height="7" rx="1.4" fill="{color}"/>
+<path d="M5 16.8l-2.4-2.4l2.4-2.4" stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 """
 
 ICON_FLIP_H = """
-<rect x="6.5" y="1" width="1" height="12" rx="0.5" fill="{color}"/>
-<path d="M5.5 4L1 7l4.5 3V4z" fill="{color}" opacity="0.9"/>
-<path d="M8.5 4L13 7l-4.5 3V4z" fill="{color}" opacity="0.5"/>
+<rect x="9.2" y="3" width="1.6" height="14" rx="0.8" fill="{color}" opacity="0.65"/>
+<path d="M7.5 5.5L3.5 10l4 4.5zM12.5 5.5l4 4.5l-4 4.5z" fill="{color}"/>
 """
 
 ICON_FLIP_V = """
-<rect x="1" y="6.5" width="12" height="1" rx="0.5" fill="{color}"/>
-<path d="M4 5.5L7 1l3 4.5H4z" fill="{color}" opacity="0.9"/>
-<path d="M4 8.5L7 13l3-4.5H4z" fill="{color}" opacity="0.5"/>
+<rect x="3" y="9.2" width="14" height="1.6" rx="0.8" fill="{color}" opacity="0.65"/>
+<path d="M5.5 7.5L10 3.5l4.5 4zM5.5 12.5l4.5 4l4.5-4z" fill="{color}"/>
 """
 
 ICON_DELETE = """
-<path d="M1 3.5h12M5 3.5V2h4v1.5M2.5 3.5L3.5 12h7l1-8.5M5.5 6v4M8.5 6v4"
-  stroke="{color}" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M4 6h12M8 6V4h4v2" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M6.2 7.8h7.6l-.7 8.2H6.9z" fill="{color}"/>
+<path d="M9 9.5v4.5M11 9.5v4.5" stroke="#111827" stroke-width="1.3" stroke-linecap="round" opacity="0.75"/>
 """
 
 # Video transport

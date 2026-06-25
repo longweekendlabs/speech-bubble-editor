@@ -1,16 +1,16 @@
-; installer_arm64.iss — Inno Setup script for Speech Bubble Editor v4.0 (Windows ARM64)
+; installer_arm64.iss — Inno Setup script for Speech Bubble Editor v4 (Windows ARM64)
 ; Download Inno Setup 6: https://jrsoftware.org/isdl.php
 
 #define AppName      "Speech Bubble Editor"
-; AppVersion can be overridden from command line: ISCC /DAppVersion=4.0.0 installer_arm64.iss
+; AppVersion can be overridden from command line: ISCC /DAppVersion=4.0.4 installer_arm64.iss
 #ifndef AppVersion
-  #define AppVersion "4.0.0"
+  #define AppVersion "4.0.4"
 #endif
 #define AppPublisher "Long Weekend Labs"
 #define AppExeName   "SpeechBubbleEditor.exe"
 
 [Setup]
-AppId={{B5G2D4F3-9C3E-5G0B-CD4F-2E3B4G5F6C7D}
+AppId={{B5E2D4F3-9C3E-5A0B-CD4F-2E3B4A5F6C7D}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}

@@ -11,7 +11,7 @@ from PyQt6.QtGui import QKeySequence
 
 from icons import (
     make_icon, make_icon_pair, ACCENT, MUTED,
-    ICON_SELECT, ICON_MOVE, ICON_BUBBLE, ICON_CAPTION,
+    ICON_SELECT, ICON_MOVE, ICON_BUBBLE,
     ICON_TEXT, ICON_LAYERS, ICON_MEME, ICON_DUAL,
 )
 
@@ -20,19 +20,19 @@ TOOL_DEFS = [
     ("select",  "Select",  ICON_SELECT,  "V",      True,  True),
     ("move",    "Move",    ICON_MOVE,    "M",      True,  True),
     ("bubble",  "Bubble",  ICON_BUBBLE,  "Ctrl+B", False, False),
-    ("caption", "Caption", ICON_CAPTION, "C",      False, False),
     ("text",    "Text",    ICON_TEXT,    "T",      False, False),
     ("layers",  "Layers",  ICON_LAYERS,  "Ctrl+L", False, False),
     ("meme",    "Meme",    ICON_MEME,    None,     True,  False),
     ("dual",    "Dual",    ICON_DUAL,    None,     True,  False),
 ]
 
-MEDIA_GATED = {"bubble", "caption", "text", "layers", "meme", "dual"}
+MEDIA_GATED = {"bubble", "text", "layers", "meme", "dual"}
 
 
 class ToolSidebar(QWidget):
 
     add_bubble_requested = pyqtSignal()
+    add_text_requested   = pyqtSignal()
     add_layer_requested  = pyqtSignal()
     meme_toggled         = pyqtSignal(bool)
     dual_toggled         = pyqtSignal(bool)
@@ -65,6 +65,7 @@ class ToolSidebar(QWidget):
 
         # Wire non-group actions
         self._buttons["bubble"].clicked.connect(self.add_bubble_requested)
+        self._buttons["text"].clicked.connect(self.add_text_requested)
         self._buttons["layers"].clicked.connect(self.add_layer_requested)
         self._buttons["meme"].toggled.connect(self.meme_toggled)
         self._buttons["dual"].toggled.connect(self.dual_toggled)
