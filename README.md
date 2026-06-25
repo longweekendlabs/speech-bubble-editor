@@ -1,89 +1,108 @@
 # Speech Bubble Editor
 
-**Add speech bubbles, captions, and text overlays to photos and videos.**
+Comic-style speech bubbles, captions, layers, and video edits for desktop.
 
 [![GitHub Release](https://img.shields.io/github/v/release/longweekendlabs/speech-bubble-editor?style=flat-square)](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platform: Windows | macOS | Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)](#download)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20macOS-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
 
-A truly cross-platform tool for adding expressive text to your media. Built for speed, performance, and offline-first workflows.
+Speech Bubble Editor is a native desktop app for placing expressive bubbles and captions on photos or videos. It is built for quick editorial work: open media, add text, shape the bubble, arrange layers, trim or slow video, and export without sending files to a cloud service.
 
----
-
-## Features
-
-- **7 bubble styles** — Oval, Cloud, Rectangle, Spiky, Text-only, Scrim, and Caption (stroke text)
-- **Video support** — MP4, AVI, WebM, MOV, MKV with frame-accurate scrubbing
-- **Trim & cut** — select a clip range, cut sections, reverse playback
-- **Dual mode** — side-by-side before/after layout with configurable gap and border
-- **Overlay layers** — stack multiple photos or videos on the canvas; right-click to control z-order
-- **Meme mode** — Impact/Anton-style top and bottom caption bars
-- **Full-resolution export** — PNG, JPEG, WebP; video export via bundled FFmpeg, with optional audio mute
-- **Drag & resize** — 8-anchor handles, draggable tail, undo/redo for everything
-- **Font controls** — family, size, bold, italic, colour; auto-shrink to fit
-- **Single instance** — re-activates the existing window instead of opening a second copy
+![Speech Bubble Editor interface](newui_for_sbe_v40.png)
 
 ## Download
 
-Head to the **[Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)** to grab the latest build for your platform.
+Get the latest builds from the [download page](https://longweekendlabs.github.io/speech-bubble-editor/) or the [GitHub Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest).
 
-| Platform | Package | Notes |
-|---|---|---|
-| **Windows x64** | `SpeechBubbleEditor-vX.Y.Z-windows-x64-portable.zip` | No install needed; unzip and run. |
-| **Linux x64** | `SpeechBubbleEditor-vX.Y.Z-linux-x64.tar.gz` | Portable binary archive. |
-| **macOS Intel** | `SpeechBubbleEditor-vX.Y.Z-macos-x64.zip` | macOS 12+. Right-click → Open first time. |
-| **macOS Apple Silicon** | `SpeechBubbleEditor-vX.Y.Z-macos-arm64.zip` | macOS 12+, M1/M2/M3/M4. Right-click → Open first time. |
-| **Source code** | `source.zip` / `source.tar.gz` | Also generated automatically by GitHub Releases. |
+| Platform | Builds |
+| --- | --- |
+| Windows x64 | Installer `.exe`, portable `.zip` |
+| Linux x64 | AppImage, DEB, RPM, portable `.tar.gz` |
+| macOS Intel | App bundle `.zip` |
+| macOS Apple Silicon | DMG, app bundle `.zip` |
+| Source | `.zip`, `.tar.gz`, or clone this repository |
 
-## Building from Source
+macOS builds are unsigned. On first launch, right-click the app and choose **Open**.
 
-**Requirements:** Python 3.11+, pip
+## Highlights
+
+- Natural speech bubble styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption.
+- Draggable bubble tails, resize handles, fill/stroke controls, opacity, shadows, and font styling.
+- Photo and video support with timeline controls, trim, cut, reverse, slow-down, and optional audio mute.
+- Layer list for stacked images, videos, bubbles, and captions.
+- Meme mode and dual mode for fast social-style layouts.
+- Full-resolution image export and FFmpeg-powered video export.
+- Undo/redo, reset, keyboard shortcuts, and native file pickers.
+
+## Run from Source
+
+Requirements: Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/longweekendlabs/speech-bubble-editor.git
 cd speech-bubble-editor
 python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 python main.py
 ```
 
-### Build release packages:
+On Windows, activate the virtual environment with:
+
+```powershell
+venv\Scripts\activate
+```
+
+## Build Packages
+
+Official release builds are produced by GitHub Actions, but local scripts are available.
 
 ```bash
-# macOS (native Intel or Apple Silicon, depending on build machine)
-python create_icon.py
-iconutil -c icns icons/icon.iconset -o icons/icon.icns
-python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
-
 # Linux
 bash build_linux.sh
+```
 
+```powershell
 # Windows
 build_windows.bat
 ```
 
-## Dependencies
+```bash
+# macOS
+python create_icon.py
+iconutil -c icns icons/icon.iconset -o icons/icon.icns
+python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
+```
 
-- **PyQt6** — UI framework
-- **OpenCV** — video decoding
-- **Pillow** — image export
-- **FFmpeg** — video export with audio; bundled into official release builds when available in CI
+## Project Layout
 
-## Release Builds
+```text
+.
+├── main.py                 # app entry point
+├── main_window.py          # primary window and actions
+├── canvas_widget.py        # canvas, selection, drawing, media placement
+├── inspector_dock.py       # right-side inspector controls
+├── video_controls.py       # timeline and playback controls
+├── icons/                  # app icons and Long Weekend Labs logo
+├── fonts/                  # bundled fonts
+├── theme/                  # Qt stylesheet
+└── docs/                   # GitHub Pages website
+```
 
-Release artifacts are built by GitHub Actions from tags named `v*`, for example:
+## Release Process
+
+Releases are driven by tags named `v*`.
 
 ```bash
 git tag v4.0.4
 git push origin v4.0.4
 ```
 
-The workflow builds Windows x64, Linux x64, macOS Intel, macOS Apple Silicon, and source archives, then attaches them to the GitHub Release.
+The release workflow builds Windows x64, Linux x64, macOS Intel, macOS Apple Silicon, and source archives, then attaches them to the GitHub Release.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE).
 
 ---
 
