@@ -632,7 +632,11 @@
         }
 
         // ── macOS Apple Silicon ──────────────────────────────────────────
-        if (name.includes('macos-arm64') && name.endsWith('.zip')) {
+        if (name.includes('macos-arm64') && name.endsWith('.dmg')) {
+          macosArm64.appendChild(makeBtn(
+            `DMG <small>· Apple Silicon · ${mb} MB</small>`, 'dl-primary'));
+
+        } else if (name.includes('macos-arm64') && name.endsWith('.zip')) {
           macosArm64.appendChild(makeBtn(
             `App bundle (.zip) <small>· Apple Silicon · ${mb} MB</small>`, 'dl-primary'));
 
@@ -642,11 +646,31 @@
             `App bundle (.zip) <small>· Intel Mac · ${mb} MB</small>`, 'dl-primary'));
 
         // ── Linux x64 ────────────────────────────────────────────────────
+        } else if (name.includes('x86_64') && name.endsWith('.AppImage')) {
+          linuxX64.appendChild(makeBtn(
+            `AppImage <small>· Linux x64 · ${mb} MB</small>`, 'dl-primary'));
+
+        } else if (name.endsWith('.x86_64.rpm')) {
+          linuxX64.appendChild(makeBtn(
+            `RPM <small>· Fedora / RHEL x64 · ${mb} MB</small>`, 'dl-secondary'));
+
+        } else if (name.endsWith('_amd64.deb')) {
+          linuxX64.appendChild(makeBtn(
+            `DEB <small>· Ubuntu / Debian x64 · ${mb} MB</small>`, 'dl-secondary'));
+
         } else if (name.includes('linux-x64') && name.endsWith('.tar.gz')) {
           linuxX64.appendChild(makeBtn(
             `tar.gz <small>· Portable Linux x64 · ${mb} MB</small>`, 'dl-primary'));
 
         // ── Windows x64 ──────────────────────────────────────────────────
+        } else if (name.includes('win64') && name.endsWith('-Setup.exe')) {
+          windowsX64.appendChild(makeBtn(
+            `Installer (.exe) <small>· Windows x64 · ${mb} MB</small>`, 'dl-primary'));
+
+        } else if (name.includes('win64') && name.endsWith('-portable.zip')) {
+          windowsX64.appendChild(makeBtn(
+            `Portable (.zip) <small>· Windows x64 · ${mb} MB</small>`, 'dl-secondary'));
+
         } else if (name.includes('windows-x64') && name.endsWith('-portable.zip')) {
           windowsX64.appendChild(makeBtn(
             `Portable (.zip) <small>· Windows x64 · ${mb} MB</small>`, 'dl-primary'));
