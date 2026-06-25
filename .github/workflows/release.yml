@@ -133,10 +133,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
+          - runner: macos-15-intel
             label: intel
             artifact_suffix: macos-x64
-          - runner: macos-14
+          - runner: macos-15
             label: apple-silicon
             artifact_suffix: macos-arm64
 
