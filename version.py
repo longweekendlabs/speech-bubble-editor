@@ -43,12 +43,20 @@ History:
             fixed to 52px with zoom dropdown menu; ToolSidebar width fixed
             to 80px; Caption and Text tools wired to add bubbles with correct
             default style; Delete key bound to delete selected item; complete
-            dark.qss rewrite using exact v4 design tokens (accent #46ddcb).
+            dark.qss rewrite using exact v4 design tokens (accent #ff8a3d).
   v4.0.4 — Top-bar icon render fix; font dropdown uses QFontDatabase; video
             slowdown control with magnetic 10/25/35/50/75/100% stops.
+  v4.0.6 — Local test build: safer bubble text fitting, rectangle tail handle,
+            text copy/paste menus, and stronger crash logging.
+  v4.1.0 — Font size is now a slider. Resizing a speech bubble fits the text to
+            fill it in BOTH axes — the text wraps and grows to use the height,
+            not just the width, so a tall bubble no longer leaves the text tiny
+            at the top. Instagram default text style + bundled Inter font,
+            blur/pixelate redaction layers, Camtasia-style block text fit, and a
+            full-resolution dual-export layout fix.
 """
 
-__version__  = "4.0.4"
+__version__  = "4.2.0"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

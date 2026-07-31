@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QApplication, QLineEdit, QTextEdit, QPlainTextEdit,
     QComboBox, QSpinBox, QDoubleSpinBox,
 )
-from PyQt6.QtCore import Qt, QPointF, QEvent
+from PyQt6.QtCore import Qt, QPointF, QEvent, QRect, QRectF
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from canvas import PhotoScene, PhotoView, ZoomBar
@@ -117,9 +117,15 @@ class MainWindow(QMainWindow):
         # ToolSidebar
         sb.add_bubble_requested.connect(self._on_add_bubble_clicked)
         sb.add_text_requested.connect(lambda: self._on_add_bubble_with_style("text"))
+        sb.add_blur_requested.connect(lambda: self._on_add_redaction("blur"))
+        sb.add_pixelate_requested.connect(lambda: self._on_add_redaction("pixelate"))
         sb.add_layer_requested.connect(self._on_add_layer)
+        sb.crop_requested.connect(self._on_crop)
+        sb.rotate_requested.connect(self._on_rotate)
+        sb.add_lines_requested.connect(self._on_add_speedlines)
         sb.meme_toggled.connect(self._on_meme_toggled)
         sb.dual_toggled.connect(self._on_dual_toggled)
+        sb.tool_changed.connect(self.view.set_tool)
 
         # ContextToolbar
         ctx.align_requested.connect(self._on_context_align)
@@ -138,6 +144,7 @@ class MainWindow(QMainWindow):
         sc.bubble_changed.connect(self.props.update_for_bubble)
         sc.open_right_media_requested.connect(self._on_open_right_media)
         sc.selectionChanged.connect(self._on_selection_changed)
+        sc.lobe_edit_requested.connect(self._on_lobe_edit_requested)
 
         # View
         self.view.zoom_changed.connect(self.zoom_bar.update_zoom)
@@ -271,6 +278,79 @@ class MainWindow(QMainWindow):
         if hasattr(item, "has_video") and item.has_video():
             self.video_controls.set_player(item.video_player())
             self.video_controls.set_right_player(None)
+
+    def _on_lobe_edit_requested(self, bubble, index: int):
+        """Double-clicking a lobed balloon jumps to that lobe's text box."""
+        self.scene.clearSelection()
+        bubble.setSelected(True)
+        self.props.focus_lobe_editor(index)
+
+    # ------------------------------------------------------------------
+    # Crop + speed lines
+    # ------------------------------------------------------------------
+
+    def _on_crop(self):
+        if not self.scene.has_photo():
+            return
+        if self.scene.has_video():
+            QMessageBox.information(
+                self, "Crop", "Crop is available for photos only.")
+            return
+        from crop_dialog import CropDialog
+        from undo_commands import CropPhotoCommand, RotatePhotoCommand
+        pm = self.scene.photo_pixmap
+        dlg = CropDialog(pm, self)
+        if not dlg.exec():
+            return
+        turns = dlg.rotation_turns()
+        rect = dlg.crop_rect()
+        # Rotation first: the crop rect was chosen against the rotated preview.
+        stack = self.controller.undo_stack
+        changed = False
+        if turns:
+            stack.beginMacro("Rotate and Crop")
+            stack.push(RotatePhotoCommand(self.scene, turns))
+            changed = True
+        rotated = self.scene.photo_pixmap
+        full = QRect(0, 0, rotated.width(), rotated.height())
+        if rect.width() >= 8 and rect.height() >= 8 and rect != full:
+            stack.push(CropPhotoCommand(self.scene, rect))
+            changed = True
+        if turns:
+            stack.endMacro()
+        if changed:
+            self.view.fit_photo()
+
+    def _on_rotate(self):
+        if not self.scene.has_photo():
+            return
+        if self.scene.has_video():
+            QMessageBox.information(
+                self, "Rotate", "Rotate is available for photos only.")
+            return
+        from undo_commands import RotatePhotoCommand
+        self.controller.undo_stack.push(RotatePhotoCommand(self.scene, 1))
+        self.view.fit_photo()
+
+    def _on_add_speedlines(self):
+        if not self.scene.has_photo():
+            return
+        from speedlines import SpeedLinesItem
+        from undo_commands import AddBubbleCommand
+        # One speed-lines overlay per photo: clicking the tool again selects the
+        # existing one instead of stacking a second identical layer.
+        existing = [i for i in self.scene.items()
+                    if isinstance(i, SpeedLinesItem) and i.parentItem() is None]
+        if existing:
+            self.scene.clearSelection()
+            top = max(existing, key=lambda i: i.zValue())
+            top.setSelected(True)
+            return
+        frame = self.scene._photo_frame_rect()
+        item = SpeedLinesItem(frame)
+        self.controller.undo_stack.push(AddBubbleCommand(self.scene, item))
+        self.scene.clearSelection()
+        item.setSelected(True)
 
     # ------------------------------------------------------------------
     # Export
@@ -447,6 +527,14 @@ class MainWindow(QMainWindow):
         self.props.update_for_bubble(bubble)
         self.ctx_toolbar.show_for_bubble()
 
+    def _on_add_redaction(self, mode: str):
+        if not self.scene.has_photo():
+            return
+        c = self.scene.sceneRect().center()
+        item = self.controller.add_redaction(c.x(), c.y(), mode=mode)
+        self.props.update_for_redaction(item)
+        self.ctx_toolbar.hide_toolbar()
+
     # ------------------------------------------------------------------
     # Selection → inspector + ContextToolbar
     # ------------------------------------------------------------------
@@ -456,11 +544,21 @@ class MainWindow(QMainWindow):
             selected = self.scene.selectedItems()
         except RuntimeError:
             return
+        from redaction import RedactionItem
+        from speedlines import SpeedLinesItem
         bubbles  = [i for i in selected if isinstance(i, BubbleItem)]
+        redacts  = [i for i in selected if isinstance(i, RedactionItem)]
+        lines    = [i for i in selected if isinstance(i, SpeedLinesItem)]
         media    = [i for i in selected if isinstance(i, MediaItem)]
         if bubbles:
             self.props.update_for_bubble(bubbles[0])
             self.ctx_toolbar.show_for_bubble()
+        elif redacts:
+            self.props.update_for_redaction(redacts[0])
+            self.ctx_toolbar.hide_toolbar()
+        elif lines:
+            self.props.update_for_speedlines(lines[0])
+            self.ctx_toolbar.hide_toolbar()
         elif media:
             self.props.update_for_media(media[0])
             self.ctx_toolbar.show_for_media()
@@ -603,6 +701,13 @@ class MainWindow(QMainWindow):
         elif isinstance(item, MediaItem) and getattr(item, "_is_overlay", False):
             from undo_commands import RemoveOverlayCommand
             self.controller.undo_stack.push(RemoveOverlayCommand(self.scene, item))
+        else:
+            from redaction import RedactionItem
+            from speedlines import SpeedLinesItem
+            if isinstance(item, (RedactionItem, SpeedLinesItem)):
+                from undo_commands import DeleteBubbleCommand
+                self.controller.undo_stack.push(
+                    DeleteBubbleCommand(self.scene, item))
 
     # ------------------------------------------------------------------
     # About

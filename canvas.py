@@ -182,9 +182,9 @@ class RightMediaPlaceholder(QGraphicsItem):
 
     def paint(self, painter, option, widget=None):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.fillRect(self._rect, QColor("#0f1319"))
+        painter.fillRect(self._rect, QColor("#121212"))
 
-        pen = QPen(QColor("#3a4d66"))
+        pen = QPen(QColor("#4a4a4a"))
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setWidth(2)
         painter.setPen(pen)
@@ -193,7 +193,7 @@ class RightMediaPlaceholder(QGraphicsItem):
         font = QFont()
         font.setPixelSize(max(14, int(self._rect.height() * 0.035)))
         painter.setFont(font)
-        painter.setPen(QPen(QColor("#8a95aa")))
+        painter.setPen(QPen(QColor("#9a9a9a")))
         painter.drawText(
             self._rect,
             int(Qt.AlignmentFlag.AlignHCenter) |
@@ -223,8 +223,8 @@ class DualSeamItem(QGraphicsItem):
     def __init__(self, x, y, w, h):
         super().__init__()
         self._rect         = QRectF(x, y, w, h)
-        self._gap_color    = QColor("#0f1319")
-        self._border_color = QColor("#3a4d66")
+        self._gap_color    = QColor("#121212")
+        self._border_color = QColor("#4a4a4a")
         self._border_width = 0.0
         self._feather      = 0
         self.setZValue(-0.5)
@@ -300,6 +300,7 @@ class PhotoScene(QGraphicsScene):
     open_right_media_requested = pyqtSignal()
     overlay_added              = pyqtSignal(object)   # MediaItem
     overlay_removed            = pyqtSignal(object)   # MediaItem
+    lobe_edit_requested        = pyqtSignal(object, int)  # bubble, lobe index
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -328,7 +329,7 @@ class PhotoScene(QGraphicsScene):
         self._overlay_layers: list = []            # list[MediaItem]
         self._dual_gap = _DUAL_GAP                 # instance copy of gap
         self._dual_seam: DualSeamItem | None = None
-        self._dual_border_color = QColor("#3a4d66")
+        self._dual_border_color = QColor("#4a4a4a")
         self._dual_border_width = 0.0
 
     # ------------------------------------------------------------------
@@ -776,13 +777,35 @@ class PhotoScene(QGraphicsScene):
         cx = sr.center().x() - item.display_w / 2
         cy = sr.center().y() - item.display_h / 2
         item.setPos(cx, cy)
-        # z-value above all existing overlays
-        z = 1
-        for layer in self._overlay_layers:
-            if layer.zValue() >= z:
-                z = int(layer.zValue()) + 1
-        item.setZValue(float(z))
+        # Newly added image layers join the shared stack on top.
+        item.setZValue(self.next_stack_z())
         return item
+
+    def stackable_items(self):
+        """Every item that participates in layer ordering, bottom-up."""
+        from bubble import BubbleItem
+        from redaction import RedactionItem
+        from speedlines import SpeedLinesItem
+        out = []
+        for item in self.items():
+            if item.parentItem() is not None:
+                continue
+            if isinstance(item, (BubbleItem, RedactionItem, SpeedLinesItem)):
+                out.append(item)
+            elif isinstance(item, MediaItem) and getattr(item, "_is_overlay", False):
+                out.append(item)
+        return sorted(out, key=lambda i: i.zValue())
+
+    def next_stack_z(self) -> float:
+        """Z for a newly added item: above everything already stacked.
+
+        All overlay types share ONE z space, so the most recently added item is
+        always on top regardless of its kind, and the Layers list can reorder
+        them freely.
+        """
+        items = self.stackable_items()
+        top = max((i.zValue() for i in items), default=90.0)
+        return max(100.0, top + 10.0)
 
     def remove_overlay(self, item):
         """Remove an overlay layer from the scene and the tracking list."""
@@ -900,6 +923,132 @@ class PhotoScene(QGraphicsScene):
     def photo_pixmap(self):
         return self._photo_item.pixmap() if self._photo_item else None
 
+    # ------------------------------------------------------------------
+    # Crop (photos only)
+    # ------------------------------------------------------------------
+
+    def _photo_frame_rect(self):
+        """Scene-space rect the base photo currently occupies."""
+        it = self._photo_item
+        from PyQt6.QtCore import QRectF as _QRectF
+        if it is None:
+            return _QRectF()
+        return _QRectF(it.pos().x(), it.pos().y(), it.display_w, it.display_h)
+
+    def _swap_photo_pixmap(self, pixmap, dx: float, dy: float):
+        """Replace the base photo pixmap (native + display resize, keeping the
+        current on-screen scale) and shift every overlay item by (dx, dy)."""
+        from bubble import BubbleItem
+        from redaction import RedactionItem
+        from speedlines import SpeedLinesItem
+        it = self._photo_item
+        sx = it.display_w / it.pixmap().width()
+        sy = it.display_h / it.pixmap().height()
+        it.prepareGeometryChange()
+        it._pixmap = pixmap
+        it._native_w = float(pixmap.width())
+        it._native_h = float(pixmap.height())
+        it._display_w = pixmap.width() * sx
+        it._display_h = pixmap.height() * sy
+        it._update_handle_positions()
+        it.update()
+        for item in self.items():
+            if item.parentItem() is not None or item is it:
+                continue
+            if isinstance(item, (BubbleItem, RedactionItem)) or (
+                    isinstance(item, MediaItem) and getattr(item, "_is_overlay", False)):
+                item.moveBy(dx, dy)
+            elif isinstance(item, SpeedLinesItem):
+                item.set_frame(self._photo_frame_rect())
+        self.fit_scene_to_media()
+        # Speed lines need the post-fit frame (fit may move nothing, but the
+        # display size just changed) — refresh once more to be safe.
+        for item in self.items():
+            if isinstance(item, SpeedLinesItem):
+                item.set_frame(self._photo_frame_rect())
+
+    def apply_rotation(self, turns: int) -> bool:
+        """Rotate the base photo by `turns` × 90° clockwise.
+
+        Bubbles and overlays are repositioned so they stay on the same part of
+        the picture, but are NOT themselves rotated — turning a photo sideways
+        should not leave the lettering unreadable.
+        """
+        from PyQt6.QtGui import QTransform
+        from bubble import BubbleItem
+        from redaction import RedactionItem
+        from speedlines import SpeedLinesItem
+
+        turns %= 4
+        if self._photo_item is None or turns == 0:
+            return False
+        if self._video_player is not None:
+            return False
+
+        it = self._photo_item
+        pm = it.pixmap()
+        rotated = pm.transformed(QTransform().rotate(90 * turns),
+                                 Qt.TransformationMode.SmoothTransformation)
+        old_dw, old_dh = float(it.display_w), float(it.display_h)
+        px, py = it.pos().x(), it.pos().y()
+
+        it.prepareGeometryChange()
+        it._pixmap = rotated
+        it._native_w = float(rotated.width())
+        it._native_h = float(rotated.height())
+        if turns % 2 == 1:
+            it._display_w, it._display_h = old_dh, old_dw
+        else:
+            it._display_w, it._display_h = old_dw, old_dh
+        it._update_handle_positions()
+        it.update()
+        # Resize the scene BEFORE moving anything: items clamp themselves to the
+        # current sceneRect on setPos, so repositioning against the old (still
+        # un-rotated) rect squashed them back inside the wrong bounds.
+        self.fit_scene_to_media()
+
+        def mapped(x: float, y: float):
+            """Photo-relative point under the same rotation."""
+            if turns == 1:      # 90° clockwise
+                return old_dh - y, x
+            if turns == 2:      # 180°
+                return old_dw - x, old_dh - y
+            return y, old_dw - x        # 270° clockwise (= 90° anticlockwise)
+
+        for item in self.items():
+            if item.parentItem() is not None or item is it:
+                continue
+            if isinstance(item, (BubbleItem, RedactionItem)) or (
+                    isinstance(item, MediaItem)
+                    and getattr(item, "_is_overlay", False)):
+                nx, ny = mapped(item.pos().x() - px, item.pos().y() - py)
+                item.setPos(px + nx, py + ny)
+
+        self.fit_scene_to_media()
+        for item in self.items():
+            if isinstance(item, SpeedLinesItem):
+                item.set_frame(self._photo_frame_rect())
+        return True
+
+    def apply_crop(self, rect) -> bool:
+        """Crop the base photo to `rect` (native pixel coords)."""
+        if self._photo_item is None or self._video_player is not None:
+            return False
+        pm = self._photo_item.pixmap()
+        sx = self._photo_item.display_w / pm.width()
+        sy = self._photo_item.display_h / pm.height()
+        self._swap_photo_pixmap(pm.copy(rect), -rect.x() * sx, -rect.y() * sy)
+        return True
+
+    def restore_photo(self, pixmap, rect):
+        """Undo a crop: restore the full pixmap and shift items back."""
+        if self._photo_item is None:
+            return
+        cur = self._photo_item.pixmap()
+        sx = self._photo_item.display_w / cur.width()
+        sy = self._photo_item.display_h / cur.height()
+        self._swap_photo_pixmap(pixmap, rect.x() * sx, rect.y() * sy)
+
     @property
     def video_player(self) -> VideoPlayer | None:
         return self._video_player
@@ -968,15 +1117,42 @@ class PhotoView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setAcceptDrops(True)
+        self.setTransformationAnchor(
+            QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
         self._photo_scene   = scene
         self._fit_to_window = True
+        self._tool          = "select"   # "select" | "move" (hand/pan)
+        self._panning       = False      # middle-button pan in progress
+        self._pan_start     = QPointF()
         self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
         # Set background brush using palette-aware logic
         self._update_background_brush()
 
     def _update_background_brush(self):
         """Keep the empty canvas aligned with the fixed v4 dark theme."""
-        self.setBackgroundBrush(QColor("#0f1319"))
+        self.setBackgroundBrush(QColor("#121212"))
+
+    # --- tools & cursor -----------------------------------------------------
+
+    def set_tool(self, mode: str):
+        """Switch between the Select (edit bubbles) and Move (hand/pan) tools."""
+        self._tool = mode if mode in ("select", "move") else "select"
+        if self._tool == "move":
+            # Hand tool: left-drag pans the view; items aren't grabbed.
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        else:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self._apply_idle_cursor()
+
+    def _apply_idle_cursor(self):
+        """Resting cursor for the current tool/state."""
+        if not self._photo_scene.has_photo():
+            self.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        elif self._tool == "move":
+            self.viewport().setCursor(Qt.CursorShape.OpenHandCursor)
+        else:
+            self.viewport().setCursor(Qt.CursorShape.ArrowCursor)
 
     def changeEvent(self, event):
         super().changeEvent(event)
@@ -989,6 +1165,7 @@ class PhotoView(QGraphicsView):
                            Qt.AspectRatioMode.KeepAspectRatio)
             self._fit_to_window = True
             self.zoom_changed.emit(self._zoom_percent())
+            self._apply_idle_cursor()
 
     def fit_width(self):
         if not self._photo_scene.has_photo():
@@ -1043,11 +1220,11 @@ class PhotoView(QGraphicsView):
         super().drawBackground(painter, rect)
         if not self._photo_scene.has_photo():
             # Welcome screen — draw in viewport coordinates so it's always centered
-            icon_bg_color     = QColor("#1e2535")
-            icon_border_color = QColor("#3a4d66")
-            icon_plus_color   = QColor("#8a95aa")
-            main_text_color   = QColor("#e8ecf4")
-            sub_text_color    = QColor("#8a95aa")
+            icon_bg_color     = QColor("#232323")
+            icon_border_color = QColor("#4a4a4a")
+            icon_plus_color   = QColor("#9a9a9a")
+            main_text_color   = QColor("#e6e6e6")
+            sub_text_color    = QColor("#9a9a9a")
 
             painter.save()
             painter.resetTransform()
@@ -1102,7 +1279,35 @@ class PhotoView(QGraphicsView):
             self.open_media_requested.emit()
             event.accept()
             return
+        # Middle-button drag always pans, regardless of the active tool — the
+        # quickest way to move a zoomed-in view to the area you want.
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._panning   = True
+            self._pan_start = event.position()
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._panning:
+            delta = event.position() - self._pan_start
+            self._pan_start = event.position()
+            h = self.horizontalScrollBar()
+            v = self.verticalScrollBar()
+            h.setValue(h.value() - int(delta.x()))
+            v.setValue(v.value() - int(delta.y()))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if self._panning and event.button() == Qt.MouseButton.MiddleButton:
+            self._panning = False
+            self._apply_idle_cursor()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -1113,10 +1318,15 @@ class PhotoView(QGraphicsView):
         if not self._photo_scene.has_photo():
             event.ignore()
             return
+        # Zoom toward the cursor so "zoom into this area" lands where you point.
+        self.setTransformationAnchor(
+            QGraphicsView.ViewportAnchor.AnchorUnderMouse)
         if event.angleDelta().y() > 0:
             self.zoom_in()
         else:
             self.zoom_out()
+        self.setTransformationAnchor(
+            QGraphicsView.ViewportAnchor.AnchorViewCenter)
         event.accept()
 
     def dragEnterEvent(self, event):

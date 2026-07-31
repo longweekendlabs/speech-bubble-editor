@@ -86,13 +86,42 @@ class EditorController(QObject):
     # Bubbles & overlays
     # ------------------------------------------------------------------
 
-    def add_bubble(self, x: float, y: float, style: str = "oval") -> BubbleItem:
-        """Create a bubble at (x, y) and push it onto the undo stack."""
+    def add_bubble(self, x: float, y: float, style: str | None = None) -> BubbleItem:
+        """Create a bubble at (x, y) and push it onto the undo stack.
+
+        With no explicit style the user's saved default (Balloon+-style
+        "Default Balloon Settings") decides what a double-click creates.
+        """
+        if style is None:
+            import bubble_defaults
+            style = bubble_defaults.default_style()
         bubble = BubbleItem(x, y, style=style)
+        # Match the bubble to the photo's resolution before it lands on canvas.
+        rect = self._scene.sceneRect()
+        bubble.scale_for_canvas(rect.width(), rect.height())
+        # Clamp into frame: clicking near an edge used to drop a bubble half
+        # off the canvas (the scene only clamps once the item is moved).
+        body = bubble.body_rect
+        if rect.width() > body.width() and rect.height() > body.height():
+            bubble.setPos(
+                min(max(x, rect.left() - body.left()),
+                    rect.right() - body.right()),
+                min(max(y, rect.top() - body.top()),
+                    rect.bottom() - body.bottom()))
         self._scene.undo_stack.push(AddBubbleCommand(self._scene, bubble))
         self._scene.clearSelection()
         bubble.setSelected(True)
         return bubble
+
+    def add_redaction(self, x: float, y: float, mode: str = "blur"):
+        """Create a blur/pixelate redaction box at (x, y) on the undo stack."""
+        from redaction import RedactionItem
+        from undo_commands import AddBubbleCommand
+        item = RedactionItem(x, y, mode=mode)
+        self._scene.undo_stack.push(AddBubbleCommand(self._scene, item))
+        self._scene.clearSelection()
+        item.setSelected(True)
+        return item
 
     def add_overlay(self, path: str):
         """Create an overlay from path and push it onto the undo stack.

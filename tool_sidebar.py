@@ -13,29 +13,42 @@ from icons import (
     make_icon, make_icon_pair, ACCENT, MUTED,
     ICON_SELECT, ICON_MOVE, ICON_BUBBLE,
     ICON_TEXT, ICON_LAYERS, ICON_MEME, ICON_DUAL,
+    ICON_BLUR, ICON_PIXELATE, ICON_CROP, ICON_SPEEDLINES, ICON_ROTATE,
 )
 
 # (id, label, normal_svg, shortcut_or_none, checkable, in_tool_group)
 TOOL_DEFS = [
     ("select",  "Select",  ICON_SELECT,  "V",      True,  True),
     ("move",    "Move",    ICON_MOVE,    "M",      True,  True),
+    ("crop",    "Crop",    ICON_CROP,    "C",      False, False),
+    ("rotate",  "Rotate",  ICON_ROTATE,  "R",      False, False),
     ("bubble",  "Bubble",  ICON_BUBBLE,  "Ctrl+B", False, False),
     ("text",    "Text",    ICON_TEXT,    "T",      False, False),
+    ("lines",   "Lines",   ICON_SPEEDLINES, None,  False, False),
+    ("blur",    "Blur",    ICON_BLUR,    None,     False, False),
+    ("pixelate","Pixelate",ICON_PIXELATE,None,     False, False),
     ("layers",  "Layers",  ICON_LAYERS,  "Ctrl+L", False, False),
     ("meme",    "Meme",    ICON_MEME,    None,     True,  False),
     ("dual",    "Dual",    ICON_DUAL,    None,     True,  False),
 ]
 
-MEDIA_GATED = {"bubble", "text", "layers", "meme", "dual"}
+MEDIA_GATED = {"crop", "rotate", "bubble", "text", "lines", "blur", "pixelate",
+               "layers", "meme", "dual"}
 
 
 class ToolSidebar(QWidget):
 
     add_bubble_requested = pyqtSignal()
     add_text_requested   = pyqtSignal()
+    crop_requested       = pyqtSignal()
+    rotate_requested     = pyqtSignal()
+    add_lines_requested  = pyqtSignal()
+    add_blur_requested   = pyqtSignal()
+    add_pixelate_requested = pyqtSignal()
     add_layer_requested  = pyqtSignal()
     meme_toggled         = pyqtSignal(bool)
     dual_toggled         = pyqtSignal(bool)
+    tool_changed         = pyqtSignal(str)   # "select" | "move"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,9 +79,20 @@ class ToolSidebar(QWidget):
         # Wire non-group actions
         self._buttons["bubble"].clicked.connect(self.add_bubble_requested)
         self._buttons["text"].clicked.connect(self.add_text_requested)
+        self._buttons["crop"].clicked.connect(self.crop_requested)
+        self._buttons["rotate"].clicked.connect(self.rotate_requested)
+        self._buttons["lines"].clicked.connect(self.add_lines_requested)
+        self._buttons["blur"].clicked.connect(self.add_blur_requested)
+        self._buttons["pixelate"].clicked.connect(self.add_pixelate_requested)
         self._buttons["layers"].clicked.connect(self.add_layer_requested)
         self._buttons["meme"].toggled.connect(self.meme_toggled)
         self._buttons["dual"].toggled.connect(self.dual_toggled)
+
+        # Select / Move switch the canvas interaction mode (edit vs hand-pan).
+        self._buttons["select"].toggled.connect(
+            lambda c: c and self.tool_changed.emit("select"))
+        self._buttons["move"].toggled.connect(
+            lambda c: c and self.tool_changed.emit("move"))
 
         # Default: Select checked
         self._buttons["select"].setChecked(True)

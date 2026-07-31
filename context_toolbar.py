@@ -62,6 +62,10 @@ class ContextToolbar(QWidget):
         self._chip = QLabel("Bubble selected")
         self._chip.setObjectName("ContextChip")
         self._chip.setFixedHeight(24)
+        # Fixed width: the chip's text changes with the selection, and letting
+        # it resize shoved every toolbar button sideways on each click.
+        self._chip.setFixedWidth(118)
+        self._chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._chip)
         lay.addSpacing(10)
 

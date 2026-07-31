@@ -83,7 +83,7 @@ class VideoScrubber(QWidget):
         in_x  = self._f2x(self._trim_in)
         out_x = self._f2x(self._trim_out)
         painter.fillRect(in_x, track_y, out_x - in_x, track_h,
-                         QColor(70, 221, 203, 200))
+                         QColor(255, 138, 61, 200))
 
         for cs, ce in self._cuts:
             cx = self._f2x(cs)
@@ -104,7 +104,7 @@ class VideoScrubber(QWidget):
         ]))
 
         px = self._f2x(self._current)
-        painter.setPen(QPen(QColor(70, 221, 203), 2))
+        painter.setPen(QPen(QColor(255, 138, 61), 2))
         painter.drawLine(px, 0, px, h)
 
     def mousePressEvent(self, event):

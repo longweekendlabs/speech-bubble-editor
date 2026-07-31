@@ -78,7 +78,7 @@ class ShortcutsDialog(QDialog):
 
         subtitle = QLabel("Quick actions available while editing.")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-        subtitle.setStyleSheet("color: #8a95aa; font-size: 11px;")
+        subtitle.setStyleSheet("color: #9a9a9a; font-size: 11px;")
         layout.addWidget(subtitle)
 
         line = QFrame()
@@ -133,7 +133,7 @@ class ShortcutsDialog(QDialog):
             key_label = QLabel(keys)
             key_label.setAlignment(Qt.AlignmentFlag.AlignRight)
             key_label.setStyleSheet(
-                "color: #46ddcb; font-weight: 700; "
+                "color: #ff8a3d; font-weight: 700; "
                 "font-family: monospace;"
             )
             grid.addWidget(action_label, row, 0)

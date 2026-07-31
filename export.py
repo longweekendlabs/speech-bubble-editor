@@ -43,6 +43,25 @@ def export_photo(parent, scene, photo_item, right_photo_item=None, is_dual=False
         QMessageBox.warning(parent, "Export", "No photo loaded.")
         return
 
+    # Render first, so the frame dialog can preview the real composited photo.
+    if is_dual and right_photo_item and not right_photo_item.pixmap().isNull():
+        image = _render_dual_photo(scene, photo_item, right_photo_item)
+    else:
+        image = _render_single_photo(scene, photo_item)
+
+    from frame_dialog import FrameDialog
+    from frames import apply_frame
+    dlg = FrameDialog(image, parent)
+    if not dlg.exec():
+        return
+    image = apply_frame(image, dlg.settings())
+    scale = dlg.scale()
+    if scale < 1.0:
+        image = image.scaled(
+            max(1, int(image.width() * scale)), max(1, int(image.height() * scale)),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+
     src_path = getattr(photo_item, '_source_path', '')
     base = os.path.splitext(os.path.basename(src_path))[0] if src_path else "photo"
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -55,13 +74,10 @@ def export_photo(parent, scene, photo_item, right_photo_item=None, is_dual=False
     if not path:
         return
 
-    if is_dual and right_photo_item and not right_photo_item.pixmap().isNull():
-        _export_dual_photo(parent, scene, photo_item, right_photo_item, path)
-    else:
-        _export_single_photo(parent, scene, photo_item, path)
+    _save_image(parent, image, path)
 
 
-def _export_single_photo(parent, scene, photo_item, path):
+def _render_single_photo(scene, photo_item) -> QImage:
     # Use native pixmap dimensions for full-resolution export
     W = photo_item.pixmap().width()
     H = photo_item.pixmap().height()
@@ -75,17 +91,23 @@ def _export_single_photo(parent, scene, photo_item, path):
     scene_rect = photo_item.sceneBoundingRect()
     scene.render(painter, QRectF(0, 0, W, H), scene_rect)
     painter.end()
+    return image
 
-    _save_image(parent, image, path)
+
+def _export_single_photo(parent, scene, photo_item, path):
+    _save_image(parent, _render_single_photo(scene, photo_item), path)
 
 
-def _export_dual_photo(parent, scene, left_item, right_item, path):
-    LW = left_item.pixmap().width()
-    LH = left_item.pixmap().height()
-    RW = right_item.pixmap().width()
-    RH = right_item.pixmap().height()
+def _render_dual_photo(scene, left_item, right_item) -> QImage:
+    # On the canvas both panels share the LEFT image's display height (the right
+    # image is scaled to match). Reproduce that layout so the export matches the
+    # canvas — composite at the left image's native vertical resolution.
+    lh_disp = float(left_item.display_h) or 1.0
+    scale = (float(left_item.pixmap().height()) or lh_disp) / lh_disp
+    H  = max(1, round(lh_disp * scale))
+    LW = max(1, round(float(left_item.display_w) * scale))
+    RW = max(1, round(float(right_item.display_w) * scale))
     W  = LW + RW
-    H  = max(LH, RH)
 
     image = QImage(W, H, QImage.Format.Format_ARGB32_Premultiplied)
     image.fill(0)
@@ -93,13 +115,12 @@ def _export_dual_photo(parent, scene, left_item, right_item, path):
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-    lr = left_item.sceneBoundingRect()
-    scene.render(painter, QRectF(0, 0, LW, LH), lr)
-    rr = right_item.sceneBoundingRect()
-    scene.render(painter, QRectF(LW, 0, RW, RH), rr)
+    # Both panels render to the SAME height H so they stay aligned.
+    scene.render(painter, QRectF(0, 0, LW, H), left_item.sceneBoundingRect())
+    scene.render(painter, QRectF(LW, 0, RW, H), right_item.sceneBoundingRect())
 
     painter.end()
-    _save_image(parent, image, path)
+    return image
 
 
 def _save_image(parent, image: QImage, path: str):

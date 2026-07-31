@@ -25,8 +25,8 @@ Commands implemented:
   RemoveOverlayCommand — redo = remove overlay layer, undo = add it back
 """
 
-from PyQt6.QtGui import QUndoCommand, QFont, QColor
-from PyQt6.QtCore import QPointF, QRectF
+from PyQt6.QtGui import QUndoCommand, QFont, QColor, QPixmap
+from PyQt6.QtCore import QPointF, QRectF, QRect
 
 from constants import (
     MERGE_ID_MOVE_BUBBLE, MERGE_ID_MOVE_MEDIA,
@@ -34,6 +34,8 @@ from constants import (
     MERGE_ID_FILL_COLOR, MERGE_ID_BORDER_COLOR, MERGE_ID_BORDER_WIDTH,
     MERGE_ID_TEXT_COLOR, MERGE_ID_TEXT_ALIGNMENT, MERGE_ID_TAIL_POSITION,
     MERGE_ID_TAIL_WIDTH, MERGE_ID_SHADOW, MERGE_ID_Z_VALUE,
+    MERGE_ID_TAIL_SHAPE, MERGE_ID_TAIL_COUNT, MERGE_ID_TEXT_OUTLINE,
+    MERGE_ID_INSET_PHOTO,
 )
 
 
@@ -42,9 +44,16 @@ class AddBubbleCommand(QUndoCommand):
         super().__init__("Add Bubble")
         self._scene  = scene
         self._bubble = bubble
+        self._z      = None   # assigned on first redo, reused on later redos
 
     def redo(self):
         self._scene.addItem(self._bubble)
+        # Newest item lands on top of every existing layer. Captured once so an
+        # undo/redo cycle restores the original position instead of re-promoting.
+        if self._z is None and hasattr(self._scene, "next_stack_z"):
+            self._z = self._scene.next_stack_z()
+        if self._z is not None:
+            self._bubble.setZValue(self._z)
         self._scene.clearSelection()
         self._bubble.setSelected(True)
 
@@ -95,17 +104,28 @@ class MoveBubbleCommand(QUndoCommand):
 
 
 class ResizeBubbleCommand(QUndoCommand):
-    def __init__(self, bubble, old_rect: QRectF, new_rect: QRectF):
+    def __init__(self, bubble, old_rect: QRectF, new_rect: QRectF,
+                 old_font_pt: int | None = None, new_font_pt: int | None = None):
         super().__init__("Resize Bubble")
         self._bubble   = bubble
         self._old_rect = QRectF(old_rect)
         self._new_rect = QRectF(new_rect)
+        # Speech-bubble resize also scales the text; carry the sizes so undo/redo
+        # restore the font too. None for items that don't scale (text/redaction).
+        self._old_font_pt = old_font_pt
+        self._new_font_pt = new_font_pt
 
     def redo(self):
-        self._bubble.set_body_rect(self._new_rect)
+        if self._new_font_pt and hasattr(self._bubble, "apply_resize"):
+            self._bubble.apply_resize(self._new_rect, self._new_font_pt)
+        else:
+            self._bubble.set_body_rect(self._new_rect)
 
     def undo(self):
-        self._bubble.set_body_rect(self._old_rect)
+        if self._old_font_pt and hasattr(self._bubble, "apply_resize"):
+            self._bubble.apply_resize(self._old_rect, self._old_font_pt)
+        else:
+            self._bubble.set_body_rect(self._old_rect)
 
 
 class TextChangeCommand(QUndoCommand):
@@ -466,6 +486,185 @@ class TailWidthChangeCommand(QUndoCommand):
 
     def undo(self):
         self._bubble.set_tail_width(self._old_width)
+
+
+class LobeTextChangeCommand(QUndoCommand):
+    """Undo/redo for editing one lobe of a twin/triple balloon."""
+
+    def __init__(self, bubble, index: int, old_text: str, new_text: str):
+        super().__init__("Edit Lobe Text")
+        self._bubble = bubble
+        self._index = index
+        self._old = old_text
+        self._new = new_text
+
+    def redo(self):
+        self._bubble.set_lobe_text(self._index, self._new)
+
+    def undo(self):
+        self._bubble.set_lobe_text(self._index, self._old)
+
+
+class InsetPhotoCommand(QUndoCommand):
+    """Undo/redo for the photo inset inside a bubble (image + its sliders)."""
+    _ID = MERGE_ID_INSET_PHOTO
+
+    def __init__(self, bubble, old_state: dict, new_state: dict):
+        super().__init__("Change Bubble Photo")
+        self._bubble = bubble
+        self._old = dict(old_state)
+        self._new = dict(new_state)
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, InsetPhotoCommand) and other._bubble is self._bubble:
+            self._new = dict(other._new)
+            return True
+        return False
+
+    @staticmethod
+    def _apply(bubble, state: dict):
+        bubble._inset_pixmap = state.get("pixmap")
+        bubble._inset_spacing = int(state.get("spacing", 25))
+        bubble._inset_blur = int(state.get("blur", 3))
+        bubble._inset_opacity = int(state.get("opacity", 100))
+        bubble._inset_zoom = int(state.get("zoom", 100))
+        bubble._inset_dx = int(state.get("dx", 0))
+        bubble._inset_dy = int(state.get("dy", 0))
+        bubble._inset_cache = None
+        bubble.update()
+        bubble._notify_changed()
+
+    def redo(self):
+        self._apply(self._bubble, self._new)
+
+    def undo(self):
+        self._apply(self._bubble, self._old)
+
+
+class RotatePhotoCommand(QUndoCommand):
+    """Undo/redo for rotating the base photo in 90° steps.
+
+    Self-inverse: undoing N turns clockwise is 4-N turns clockwise, so no
+    pixmap copy is kept.
+    """
+
+    def __init__(self, scene, turns: int):
+        super().__init__("Rotate Photo")
+        self._scene = scene
+        self._turns = turns % 4
+        self._saved = None   # item positions before the first rotation
+
+    def redo(self):
+        if self._saved is None and hasattr(self._scene, "stackable_items"):
+            self._saved = [(i, QPointF(i.pos()))
+                           for i in self._scene.stackable_items()]
+        self._scene.apply_rotation(self._turns)
+
+    def undo(self):
+        self._scene.apply_rotation((4 - self._turns) % 4)
+        # Rotating into a narrower frame makes the canvas clamp items inward,
+        # so the inverse rotation alone cannot put them back — restore the
+        # positions captured before the original turn.
+        for item, pos in (self._saved or []):
+            item.setPos(pos)
+
+
+class CropPhotoCommand(QUndoCommand):
+    """Undo/redo for cropping the base photo (keeps a copy of the original)."""
+
+    def __init__(self, scene, rect: QRect):
+        super().__init__("Crop Photo")
+        self._scene = scene
+        self._rect = QRect(rect)
+        self._original = QPixmap(scene.photo_pixmap)
+
+    def redo(self):
+        self._scene.apply_crop(self._rect)
+
+    def undo(self):
+        self._scene.restore_photo(self._original, self._rect)
+
+
+class TailShapeChangeCommand(QUndoCommand):
+    """Undo/redo for changing the tail render shape (wedge/curved/line/dots/none)."""
+    _ID = MERGE_ID_TAIL_SHAPE
+
+    def __init__(self, bubble, old_shape: str, new_shape: str):
+        super().__init__("Change Tail Shape")
+        self._bubble = bubble
+        self._old_shape = old_shape
+        self._new_shape = new_shape
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TailShapeChangeCommand) and other._bubble is self._bubble:
+            self._new_shape = other._new_shape
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_tail_shape(self._new_shape)
+
+    def undo(self):
+        self._bubble.set_tail_shape(self._old_shape)
+
+
+class TailCountChangeCommand(QUndoCommand):
+    """Undo/redo for changing the number of tails (0-3)."""
+    _ID = MERGE_ID_TAIL_COUNT
+
+    def __init__(self, bubble, old_count: int, new_count: int):
+        super().__init__("Change Tail Count")
+        self._bubble = bubble
+        self._old_count = old_count
+        self._new_count = new_count
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TailCountChangeCommand) and other._bubble is self._bubble:
+            self._new_count = other._new_count
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_tail_count(self._new_count)
+
+    def undo(self):
+        self._bubble.set_tail_count(self._old_count)
+
+
+class TextOutlineChangeCommand(QUndoCommand):
+    """Undo/redo for the text outline colour + width."""
+    _ID = MERGE_ID_TEXT_OUTLINE
+
+    def __init__(self, bubble, old_color: QColor, old_width: float,
+                 new_color: QColor, new_width: float):
+        super().__init__("Change Text Outline")
+        self._bubble = bubble
+        self._old = (QColor(old_color), float(old_width))
+        self._new = (QColor(new_color), float(new_width))
+
+    def id(self) -> int:
+        return self._ID
+
+    def mergeWith(self, other: QUndoCommand) -> bool:
+        if isinstance(other, TextOutlineChangeCommand) and other._bubble is self._bubble:
+            self._new = other._new
+            return True
+        return False
+
+    def redo(self):
+        self._bubble.set_text_outline(*self._new)
+
+    def undo(self):
+        self._bubble.set_text_outline(*self._old)
 
 
 class ShadowChangeCommand(QUndoCommand):

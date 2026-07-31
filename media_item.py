@@ -16,7 +16,8 @@ from PyQt6.QtGui import (
     QPixmap, QPainter, QPen, QBrush, QColor, QCursor,
 )
 
-HANDLE_SIZE = 10
+HANDLE_SIZE = 12
+HANDLE_HIT  = 26
 MIN_DISPLAY = 40.0
 
 
@@ -44,13 +45,46 @@ class MediaResizeHandle(QGraphicsRectItem):
         self._start_w     = 0.0
         self._start_h     = 0.0
         self._start_pos   = QPointF()
+        self._hovered     = False
 
-        self.setBrush(QBrush(QColor("#46ddcb")))
-        self.setPen(QPen(QColor("#0f1319"), 1.5))
         self.setZValue(5)
         self.setCursor(QCursor(self.CURSORS[corner]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        self.setAcceptHoverEvents(True)
         self.setVisible(False)
+
+    # Circular Camtasia-style handle with a generous hit area, matching bubbles.
+    def boundingRect(self) -> QRectF:
+        h = HANDLE_HIT / 2
+        return QRectF(-h, -h, HANDLE_HIT, HANDLE_HIT)
+
+    def shape(self):
+        from PyQt6.QtGui import QPainterPath
+        p = QPainterPath()
+        p.addRect(self.boundingRect())
+        return p
+
+    def paint(self, painter, option, widget=None):
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        active = self._hovered or self._dragging
+        s = (HANDLE_SIZE + 4) if active else HANDLE_SIZE
+        r = QRectF(-s / 2, -s / 2, s, s)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(15, 19, 25, 80))
+        painter.drawEllipse(r.adjusted(-1.5, -1.5, 1.5, 1.5))
+        painter.setBrush(QBrush(QColor("#fff2e8") if active else QColor("#ffffff")))
+        painter.setPen(QPen(QColor("#ff8a3d"), 1.6))
+        painter.drawEllipse(r)
+
+    def hoverEnterEvent(self, event):
+        self._hovered = True
+        self.update()
+        super().hoverEnterEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self._hovered = False
+        self.update()
+        super().hoverLeaveEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -116,6 +150,7 @@ class MediaResizeHandle(QGraphicsRectItem):
         if self._dragging:
             self._dragging        = False
             self._media._resizing = False
+            self.update()
             sc      = self.scene()
             new_pos = self._media.pos()
             new_w   = self._media.display_w
@@ -272,7 +307,7 @@ class MediaItem(QGraphicsObject):
         )
         painter.restore()
         if self.isSelected():
-            pen = QPen(QColor("#46ddcb"), 2, Qt.PenStyle.DashLine)
+            pen = QPen(QColor("#ff8a3d"), 2, Qt.PenStyle.DashLine)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(QRectF(1, 1, self._display_w - 2, self._display_h - 2))

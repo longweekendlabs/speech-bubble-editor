@@ -14,9 +14,9 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import QByteArray
 
 
-ACCENT  = "#46ddcb"
-FG      = "#e8ecf4"
-MUTED   = "#8a95aa"
+ACCENT  = "#ff8a3d"
+FG      = "#e6e6e6"
+MUTED   = "#9a9a9a"
 DANGER  = "#f87171"
 
 
@@ -165,6 +165,47 @@ ICON_MEME = """
 ICON_DUAL = """
 <rect x="1.5" y="3.5" width="7" height="13" rx="1" fill="{color}" opacity="0.12" stroke="{color}" stroke-width="1.5"/>
 <rect x="11.5" y="3.5" width="7" height="13" rx="1" fill="{color}" opacity="0.12" stroke="{color}" stroke-width="1.5"/>
+"""
+
+ICON_BLUR = """
+<rect x="3" y="3" width="14" height="14" rx="3.5" fill="{color}" opacity="0.12" stroke="{color}" stroke-width="1.5"/>
+<circle cx="7.6" cy="7.6" r="1.4" fill="{color}" opacity="0.95"/>
+<circle cx="12.4" cy="7.6" r="1.4" fill="{color}" opacity="0.55"/>
+<circle cx="7.6" cy="12.4" r="1.4" fill="{color}" opacity="0.55"/>
+<circle cx="12.4" cy="12.4" r="1.4" fill="{color}" opacity="0.3"/>
+"""
+
+ICON_PIXELATE = """
+<rect x="3" y="3" width="14" height="14" rx="2" fill="none" stroke="{color}" stroke-width="1.5"/>
+<rect x="5" y="5" width="3.3" height="3.3" fill="{color}" opacity="0.9"/>
+<rect x="11.7" y="5" width="3.3" height="3.3" fill="{color}" opacity="0.5"/>
+<rect x="5" y="11.7" width="3.3" height="3.3" fill="{color}" opacity="0.5"/>
+<rect x="11.7" y="11.7" width="3.3" height="3.3" fill="{color}" opacity="0.9"/>
+"""
+
+ICON_CROP = """
+<path d="M5.5 1.5v11a2 2 0 0 0 2 2h11"
+  stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<path d="M1.5 5.5h11a2 2 0 0 1 2 2v11"
+  stroke="{color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+"""
+
+ICON_ROTATE = """
+<path d="M3.2 10a6.8 6.8 0 1 1 2.0 4.8"
+  stroke="{color}" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+<path d="M3.2 5.2v4.6h4.6"
+  stroke="{color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+"""
+
+ICON_SPEEDLINES = """
+<line x1="2" y1="2" x2="7.4" y2="7.4" stroke="{color}" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="18" y1="2" x2="12.6" y2="7.4" stroke="{color}" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="2" y1="18" x2="7.4" y2="12.6" stroke="{color}" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="18" y1="18" x2="12.6" y2="12.6" stroke="{color}" stroke-width="1.8" stroke-linecap="round"/>
+<line x1="10" y1="1" x2="10" y2="5.6" stroke="{color}" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+<line x1="10" y1="19" x2="10" y2="14.4" stroke="{color}" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+<line x1="1" y1="10" x2="5.6" y2="10" stroke="{color}" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+<line x1="19" y1="10" x2="14.4" y2="10" stroke="{color}" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
 """
 
 # Context toolbar

@@ -2,6 +2,7 @@
 main.py — Entry point for Speech Bubble Editor v3.
 """
 
+import faulthandler
 import logging
 import os
 import sys
@@ -16,6 +17,10 @@ try:
     _fh.setFormatter(logging.Formatter("%(asctime)s  %(message)s", datefmt="%H:%M:%S"))
     _logger.addHandler(_fh)
     _logger.setLevel(logging.DEBUG)
+    try:
+        faulthandler.enable(_fh.stream)
+    except Exception:
+        pass
 except Exception:
     # Unwritable log path — use a no-op logger; never let this crash the app.
     _logger.addHandler(logging.NullHandler())
@@ -23,6 +28,14 @@ except Exception:
 _logger.info("=== Speech Bubble Editor starting ===")
 _logger.info(f"Python {sys.version}  platform={sys.platform}")
 _logger.info(f"executable={sys.executable}")
+
+
+def _log_unhandled_exception(exc_type, exc, tb):
+    _logger.exception("UNHANDLED EXCEPTION", exc_info=(exc_type, exc, tb))
+    sys.__excepthook__(exc_type, exc, tb)
+
+
+sys.excepthook = _log_unhandled_exception
 
 _singleton_server = None  # module-level — prevents GC of the QLocalServer
 
