@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QLabel, QScrollArea, QFrame, QToolButton, QPushButton, QButtonGroup,
     QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QSlider, QColorDialog,
     QCheckBox, QListWidget, QListWidgetItem, QSizePolicy, QMenu, QApplication,
-    QWidgetAction,
+    QWidgetAction, QInputDialog, QMessageBox,
 )
 from PyQt6.QtGui import (QColor, QFont, QFontDatabase, QPainter, QPainterPath,
                          QPen, QBrush, QPixmap)
@@ -71,6 +71,234 @@ TAIL_SHAPE_LABELS = {
     "dots":   "Thought dots",
     "none":   "No tail",
 }
+
+
+class OptionButtonGrid(QWidget):
+    """Compact exclusive choices that keep every option visible."""
+
+    currentTextChanged = pyqtSignal(str)
+
+    def __init__(self, choices, columns=3, tooltips=None, parent=None):
+        super().__init__(parent)
+        self._value = ""
+        self._buttons = {}
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(5)
+        grid.setVerticalSpacing(5)
+        tooltips = tuple(tooltips or ())
+        for index, choice in enumerate(choices):
+            value, label = choice if isinstance(choice, tuple) else (choice, choice)
+            btn = QToolButton()
+            btn.setObjectName("PageOptionButton")
+            btn.setText(str(label))
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            btn.setCheckable(True)
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding,
+                              QSizePolicy.Policy.Fixed)
+            btn.setMinimumHeight(30)
+            if index < len(tooltips):
+                btn.setToolTip(tooltips[index])
+            self._group.addButton(btn)
+            self._buttons[str(value)] = btn
+            btn.clicked.connect(
+                lambda checked, selected=str(value):
+                checked and self._select_from_user(selected))
+            grid.addWidget(btn, index // columns, index % columns)
+        if self._buttons:
+            self.setCurrentText(next(iter(self._buttons)))
+
+    def _select_from_user(self, value: str):
+        self._value = value
+        self.currentTextChanged.emit(value)
+
+    def currentText(self) -> str:
+        return self._value
+
+    def setCurrentText(self, value: str):
+        value = str(value)
+        btn = self._buttons.get(value)
+        if btn is None:
+            return
+        self._value = value
+        btn.setChecked(True)
+
+    def clearSelection(self):
+        self._group.setExclusive(False)
+        for btn in self._buttons.values():
+            btn.setChecked(False)
+        self._group.setExclusive(True)
+        self._value = ""
+
+    def option_button(self, value: str):
+        return self._buttons.get(str(value))
+
+
+class PhotoCountStepper(QWidget):
+    """Google-Photos-style add/remove control for collage slots."""
+
+    valueChanged = pyqtSignal(int)
+
+    def __init__(self, value=4, parent=None):
+        super().__init__(parent)
+        self._value = max(2, min(9, int(value)))
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        self._remove = QPushButton("−")
+        self._add = QPushButton("+")
+        for btn in (self._remove, self._add):
+            btn.setObjectName("PhotoCountButton")
+            btn.setFixedSize(34, 30)
+        self._remove.setToolTip("Remove one empty photo slot")
+        self._add.setToolTip("Add one photo slot")
+        self._label = QLabel()
+        self._label.setObjectName("PhotoCountLabel")
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        row.addWidget(self._remove)
+        row.addWidget(self._label, stretch=1)
+        row.addWidget(self._add)
+        self._remove.clicked.connect(lambda: self.setValue(self._value - 1))
+        self._add.clicked.connect(lambda: self.setValue(self._value + 1))
+        self._sync()
+
+    def value(self):
+        return self._value
+
+    def setValue(self, value):
+        value = max(2, min(9, int(value)))
+        if value == self._value:
+            self._sync()
+            return
+        self._value = value
+        self._sync()
+        self.valueChanged.emit(value)
+
+    def _sync(self):
+        self._label.setText(f"{self._value} photos")
+        self._remove.setEnabled(self._value > 2)
+        self._add.setEnabled(self._value < 9)
+
+
+class CollageTemplateButton(QToolButton):
+    """A template thumbnail that communicates geometry without terminology."""
+
+    def __init__(self, layout_type: str, label: str, parent=None):
+        super().__init__(parent)
+        self.layout_type = layout_type
+        self.label = label
+        self._vertical = True
+        self.setCheckable(True)
+        self.setFixedSize(62, 70)
+        self.setToolTip(f"Use the {label.lower()} layout")
+
+    def set_vertical(self, vertical: bool):
+        self._vertical = bool(vertical)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        selected = self.isChecked()
+        hovered = self.underMouse()
+        border = QColor("#ff8a3d") if selected else QColor(
+            "#626262" if hovered else "#414141")
+        painter.setPen(QPen(border, 1.5))
+        painter.setBrush(QColor(255, 138, 61, 25) if selected else QColor("#262626"))
+        painter.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 6, 6)
+
+        if self._vertical:
+            page = QRectF(18, 7, 26, 42)
+        else:
+            page = QRectF(9, 12, 44, 32)
+        painter.setPen(QPen(QColor("#8b8b8b"), 1))
+        painter.setBrush(QColor("#181818"))
+        painter.drawRect(page)
+        gap = 2.0
+        fill = QColor("#b7b7b7") if selected else QColor("#858585")
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(fill)
+        x, y, w, h = page.x() + 2, page.y() + 2, page.width() - 4, page.height() - 4
+        if self.layout_type == "Grid":
+            painter.drawRect(QRectF(x, y, (w-gap)/2, (h-gap)/2))
+            painter.drawRect(QRectF(x+(w+gap)/2, y, (w-gap)/2, (h-gap)/2))
+            painter.drawRect(QRectF(x, y+(h+gap)/2, (w-gap)/2, (h-gap)/2))
+            painter.drawRect(QRectF(x+(w+gap)/2, y+(h+gap)/2, (w-gap)/2, (h-gap)/2))
+        elif self.layout_type == "Mosaic":
+            painter.drawRect(QRectF(x, y, w*0.58-gap/2, h))
+            painter.drawRect(QRectF(x+w*0.58+gap/2, y, w*0.42-gap/2, (h-gap)/2))
+            painter.drawRect(QRectF(x+w*0.58+gap/2, y+(h+gap)/2,
+                                    w*0.42-gap/2, (h-gap)/2))
+        elif self.layout_type == "Hero":
+            painter.drawRect(QRectF(x, y, w, h*0.58-gap/2))
+            third = (w-gap*2)/3
+            for index in range(3):
+                painter.drawRect(QRectF(x+index*(third+gap), y+h*0.58+gap/2,
+                                        third, h*0.42-gap/2))
+        else:
+            if self._vertical:
+                cell = (h-gap*2)/3
+                for index in range(3):
+                    painter.drawRect(QRectF(x, y+index*(cell+gap), w, cell))
+            else:
+                cell = (w-gap*2)/3
+                for index in range(3):
+                    painter.drawRect(QRectF(x+index*(cell+gap), y, cell, h))
+
+        painter.setPen(QColor("#ff9b5c") if selected else QColor("#c1c1c1"))
+        font = painter.font()
+        font.setPixelSize(10)
+        font.setBold(selected)
+        painter.setFont(font)
+        painter.drawText(QRectF(2, 51, self.width()-4, 16),
+                         int(Qt.AlignmentFlag.AlignCenter), self.label)
+
+
+class CollageTemplateStrip(QWidget):
+    currentTextChanged = pyqtSignal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = ""
+        self._buttons = {}
+        self._group = QButtonGroup(self)
+        self._group.setExclusive(True)
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(5)
+        for layout_type, label in (("Grid", "Grid"), ("Mosaic", "Mosaic"),
+                                   ("Hero", "Hero"), ("Filmstrip", "Strip")):
+            btn = CollageTemplateButton(layout_type, label)
+            self._buttons[layout_type] = btn
+            self._group.addButton(btn)
+            row.addWidget(btn)
+            btn.clicked.connect(
+                lambda checked, value=layout_type:
+                checked and self._select(value))
+        self.setCurrentText("Mosaic")
+
+    def _select(self, value):
+        self._value = value
+        self.currentTextChanged.emit(value)
+
+    def currentText(self):
+        return self._value
+
+    def setCurrentText(self, value):
+        btn = self._buttons.get(str(value))
+        if btn is None:
+            return
+        self._value = str(value)
+        btn.setChecked(True)
+
+    def set_vertical(self, vertical):
+        for btn in self._buttons.values():
+            btn.set_vertical(vertical)
+
+    def option_button(self, value):
+        return self._buttons.get(str(value))
 
 # Balloon+-style swatch palette: vivid / dark / muted / pale / extras.
 # The first entry of the last row is fully transparent.
@@ -765,6 +993,8 @@ class InspectorDock(QWidget):
         self._layers_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
         self._layers_list.itemChanged.connect(self._on_layer_item_changed)
         self._layers_list.itemSelectionChanged.connect(self._on_layer_selection)
+        self._layers_list.itemClicked.connect(
+            lambda _item: self._on_layer_selection())
         self._layers_list.model().rowsMoved.connect(self._on_layers_reordered)
         layers_lay.addWidget(self._layers_list)
         layer_actions = QHBoxLayout()
@@ -791,7 +1021,9 @@ class InspectorDock(QWidget):
         self._build_stroke_section()
         self._build_layer_section()
         self._build_dual_section()
-        self._build_redact_section()
+        self._build_manga_layout_section()
+        self._build_collage_layout_section()
+        self._build_collage_fx_section()
         self._shape_lay.addStretch()
 
         # --- TEXT tab: what the bubble says --------------------------------
@@ -810,7 +1042,9 @@ class InspectorDock(QWidget):
         self._build_shadow_section()
         self._build_accent_section()
         self._build_photo_section()
+        self._build_redact_section()
         self._build_speedlines_section()
+        self._build_manga_section()
         self._build_defaults_section()
         self._fx_lay.addStretch()
         self._bubble_sections = (
@@ -825,6 +1059,10 @@ class InspectorDock(QWidget):
         # is why the panel used to open full of dead controls.
         self._set_bubble_sections_visible(False)
         self._defaults_section.setVisible(False)
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._set_placeholder_visible(True)
         self._set_controls_enabled(False)
 
@@ -898,6 +1136,10 @@ class InspectorDock(QWidget):
         self._inspector_lay.addWidget(section)
 
     def update_for_redaction(self, item):
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media = None
         self._redact_item = item
@@ -906,7 +1148,8 @@ class InspectorDock(QWidget):
         self._dual_section.setVisible(False)
         self._redact_section.setVisible(True)
         self._set_placeholder_visible(False)
-        self._show_tab(self.SHAPE_TAB)
+        self._configure_tabs_for_page_mode()
+        self._show_tab(self.FX_TAB)
         self._updating = True
         try:
             self._redact_blur_btn.setChecked(item.get_mode() == "blur")
@@ -1085,6 +1328,15 @@ class InspectorDock(QWidget):
         self._inspector_lay.addWidget(section)
 
     def update_for_speedlines(self, item):
+        page_mode = bool(
+            self._scene and
+            (self._scene.is_manga_mode() or self._scene.is_collage_mode()))
+        collage_mode = bool(
+            page_mode and self._scene.is_collage_mode())
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media = None
         self._redact_item = None
@@ -1096,6 +1348,7 @@ class InspectorDock(QWidget):
         self._redact_section.setVisible(False)
         self._lines_section.setVisible(True)
         self._set_placeholder_visible(False)
+        self._configure_tabs_for_page_mode()
         self._show_tab(self.FX_TAB)
         self._updating = True
         try:
@@ -1596,6 +1849,537 @@ class InspectorDock(QWidget):
         self._defaults_section = section
         self._inspector_lay.addWidget(section)
 
+    def _build_manga_section(self):
+        section = AccordionSection("COMIC PAGE")
+
+        priority_note = QLabel(
+            "PAGE + FRAME — these remain visible after photos fill the panels.")
+        priority_note.setObjectName("InspectorHint")
+        priority_note.setWordWrap(True)
+        priority_note.setToolTip(
+            "Set the paper/gutter background and panel ink before secondary guides")
+        section.body_lay.addWidget(priority_note)
+
+        self._manga_page_btn, self._manga_page_hex = self._color_row(
+            section.body_lay, "Page / gutters", QColor("#f2eee5"),
+            lambda: self._on_manga_color("page_color",
+                                          self._manga_page_btn,
+                                          self._manga_page_hex),
+            tooltip="Color of the paper and spaces between panels")
+        self._manga_border_btn, self._manga_border_hex = self._color_row(
+            section.body_lay, "Frame ink", QColor("#241f1b"),
+            lambda: self._on_manga_color("border_color",
+                                          self._manga_border_btn,
+                                          self._manga_border_hex),
+            tooltip="Panel frame color; remains visible around imported images")
+        self._manga_border_width = self._compact_slider_row(
+            section.body_lay, "Ink width", 1, 18, 6, " px",
+            lambda value: self._on_manga_number("border_width", value),
+            tooltip="Thickness of the hand-drawn panel frame")
+
+        self._manga_image_background = self._option_buttons(
+            section.body_lay, "WHEN A PHOTO IS SMALLER",
+            (("blur", "Blurred photo"), ("solid", "Panel color")), 2,
+            lambda value: self._set_manga_style_option(
+                "image_background", value),
+            "Choose what fills exposed space behind a shrunken photo",
+            (
+                "Fill exposed space with a soft, enlarged copy of the photo",
+                "Fill exposed space with the palette's empty-panel color",
+            ))
+
+        _, self._manga_presets, presets_lay = self._disclosure(
+            section.body_lay, "Preset palettes",
+            "Optional ready-made page and frame color combinations")
+        self._manga_theme = self._option_buttons(
+            presets_lay, "Choose a palette",
+            ("Warm paper", "Classic ink", "Noir", "Rose pulp", "Night blue"),
+            2, self._on_manga_theme,
+            tooltip=("Apply a coordinated paper and ink palette; every color "
+                     "remains editable"),
+            option_tooltips=(
+                "Cream paper with warm dark ink",
+                "White paper with crisp black ink",
+                "Dark page with pale comic frames",
+                "Muted rose paper and burgundy ink",
+                "Deep blue page with cool pale ink",
+            ))
+
+        self._manga_roughness = self._compact_slider_row(
+            section.body_lay, "Hand drawn", 0, 90, 34, "",
+            lambda value: self._on_manga_number("roughness", value),
+            tooltip="How uneven and angled panel edges should feel")
+
+        _, self._manga_guides, guides_lay = self._disclosure(
+            section.body_lay, "Empty-panel appearance",
+            "Optional colors that disappear after images fill the panels")
+
+        self._manga_empty_btn, self._manga_empty_hex = self._color_row(
+            guides_lay, "Empty panels", QColor("#e8e1d5"),
+            lambda: self._on_manga_color("empty_color",
+                                          self._manga_empty_btn,
+                                          self._manga_empty_hex),
+            tooltip="Background color for panels without an image")
+        self._manga_placeholder_btn, self._manga_placeholder_hex = self._color_row(
+            guides_lay, "Indicators", QColor("#746d65"),
+            lambda: self._on_manga_color("placeholder_color",
+                                          self._manga_placeholder_btn,
+                                          self._manga_placeholder_hex),
+            tooltip="Open-image indicator color")
+        section.setVisible(False)
+        self._manga_section = section
+        self._inspector_lay.addWidget(section)
+
+    def _build_manga_layout_section(self):
+        section = AccordionSection("COMIC LAYOUT")
+
+        live_note = QLabel(
+            "START HERE — choose the page feel. Drop images into the panels. "
+            "Regenerate gives you another version of that choice.")
+        live_note.setObjectName("InspectorHint")
+        live_note.setWordWrap(True)
+        section.body_lay.addWidget(live_note)
+
+        self._comic_quick_preset = self._option_buttons(
+            section.body_lay, "PAGE FEEL",
+            (("mixed", "Mixed page"),
+             ("classic", "Classic · 6"),
+             ("focus", "Big moment · 4"),
+             ("action", "Fast action · 8")),
+            2, self._on_comic_quick_preset,
+            "One click chooses a sensible panel count and composition",
+            (
+                "Variable panel count and composition; Regenerate makes the next version",
+                "Six balanced panels for general storytelling",
+                "Four panels with one emphasized image",
+                "Eight panels with stronger size contrast",
+            ))
+
+        _, self._manga_advanced, advanced = self._disclosure(
+            section.body_lay, "Fine tune layout",
+            "Optional controls for exact panel count, spacing, and reading order")
+
+        count_tip = ("Choose exactly 4, 6, 7, or 8 panels. Changing this creates "
+                     "the new count immediately without discarding loaded images.")
+        count_tips = (
+            "Four spacious panels for slow pacing",
+            "Six panels for a conventional comic page",
+            "Seven panels for mixed pacing",
+            "Eight compact panels for fast pacing",
+        )
+        self._manga_panel_count = self._option_buttons(
+            advanced, "Exact panel count", ("4", "6", "7", "8"),
+            4, self._on_manga_layout_count, count_tip, count_tips)
+
+        composition_tips = (
+            "Emphasize one large establishing or climax panel",
+            "Keep panel sizes calmer and more evenly paced",
+            "Use moderate, readable panels suited to conversations",
+            "Create stronger size contrast for faster, dramatic pacing",
+        )
+        self._manga_composition = self._option_buttons(
+            advanced, "Exact composition",
+            ("Feature", "Balanced", "Dialogue", "Action"), 2,
+            lambda value: self._set_manga_layout_option("composition", value),
+            ("Controls storytelling rhythm and relative panel sizes. Feature "
+             "emphasizes one panel; Action creates stronger contrast."),
+            composition_tips)
+
+        self._manga_margin = self._compact_slider_row(
+            advanced, "Page margin", 0, 100, 22, " px",
+            lambda value: self._set_manga_layout_option("margin", value),
+            tooltip="Space around the outside of the comic page")
+        self._manga_row_gutter = self._compact_slider_row(
+            advanced, "Row gutter", 0, 80, 18, " px",
+            lambda value: self._set_manga_layout_option("row_gutter", value),
+            tooltip="Space between horizontal story tiers")
+        self._manga_column_gutter = self._compact_slider_row(
+            advanced, "Panel gutter", 0, 80, 12, " px",
+            lambda value: self._set_manga_layout_option("column_gutter", value),
+            tooltip="Space between panels in the same tier")
+        self._manga_variation = self._compact_slider_row(
+            advanced, "Emphasis", 0, 100, 48, " %",
+            lambda value: self._set_manga_layout_option("variation", value),
+            tooltip="How strongly panel sizes vary within the composition")
+
+        direction_tip = (
+            "Sets image assignment and optional panel-number order within each row")
+        self._manga_direction = self._option_buttons(
+            advanced, "Reading order",
+            (("Right to left", "Right → left"),
+             ("Left to right", "Left → right")), 2,
+            lambda value: self._set_manga_layout_option(
+                "reading_direction", value),
+            direction_tip,
+            ("Top-right toward bottom-left",
+             "Top-left toward bottom-right"))
+
+        self._manga_numbers = QCheckBox("Show panel numbers while editing")
+        self._manga_numbers.setToolTip(
+            "Reading-order guides are shown on canvas but excluded from export")
+        self._manga_numbers.toggled.connect(
+            lambda value: self._set_manga_layout_option("show_numbers", value))
+        advanced.addWidget(self._manga_numbers)
+
+        note = QLabel(
+            "Fine-tune controls update the page live. Loaded images are never discarded.")
+        note.setObjectName("InspectorHint")
+        note.setWordWrap(True)
+        advanced.addWidget(note)
+
+        section.setVisible(False)
+        self._manga_layout_section = section
+        self._inspector_lay.addWidget(section)
+
+    def _on_manga_layout_count(self, text: str):
+        self._set_manga_layout_option("panel_count", int(text))
+
+    def _on_comic_quick_preset(self, name: str):
+        if self._updating or self._scene is None:
+            return
+        presets = {
+            "mixed": (0, "Random"),
+            "classic": (6, "Balanced"),
+            "focus": (4, "Feature"),
+            "action": (8, "Action"),
+        }
+        panel_count, composition = presets[name]
+        self._scene.apply_manga_layout_preset(panel_count, composition)
+        self.show_manga_settings()
+
+    def _build_collage_layout_section(self):
+        section = AccordionSection("COLLAGE LAYOUT")
+        live_note = QLabel(
+            "Choose a direction, photo count, and layout. Then drop photos "
+            "into the frames.")
+        live_note.setObjectName("InspectorHint")
+        live_note.setWordWrap(True)
+        section.body_lay.addWidget(live_note)
+
+        self._collage_orientation = QPushButton("↕  Vertical page")
+        self._collage_orientation.setObjectName("OrientationToggle")
+        self._collage_orientation.setToolTip(
+            "Switch the whole collage between vertical and horizontal")
+        self._collage_orientation.clicked.connect(
+            self._toggle_collage_orientation)
+        section.body_lay.addWidget(self._collage_orientation)
+
+        self._collage_count = PhotoCountStepper(4, self)
+        self._collage_count.setToolTip(
+            "Use − or + to remove or add a photo frame (2–9)")
+        self._collage_count.valueChanged.connect(
+            lambda value: self._set_collage_layout_option(
+                "photo_count", value))
+        section.body_lay.addWidget(self._collage_count)
+
+        layout_label = self._label("LAYOUT")
+        layout_label.setToolTip("Tap a picture to choose the frame arrangement")
+        section.body_lay.addWidget(layout_label)
+        self._collage_layout_type = CollageTemplateStrip(self)
+        self._collage_layout_type.setToolTip(
+            "Visual previews of the available collage arrangements")
+        self._collage_layout_type.currentTextChanged.connect(
+            lambda text: self._set_collage_layout_option(
+                "layout_type", text))
+        section.body_lay.addWidget(self._collage_layout_type)
+
+        shuffle_note = QLabel(
+            "Shuffle tries a different layout while keeping your photos.")
+        shuffle_note.setObjectName("InspectorHint")
+        shuffle_note.setWordWrap(True)
+        section.body_lay.addWidget(shuffle_note)
+
+        section.setVisible(False)
+        self._collage_layout_section = section
+        self._inspector_lay.addWidget(section)
+
+    def _build_collage_fx_section(self):
+        section = AccordionSection("COLLAGE COLORS & FRAME")
+        priority = QLabel(
+            "Background and frame are the primary collage styling controls; "
+            "photos cover the frame interiors.")
+        priority.setObjectName("InspectorHint")
+        priority.setWordWrap(True)
+        section.body_lay.addWidget(priority)
+
+        self._collage_bg_btn, self._collage_bg_hex = self._color_row(
+            section.body_lay, "Background", QColor("#ffffff"),
+            lambda: self._on_collage_color(
+                "page_color", self._collage_bg_btn, self._collage_bg_hex),
+            tooltip="Canvas color visible around and between photo frames")
+        self._collage_frame_btn, self._collage_frame_hex = self._color_row(
+            section.body_lay, "Frame color", QColor("#ffffff"),
+            lambda: self._on_collage_color(
+                "border_color", self._collage_frame_btn, self._collage_frame_hex),
+            tooltip="Outline color drawn around each imported photo")
+        self._collage_frame_width = self._compact_slider_row(
+            section.body_lay, "Frame width", 0, 40, 0, " px",
+            lambda value: self._set_collage_style_option("border_width", value),
+            tooltip="Outline thickness around every photo frame; zero hides it")
+        self._collage_gap = self._compact_slider_row(
+            section.body_lay, "Spacing", 0, 120, 18, " px",
+            lambda value: self._set_collage_layout_option("gap", value),
+            tooltip="Background or frame space separating adjacent photos")
+        self._collage_corners = self._compact_slider_row(
+            section.body_lay, "Corner radius", 0, 180, 24, " px",
+            lambda value: self._set_collage_style_option("corner_radius", value),
+            tooltip="Round every photo frame; zero keeps corners square")
+        self._collage_margin = self._compact_slider_row(
+            section.body_lay, "Outer margin", 0, 160, 28, " px",
+            lambda value: self._set_collage_layout_option("margin", value),
+            tooltip="Background space around the outside of the collage")
+
+        self._collage_image_background = self._option_buttons(
+            section.body_lay, "WHEN A PHOTO IS SMALLER",
+            (("blur", "Blurred photo"), ("solid", "Panel color")), 2,
+            lambda value: self._set_collage_style_option(
+                "image_background", value),
+            "Choose what fills exposed space behind a shrunken photo",
+            (
+                "Instagram-style blurred photo fills the exposed space",
+                "The selected palette's frame-box color fills the exposed space",
+            ))
+
+        _, self._collage_presets, presets_lay = self._disclosure(
+            section.body_lay, "Preset palettes",
+            "Optional ready-made background and frame combinations")
+        self._collage_theme = self._option_buttons(
+            presets_lay, "Choose a palette",
+            ("Gallery white", "Midnight", "Warm cream", "Soft blush", "Slate"),
+            2, self._on_collage_theme,
+            ("Preset pairs update Background and Frame color together; both "
+             "remain editable"),
+            (
+                "Clean white gallery background and frame",
+                "Dark background and frame",
+                "Cream background with a soft white frame",
+                "Blush background with a white frame",
+                "Slate background with a pale frame",
+            ))
+
+        _, self._collage_saved_presets, saved_lay = self._disclosure(
+            section.body_lay, "Saved presets",
+            "Save, reuse, rename, update, delete, or make a collage preset the default")
+        self._collage_preset_combo = QComboBox()
+        self._collage_preset_combo.setToolTip(
+            "Choose a named preset to apply it immediately")
+        self._collage_preset_combo.currentIndexChanged.connect(
+            self._on_collage_preset_selected)
+        saved_lay.addWidget(self._collage_preset_combo)
+        preset_actions = QHBoxLayout()
+        save_preset = QPushButton("Save current…")
+        save_preset.setObjectName("LayerActionButton")
+        save_preset.setToolTip("Save the current layout and colors with a name")
+        save_preset.clicked.connect(self._save_collage_preset_as)
+        preset_actions.addWidget(save_preset, stretch=1)
+        manage = QPushButton("Manage ▾")
+        manage.setObjectName("LayerActionButton")
+        manage.setToolTip("Update, rename, delete, or set the selected preset as default")
+        menu = QMenu(manage)
+        menu.addAction("Update selected", self._update_collage_preset)
+        menu.addAction("Rename selected…", self._rename_collage_preset)
+        menu.addAction("Use selected on startup", self._default_collage_preset)
+        menu.addSeparator()
+        menu.addAction("Delete selected…", self._delete_collage_preset)
+        manage.setMenu(menu)
+        preset_actions.addWidget(manage)
+        saved_lay.addLayout(preset_actions)
+        self._collage_default_preset = QLabel()
+        self._collage_default_preset.setObjectName("InspectorHint")
+        saved_lay.addWidget(self._collage_default_preset)
+        self._refresh_collage_presets()
+
+        section.setVisible(False)
+        self._collage_fx_section = section
+        self._inspector_lay.addWidget(section)
+
+    def _set_collage_layout_option(self, key: str, value):
+        if not self._updating and self._scene is not None:
+            self._scene.set_collage_layout_setting(key, value)
+            if key == "photo_count":
+                actual = int(
+                    self._scene.collage_layout_settings()["photo_count"])
+                if self._collage_count.value() != actual:
+                    self._updating = True
+                    try:
+                        self._collage_count.setValue(actual)
+                    finally:
+                        self._updating = False
+
+    def _toggle_collage_orientation(self):
+        if self._updating or self._scene is None:
+            return
+        current = str(
+            self._scene.collage_layout_settings()["aspect_ratio"])
+        new_value = (
+            "Landscape · 16:9"
+            if current != "Landscape · 16:9"
+            else "Portrait · 4:5"
+        )
+        self._scene.set_collage_layout_setting("aspect_ratio", new_value)
+        self._sync_collage_orientation(new_value)
+
+    def _sync_collage_orientation(self, aspect: str):
+        horizontal = aspect in ("Landscape · 16:9", "Photo · 3:2")
+        self._collage_orientation.setText(
+            "↔  Horizontal page" if horizontal else "↕  Vertical page")
+        self._collage_orientation.setToolTip(
+            "Switch to a vertical page" if horizontal
+            else "Switch to a horizontal page")
+        self._collage_layout_type.set_vertical(not horizontal)
+
+    def _set_collage_style_option(self, key: str, value):
+        if not self._updating and self._scene is not None:
+            self._scene.set_collage_style(key, value)
+
+    def _set_manga_style_option(self, key: str, value):
+        if not self._updating and self._scene is not None:
+            self._scene.set_manga_style(key, value)
+
+    def _on_collage_theme(self, name: str):
+        if self._updating or self._scene is None:
+            return
+        self._scene.apply_collage_theme(name)
+        self.show_manga_settings()
+
+    def _refresh_collage_presets(self, select_name: str | None = None):
+        import collage_presets
+        current = select_name or self._selected_collage_preset_name()
+        self._collage_preset_combo.blockSignals(True)
+        self._collage_preset_combo.clear()
+        self._collage_preset_combo.addItem("Choose saved preset…", "")
+        for name in sorted(collage_presets.load_all(), key=str.casefold):
+            self._collage_preset_combo.addItem(name, name)
+        if current:
+            index = self._collage_preset_combo.findData(current)
+            self._collage_preset_combo.setCurrentIndex(max(0, index))
+        self._collage_preset_combo.blockSignals(False)
+        default = collage_presets.default_name()
+        self._collage_default_preset.setText(
+            f"Startup preset: {default or collage_presets.FACTORY_NAME}")
+
+    def _selected_collage_preset_name(self) -> str:
+        if not hasattr(self, "_collage_preset_combo"):
+            return ""
+        return str(self._collage_preset_combo.currentData() or "")
+
+    def _on_collage_preset_selected(self, index: int):
+        if self._updating or self._scene is None:
+            return
+        import collage_presets
+        name = str(self._collage_preset_combo.itemData(index) or "")
+        preset = collage_presets.load_all().get(name)
+        if preset is not None:
+            self._scene.apply_collage_preset(preset)
+            self.show_manga_settings()
+
+    def _save_collage_preset_as(self):
+        if self._scene is None:
+            return
+        name, accepted = QInputDialog.getText(
+            self, "Save Collage Preset", "Preset name:")
+        name = name.strip()
+        if not accepted or not name:
+            return
+        import collage_presets
+        if name in collage_presets.load_all():
+            overwrite = QMessageBox.question(
+                self, "Replace Preset", f"Replace the preset “{name}”?")
+            if overwrite != QMessageBox.StandardButton.Yes:
+                return
+        collage_presets.save(name, self._scene.collage_preset())
+        self._refresh_collage_presets(name)
+
+    def _update_collage_preset(self):
+        name = self._selected_collage_preset_name()
+        if name and self._scene is not None:
+            import collage_presets
+            collage_presets.save(name, self._scene.collage_preset())
+            self._refresh_collage_presets(name)
+
+    def _rename_collage_preset(self):
+        old_name = self._selected_collage_preset_name()
+        if not old_name:
+            return
+        new_name, accepted = QInputDialog.getText(
+            self, "Rename Collage Preset", "Preset name:", text=old_name)
+        new_name = new_name.strip()
+        if not accepted or not new_name or new_name == old_name:
+            return
+        import collage_presets
+        if new_name in collage_presets.load_all():
+            QMessageBox.information(
+                self, "Preset Exists", "Choose a different preset name.")
+            return
+        collage_presets.rename(old_name, new_name)
+        self._refresh_collage_presets(new_name)
+
+    def _default_collage_preset(self):
+        name = self._selected_collage_preset_name()
+        if name:
+            import collage_presets
+            collage_presets.set_default(name)
+            self._refresh_collage_presets(name)
+
+    def _delete_collage_preset(self):
+        name = self._selected_collage_preset_name()
+        if not name:
+            return
+        answer = QMessageBox.question(
+            self, "Delete Collage Preset", f"Delete the preset “{name}”?")
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        import collage_presets
+        collage_presets.delete(name)
+        self._refresh_collage_presets()
+
+    def _on_collage_color(self, key: str, btn, label):
+        if self._scene is None:
+            return
+        current = QColor(self._scene.collage_style()[key])
+        color = pick_color(btn, current, self, allow_alpha=False)
+        if color is not None:
+            self._scene.set_collage_style(key, color)
+            self._set_color(btn, label, color)
+
+    def _set_manga_layout_option(self, key: str, value):
+        if not self._updating and self._scene is not None:
+            self._scene.set_manga_layout_setting(key, value)
+
+    def _on_manga_theme(self, name: str):
+        if self._updating or self._scene is None:
+            return
+        self._scene.apply_manga_theme(name)
+        # A palette is an FX edit, not a navigation event. Sync its swatches
+        # in place and leave the user on the tab they deliberately chose.
+        style = self._scene.manga_style()
+        self._updating = True
+        try:
+            for key, btn, label in (
+                ("page_color", self._manga_page_btn, self._manga_page_hex),
+                ("empty_color", self._manga_empty_btn, self._manga_empty_hex),
+                ("border_color", self._manga_border_btn,
+                 self._manga_border_hex),
+                ("placeholder_color", self._manga_placeholder_btn,
+                 self._manga_placeholder_hex),
+            ):
+                self._set_color(btn, label, QColor(style[key]))
+        finally:
+            self._updating = False
+
+    def _on_manga_color(self, key: str, btn, label):
+        if self._scene is None:
+            return
+        current = QColor(self._scene.manga_style()[key])
+        color = pick_color(btn, current, self, allow_alpha=False)
+        if color is not None:
+            self._scene.set_manga_style(key, color)
+            self._set_color(btn, label, color)
+
+    def _on_manga_number(self, key: str, value: int):
+        if not self._updating and self._scene is not None:
+            self._scene.set_manga_style(key, value)
+
     def _flash_button(self, btn: QPushButton, text: str):
         original = btn.text()
         btn.setText(text)
@@ -1687,9 +2471,49 @@ class InspectorDock(QWidget):
         label.setObjectName("InspectorLabel")
         return label
 
+    def _disclosure(self, layout, text, tooltip=""):
+        toggle = QToolButton()
+        toggle.setObjectName("InspectorDisclosure")
+        toggle.setText(text)
+        toggle.setToolButtonStyle(
+            Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        toggle.setArrowType(Qt.ArrowType.RightArrow)
+        toggle.setCheckable(True)
+        toggle.setToolTip(tooltip)
+        body = QWidget()
+        body.setObjectName("InspectorDisclosureBody")
+        body.setVisible(False)
+        body_lay = QVBoxLayout(body)
+        body_lay.setContentsMargins(0, 2, 0, 0)
+        body_lay.setSpacing(7)
+
+        def _toggle(opened):
+            toggle.setArrowType(
+                Qt.ArrowType.DownArrow if opened else Qt.ArrowType.RightArrow)
+            body.setVisible(opened)
+
+        toggle.toggled.connect(_toggle)
+        layout.addWidget(toggle)
+        layout.addWidget(body)
+        return toggle, body, body_lay
+
+    def _option_buttons(self, layout, label_text, choices, columns, callback,
+                        tooltip="", option_tooltips=None):
+        label = self._label(label_text)
+        label.setToolTip(tooltip)
+        layout.addWidget(label)
+        choices_widget = OptionButtonGrid(
+            choices, columns=columns, tooltips=option_tooltips, parent=self)
+        choices_widget.setToolTip(tooltip)
+        choices_widget.currentTextChanged.connect(callback)
+        layout.addWidget(choices_widget)
+        return choices_widget
+
     def _color_row(self, layout, label_text, color, callback, tooltip=""):
         row = QHBoxLayout()
-        row.addWidget(self._label(label_text))
+        label_widget = self._label(label_text)
+        label_widget.setToolTip(tooltip)
+        row.addWidget(label_widget)
         btn = QPushButton()
         btn.setFixedSize(30, 24)
         btn.setToolTip(tooltip)
@@ -1705,7 +2529,9 @@ class InspectorDock(QWidget):
     def _slider_row(self, layout, label_text, low, high, value, suffix,
                     callback, tooltip=""):
         row = QHBoxLayout()
-        row.addWidget(self._label(label_text))
+        label_widget = self._label(label_text)
+        label_widget.setToolTip(tooltip)
+        row.addWidget(label_widget)
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(low, high)
         slider.setValue(value)
@@ -1727,7 +2553,9 @@ class InspectorDock(QWidget):
     def _spin_row(self, layout, label_text, low, high, value, suffix,
                   callback, tooltip=""):
         row = QHBoxLayout()
-        row.addWidget(self._label(label_text))
+        label_widget = self._label(label_text)
+        label_widget.setToolTip(tooltip)
+        row.addWidget(label_widget)
         row.addStretch()
         value_box = QSpinBox()
         value_box.setRange(low, high)
@@ -1743,7 +2571,9 @@ class InspectorDock(QWidget):
     def _compact_slider_row(self, layout, label_text, low, high, value, suffix,
                             callback, tooltip=""):
         row = QHBoxLayout()
-        row.addWidget(self._label(label_text))
+        label_widget = self._label(label_text)
+        label_widget.setToolTip(tooltip)
+        row.addWidget(label_widget)
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(low, high)
         slider.setValue(value)
@@ -1781,11 +2611,35 @@ class InspectorDock(QWidget):
         if index == self.LAYERS_TAB:
             self._refresh_layers()
 
+    def _configure_tabs_for_page_mode(self):
+        """Keep page controls and selected-object controls from colliding."""
+        collage = bool(self._scene and self._scene.is_collage_mode())
+        comic = bool(self._scene and self._scene.is_manga_mode())
+        page_mode = collage or comic
+        self._tabs.setTabText(self.SHAPE_TAB,
+                              "Collage" if collage else "Comic" if comic else "Shape")
+        self._tabs.setTabText(self.TEXT_TAB, "Text")
+        self._tabs.setTabText(self.FX_TAB, "Selected FX" if page_mode else "FX")
+        self._tabs.setTabText(self.LAYERS_TAB, "Layers")
+        self._tabs.setTabVisible(self.TEXT_TAB, not page_mode)
+
+    def _configure_tabs_for_object(self):
+        self._tabs.setTabText(self.SHAPE_TAB, "Shape")
+        self._tabs.setTabText(self.TEXT_TAB, "Text")
+        self._tabs.setTabText(self.FX_TAB, "FX")
+        self._tabs.setTabText(self.LAYERS_TAB, "Layers")
+        self._tabs.setTabVisible(self.TEXT_TAB, True)
+
     # ------------------------------------------------------------------
     # Public update API
     # ------------------------------------------------------------------
 
     def update_for_bubble(self, bubble):
+        self._configure_tabs_for_object()
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = bubble
         self._media  = None
         self._redact_item = None
@@ -1869,6 +2723,11 @@ class InspectorDock(QWidget):
         self._refresh_layers()
 
     def update_for_media(self, media_item):
+        self._configure_tabs_for_object()
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media  = media_item
         self._redact_item = None
@@ -1885,6 +2744,10 @@ class InspectorDock(QWidget):
         self._refresh_layers()
 
     def show_dual_settings(self):
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media  = None
         self._redact_item = None
@@ -1897,7 +2760,101 @@ class InspectorDock(QWidget):
         self._set_placeholder_visible(False)
         self._dual_section.setVisible(True)
 
+    def show_manga_settings(self):
+        self._configure_tabs_for_page_mode()
+        self._bubble = None
+        self._media = None
+        self._redact_item = None
+        self._redact_section.setVisible(False)
+        self._lines_section.setVisible(False)
+        self._spacing_section.setVisible(False)
+        self._dual_section.setVisible(False)
+        self._layer_section.setVisible(False)
+        self._defaults_section.setVisible(False)
+        self._set_bubble_sections_visible(False)
+        self._set_placeholder_visible(False)
+        is_collage = bool(self._scene and self._scene.is_collage_mode())
+        self._manga_section.setVisible(not is_collage)
+        self._manga_layout_section.setVisible(not is_collage)
+        self._collage_layout_section.setVisible(is_collage)
+        self._collage_fx_section.setVisible(is_collage)
+        self._show_tab(self.SHAPE_TAB)
+        if self._scene is None:
+            return
+        self._updating = True
+        try:
+            if is_collage:
+                style = self._scene.collage_style()
+                layout = self._scene.collage_layout_settings()
+                for key, btn, label in (
+                    ("page_color", self._collage_bg_btn, self._collage_bg_hex),
+                    ("border_color", self._collage_frame_btn,
+                     self._collage_frame_hex),
+                ):
+                    self._set_color(btn, label, QColor(style[key]))
+                self._collage_frame_width.setValue(int(style["border_width"]))
+                self._collage_corners.setValue(int(style["corner_radius"]))
+                self._collage_image_background.setCurrentText(
+                    str(style["image_background"]))
+                self._collage_count.setValue(int(layout["photo_count"]))
+                self._collage_layout_type.setCurrentText(
+                    str(layout["layout_type"]))
+                aspect = str(layout["aspect_ratio"])
+                self._sync_collage_orientation(aspect)
+                self._collage_margin.setValue(int(layout["margin"]))
+                self._collage_gap.setValue(int(layout["gap"]))
+            else:
+                style = self._scene.manga_style()
+                layout = self._scene.manga_layout_settings()
+                for key, btn, label in (
+                    ("page_color", self._manga_page_btn, self._manga_page_hex),
+                    ("empty_color", self._manga_empty_btn, self._manga_empty_hex),
+                    ("border_color", self._manga_border_btn,
+                     self._manga_border_hex),
+                    ("placeholder_color", self._manga_placeholder_btn,
+                     self._manga_placeholder_hex),
+                ):
+                    self._set_color(btn, label, QColor(style[key]))
+                self._manga_border_width.setValue(int(style["border_width"]))
+                self._manga_roughness.setValue(int(style["roughness"]))
+                self._manga_image_background.setCurrentText(
+                    str(style["image_background"]))
+                count = int(layout["panel_count"])
+                if count == 0:
+                    self._manga_panel_count.clearSelection()
+                else:
+                    self._manga_panel_count.setCurrentText(str(count))
+                composition = str(layout["composition"])
+                if composition == "Random":
+                    self._manga_composition.clearSelection()
+                else:
+                    self._manga_composition.setCurrentText(composition)
+                self._manga_margin.setValue(int(layout["margin"]))
+                self._manga_row_gutter.setValue(int(layout["row_gutter"]))
+                self._manga_column_gutter.setValue(int(layout["column_gutter"]))
+                self._manga_variation.setValue(int(layout["variation"]))
+                self._manga_direction.setCurrentText(
+                    str(layout["reading_direction"]))
+                self._manga_numbers.setChecked(bool(layout["show_numbers"]))
+                quick = {
+                    (0, "Random"): "mixed",
+                    (6, "Balanced"): "classic",
+                    (4, "Feature"): "focus",
+                    (8, "Action"): "action",
+                }.get((count, str(layout["composition"])))
+                if quick:
+                    self._comic_quick_preset.setCurrentText(quick)
+                else:
+                    self._comic_quick_preset.clearSelection()
+        finally:
+            self._updating = False
+
     def clear(self):
+        self._configure_tabs_for_object()
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media  = None
         self._redact_item = None
@@ -1916,6 +2873,11 @@ class InspectorDock(QWidget):
         self._refresh_layers()
 
     def clear_selection(self):
+        self._configure_tabs_for_object()
+        self._manga_section.setVisible(False)
+        self._manga_layout_section.setVisible(False)
+        self._collage_layout_section.setVisible(False)
+        self._collage_fx_section.setVisible(False)
         self._bubble = None
         self._media = None
         self._redact_item = None
@@ -2353,9 +3315,15 @@ class InspectorDock(QWidget):
                 items.append((item.zValue(), item, f"Bubble — {label}"))
             elif isinstance(item, RedactionItem):
                 name = "Pixelate" if item.get_mode() == "pixelate" else "Blur"
-                items.append((item.zValue(), item, f"{name} box"))
+                frame = getattr(item, "_page_panel_index", None)
+                label = (f"Frame {frame + 1} · {name}"
+                         if frame is not None else f"{name} box")
+                items.append((item.zValue(), item, label))
             elif isinstance(item, SpeedLinesItem):
-                items.append((item.zValue(), item, "Speed lines"))
+                frame = getattr(item, "_page_panel_index", None)
+                label = (f"Frame {frame + 1} · Lines"
+                         if frame is not None else "Speed lines")
+                items.append((item.zValue(), item, label))
             elif isinstance(item, MediaItem) and getattr(item, "_is_overlay", False):
                 items.append((item.zValue(), item, "Image layer"))
         for _z, item, label in sorted(items, key=lambda row: row[0], reverse=True):
@@ -2403,6 +3371,12 @@ class InspectorDock(QWidget):
         if item is not None:
             self._scene.clearSelection()
             item.setSelected(True)
+            # Do not leave the user stranded on the layer list: the selected
+            # effect's live controls are the useful next destination.
+            if isinstance(item, RedactionItem):
+                self.update_for_redaction(item)
+            elif isinstance(item, SpeedLinesItem):
+                self.update_for_speedlines(item)
 
     def _on_layers_reordered(self, *_args):
         if self._scene is None or self._refreshing_layers:

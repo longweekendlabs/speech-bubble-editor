@@ -34,6 +34,8 @@ class RedactionItem(QGraphicsItem):
         self._mode = mode if mode in ("blur", "pixelate") else "blur"
         self._intensity = 55           # 1..100 (blur strength / pixel coarseness)
         self._drag_start_pos: QPointF | None = None
+        self._page_panel_index: int | None = None
+        self._page_frame = QRectF()
 
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable,            True)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable,         True)
@@ -104,6 +106,36 @@ class RedactionItem(QGraphicsItem):
         self._intensity = max(1, min(100, int(value)))
         self.update()
 
+    def attach_to_page_panel(self, index: int, frame: QRectF):
+        """Bind this effect to one Comic/Collage frame."""
+        self._page_panel_index = int(index)
+        self._page_frame = QRectF(frame)
+        width = max(50.0, min(220.0, frame.width() * 0.38))
+        height = max(40.0, min(150.0, frame.height() * 0.28))
+        self.set_body_rect(QRectF(-width / 2, -height / 2, width, height))
+        self.setPos(frame.center())
+        self.update()
+
+    def set_frame(self, frame: QRectF):
+        """Follow a live page relayout while preserving relative placement."""
+        frame = QRectF(frame)
+        old = QRectF(self._page_frame)
+        if old.width() > 0 and old.height() > 0:
+            nx = (self.pos().x() - old.left()) / old.width()
+            ny = (self.pos().y() - old.top()) / old.height()
+            sx = frame.width() / old.width()
+            sy = frame.height() / old.height()
+            r = self._rect
+            self.set_body_rect(QRectF(
+                -r.width() * sx / 2, -r.height() * sy / 2,
+                r.width() * sx, r.height() * sy))
+            self._page_frame = frame
+            self.setPos(frame.left() + nx * frame.width(),
+                        frame.top() + ny * frame.height())
+        else:
+            self._page_frame = frame
+        self.update()
+
     # ------------------------------------------------------------------
     # Geometry / painting
     # ------------------------------------------------------------------
@@ -134,6 +166,25 @@ class RedactionItem(QGraphicsItem):
     def _sample_source(self) -> QPixmap | None:
         """Grab the photo region under this box at source resolution."""
         scene = self.scene()
+        if scene is not None and self._page_panel_index is not None:
+            panels = getattr(scene, "_manga_panels", ())
+            panel = next((p for p in panels
+                          if p.index == self._page_panel_index), None)
+            if panel is None or not panel.has_image():
+                return None
+            pm = panel.pixmap()
+            target = panel._draw_geometry()
+            if pm.isNull() or target.width() <= 0 or target.height() <= 0:
+                return None
+            local = panel.mapFromScene(
+                self.mapToScene(self._rect)).boundingRect()
+            src = QRectF(
+                (local.x() - target.x()) * pm.width() / target.width(),
+                (local.y() - target.y()) * pm.height() / target.height(),
+                local.width() * pm.width() / target.width(),
+                local.height() * pm.height() / target.height(),
+            ).intersected(QRectF(pm.rect()))
+            return pm.copy(src.toRect()) if src.width() >= 1 and src.height() >= 1 else None
         photo = getattr(scene, "_photo_item", None) if scene else None
         if photo is None:
             return None
@@ -181,7 +232,8 @@ class RedactionItem(QGraphicsItem):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionChange:
             scene = self.scene()
             if scene:
-                sr = scene.sceneRect()
+                sr = (self._page_frame if self._page_panel_index is not None
+                      and not self._page_frame.isNull() else scene.sceneRect())
                 r = self._rect
                 x = max(sr.left() - r.left(),
                         min(value.x(), sr.right() - r.right()))
@@ -246,6 +298,9 @@ class RedactionItem(QGraphicsItem):
                            self.scenePos().y() + 25, mode=self._mode)
         nb.set_body_rect(QRectF(self._rect))
         nb.set_intensity(self._intensity)
+        if self._page_panel_index is not None:
+            nb._page_panel_index = self._page_panel_index
+            nb._page_frame = QRectF(self._page_frame)
         stack = self._undo_stack()
         if stack:
             from undo_commands import AddBubbleCommand

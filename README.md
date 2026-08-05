@@ -1,12 +1,12 @@
 # Speech Bubble Editor
 
-Comic-style speech bubbles, captions, layers, and video edits for desktop.
+Speech bubbles, comic pages, photo collages, layers, and video edits for desktop.
 
 [![GitHub Release](https://img.shields.io/github/v/release/longweekendlabs/speech-bubble-editor?style=flat-square)](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20macOS-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
 
-Speech Bubble Editor is a native desktop app for placing expressive bubbles and captions on photos or videos. It is built for quick editorial work: open media, add text, shape the bubble, arrange layers, trim or slow video, and export without sending files to a cloud service.
+Speech Bubble Editor is a native desktop app for expressive bubbles, captions, comic pages, and photo collages. Open media, build and rearrange a composition, tune its frames and effects, or edit a video—all locally, without uploading your files to a cloud service.
 
 ![Speech Bubble Editor interface](newui_for_sbe_v40.png)
 
@@ -16,18 +16,18 @@ Get the latest builds from the [download page](https://longweekendlabs.github.io
 
 | Platform | Builds |
 | --- | --- |
-| Windows x64 | Installer `.exe`, portable `.zip` |
-| Linux x64 | AppImage, DEB, RPM, portable `.tar.gz` |
-| macOS Intel | App bundle `.zip` |
-| macOS Apple Silicon | DMG, app bundle `.zip` |
+| Windows x64 | Portable `.zip` |
+| Linux x64 | Portable `.tar.gz` |
 | Source | `.zip`, `.tar.gz`, or clone this repository |
-
-macOS builds are unsigned. On first launch, right-click the app and choose **Open**.
 
 ## Highlights
 
 - Natural speech bubble styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption.
 - Draggable bubble tails, resize handles, fill/stroke controls, opacity, shadows, and font styling.
+- Comic Maker with 4, 6, 7, or 8-panel hand-inked layouts, live layout controls, and nondestructive regeneration.
+- Photo Collage with 2–9 frames, visual layout choices, named presets, and portrait, square, story, landscape, or photo canvases.
+- Magnetic drag-and-drop photo reordering plus independent crop movement, 10–500% image scaling, Fit, and blurred or solid frame backgrounds.
+- Frame-aware lines, blur, and pixelate effects with a clearly highlighted active frame.
 - Photo and video support with timeline controls, trim, cut, reverse, slow-down, and optional audio mute.
 - Layer list for stacked images, videos, bubbles, and captions.
 - Meme mode and dual mode for fast social-style layouts.
@@ -58,20 +58,13 @@ venv\Scripts\activate
 Official release builds are produced by GitHub Actions, but local scripts are available.
 
 ```bash
-# Linux
+# Linux portable tar.gz
 bash build_linux.sh
 ```
 
 ```powershell
-# Windows
+# Windows portable ZIP; an installer is also made when Inno Setup is installed
 build_windows.bat
-```
-
-```bash
-# macOS
-python create_icon.py
-iconutil -c icns icons/icon.iconset -o icons/icon.icns
-python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
 ```
 
 ## Project Layout
@@ -91,14 +84,14 @@ python -m PyInstaller --clean --noconfirm speech_bubble_macos.spec
 
 ## Release Process
 
-Releases are driven by tags named `v*`.
+Every push to `main` builds test artifacts for Windows and Linux. Releases are driven by tags named `v*`.
 
 ```bash
-git tag v4.0.4
-git push origin v4.0.4
+git tag v4.5.0
+git push origin v4.5.0
 ```
 
-The release workflow builds Windows x64, Linux x64, macOS Intel, macOS Apple Silicon, and source archives, then attaches them to the GitHub Release.
+The release workflow tests the app, builds Windows x64 and Linux x64 packages plus source archives, and attaches tagged builds to the GitHub Release.
 
 ## License
 

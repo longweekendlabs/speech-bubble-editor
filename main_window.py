@@ -10,20 +10,21 @@ from PyQt6.QtWidgets import (
     QMessageBox, QApplication, QLineEdit, QTextEdit, QPlainTextEdit,
     QComboBox, QSpinBox, QDoubleSpinBox,
 )
-from PyQt6.QtCore import Qt, QPointF, QEvent, QRect, QRectF
+from PyQt6.QtCore import Qt, QPointF, QEvent, QRect, QRectF, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
 
 from canvas import PhotoScene, PhotoView, ZoomBar
 from top_bar import TopBar
 from tool_sidebar import ToolSidebar
 from context_toolbar import ContextToolbar
+from manga_maker import MangaPanelItem
 from inspector_dock import InspectorDock
 from video_controls import VideoControls
 from bubble import BubbleItem
 from media_item import MediaItem
 from editor_controller import EditorController
 from version import __version__, __app_name__
-from constants import VIDEO_EXTENSIONS, ALL_EXTENSIONS
+from constants import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, ALL_EXTENSIONS
 from file_dialogs import open_file
 from about_dialog import AboutDialog
 from shortcuts_dialog import ShortcutsDialog
@@ -35,7 +36,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{__app_name__} v{__version__}")
+        self.setWindowTitle(f"{__app_name__} · v{__version__}")
         self.setMinimumSize(1180, 720)
         self.resize(1440, 900)
         self._build_ui()
@@ -125,6 +126,8 @@ class MainWindow(QMainWindow):
         sb.add_lines_requested.connect(self._on_add_speedlines)
         sb.meme_toggled.connect(self._on_meme_toggled)
         sb.dual_toggled.connect(self._on_dual_toggled)
+        sb.manga_toggled.connect(self._on_manga_toggled)
+        sb.collage_toggled.connect(self._on_collage_toggled)
         sb.tool_changed.connect(self.view.set_tool)
 
         # ContextToolbar
@@ -143,6 +146,8 @@ class MainWindow(QMainWindow):
         sc.double_clicked_on_canvas.connect(self._on_canvas_double_click)
         sc.bubble_changed.connect(self.props.update_for_bubble)
         sc.open_right_media_requested.connect(self._on_open_right_media)
+        sc.open_manga_panel_requested.connect(self._on_open_manga_panel)
+        sc.manga_layout_changed.connect(self._on_manga_layout_changed)
         sc.selectionChanged.connect(self._on_selection_changed)
         sc.lobe_edit_requested.connect(self._on_lobe_edit_requested)
 
@@ -152,6 +157,17 @@ class MainWindow(QMainWindow):
         self.view.open_media_requested.connect(self._show_open_dialog)
         self.view.photo_dropped.connect(self._on_open_media)
         self.view.right_media_dropped.connect(self._on_right_media_dropped)
+        self.view.manga_media_dropped.connect(self._on_manga_media_dropped)
+
+        # Manga Maker reuses the existing context row.
+        self.ctx_toolbar.manga_regenerate_requested.connect(
+            self._on_regenerate_manga)
+        self.ctx_toolbar.manga_zoom_changed.connect(
+            self.scene.set_selected_manga_zoom)
+        self.ctx_toolbar.manga_fit_requested.connect(
+            self.scene.fit_selected_manga_panel)
+        self.scene.manga_panel_zoom_changed.connect(
+            self.ctx_toolbar.set_manga_zoom)
 
         # VideoControls
         vc.frame_changed.connect(self._on_frame_changed)
@@ -213,7 +229,11 @@ class MainWindow(QMainWindow):
 
     def _on_open_media(self, path: str):
         if not self.controller.open_media(path):
-            QMessageBox.warning(self, "Open", f"Cannot open:\n{path}")
+            detail = self.controller.last_error
+            message = f"Cannot open:\n{path}"
+            if detail:
+                message += f"\n\n{detail}"
+            QMessageBox.warning(self, "Open", message)
 
     def _on_media_loaded(self, path: str, is_video: bool):
         self.top_bar.set_media_loaded(True)
@@ -221,6 +241,9 @@ class MainWindow(QMainWindow):
         self.tool_sidebar.set_media_loaded(True)
         self.tool_sidebar.set_meme_checked(False)
         self.tool_sidebar.set_dual_checked(False)
+        self.tool_sidebar.set_manga_checked(False)
+        self.tool_sidebar.set_collage_checked(False)
+        self.ctx_toolbar.set_manga_mode(False)
         self.tool_sidebar.set_meme_enabled(True)
         self.tool_sidebar.set_dual_enabled(True)
 
@@ -254,7 +277,11 @@ class MainWindow(QMainWindow):
     def _on_right_media_dropped(self, path: str):
         ok = self.controller.open_right_media(path)
         if not ok:
-            QMessageBox.warning(self, "Open Right Media", f"Cannot open:\n{path}")
+            detail = self.controller.last_error
+            message = f"Cannot open:\n{path}"
+            if detail:
+                message += f"\n\n{detail}"
+            QMessageBox.warning(self, "Open Right Media", message)
         else:
             if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
                 self.video_controls.set_right_player(self.scene.video_player_right)
@@ -337,20 +364,45 @@ class MainWindow(QMainWindow):
             return
         from speedlines import SpeedLinesItem
         from undo_commands import AddBubbleCommand
-        # One speed-lines overlay per photo: clicking the tool again selects the
-        # existing one instead of stacking a second identical layer.
-        existing = [i for i in self.scene.items()
-                    if isinstance(i, SpeedLinesItem) and i.parentItem() is None]
+        page_mode = self.scene.is_manga_mode() or self.scene.is_collage_mode()
+        active_panel = self.scene.active_page_panel() if page_mode else None
+        if page_mode and active_panel is None:
+            self.statusBar().showMessage(
+                "Select a Comic/Collage frame before adding Lines")
+            return
+
+        # Page mode gets one Lines effect per frame; normal editing keeps the
+        # original one-per-photo behavior.
+        if page_mode:
+            existing = [
+                item for item in self.scene.items()
+                if isinstance(item, SpeedLinesItem)
+                and getattr(item, "_page_panel_index", None) == active_panel.index
+            ]
+        else:
+            existing = [
+                item for item in self.scene.items()
+                if isinstance(item, SpeedLinesItem)
+                and getattr(item, "_page_panel_index", None) is None
+                and item.parentItem() is None
+            ]
         if existing:
             self.scene.clearSelection()
             top = max(existing, key=lambda i: i.zValue())
             top.setSelected(True)
+            if page_mode:
+                self.scene.set_active_page_panel(active_panel.index)
             return
-        frame = self.scene._photo_frame_rect()
+        frame = (active_panel.sceneBoundingRect() if page_mode
+                 else self.scene._photo_frame_rect())
         item = SpeedLinesItem(frame)
+        if page_mode:
+            item._page_panel_index = active_panel.index
         self.controller.undo_stack.push(AddBubbleCommand(self.scene, item))
         self.scene.clearSelection()
         item.setSelected(True)
+        if page_mode:
+            self.scene.set_active_page_panel(active_panel.index)
 
     # ------------------------------------------------------------------
     # Export
@@ -358,6 +410,12 @@ class MainWindow(QMainWindow):
 
     def _on_export(self):
         self.video_controls.stop()
+        if self.scene.is_manga_mode():
+            exporter.export_manga_photo(self, self.scene)
+            return
+        if self.scene.is_collage_mode():
+            exporter.export_collage_photo(self, self.scene)
+            return
         has_left_video  = self.scene.has_video()
         has_right_video = (self.scene.video_player_right is not None
                            and self.scene.video_player_right.is_loaded())
@@ -410,6 +468,111 @@ class MainWindow(QMainWindow):
         else:
             self.video_controls.set_right_player(None)
         self.view.fit_photo()
+
+    def _on_manga_toggled(self, enabled: bool):
+        self.video_controls.stop()
+        if enabled:
+            if self.scene.is_collage_mode():
+                self.controller.set_collage_mode(False)
+            self.tool_sidebar.set_collage_checked(False)
+            self.tool_sidebar.set_meme_checked(False)
+            self.tool_sidebar.set_dual_checked(False)
+            self.controller.set_manga_mode(True)
+            self.tool_sidebar.set_manga_mode_active(True, self.scene._photo_item is not None)
+            self.top_bar.set_media_loaded(True)
+            self.top_bar.set_reset_enabled(True)
+            self.video_controls.set_player(None)
+            self.video_controls.set_right_player(None)
+            self.ctx_toolbar.hide_toolbar()
+            self.ctx_toolbar.set_manga_mode(True)
+            self.props.show_manga_settings()
+            self.statusBar().showMessage(
+                "Comic Maker — double-click or drop images into empty panels")
+        else:
+            self.controller.set_manga_mode(False)
+            self.ctx_toolbar.set_manga_mode(False)
+            self.props.clear()
+            base_loaded = self.scene._photo_item is not None
+            self.tool_sidebar.set_manga_mode_active(False, base_loaded)
+            self.top_bar.set_media_loaded(base_loaded)
+            self.top_bar.set_reset_enabled(base_loaded)
+            self._restore_standard_video_controls()
+        self.view.fit_photo()
+
+    def _on_collage_toggled(self, enabled: bool):
+        self.video_controls.stop()
+        if enabled:
+            if self.scene.is_manga_mode():
+                self.controller.set_manga_mode(False)
+            self.tool_sidebar.set_manga_checked(False)
+            self.tool_sidebar.set_meme_checked(False)
+            self.tool_sidebar.set_dual_checked(False)
+            self.controller.set_collage_mode(True)
+            self.tool_sidebar.set_manga_mode_active(
+                True, self.scene._photo_item is not None)
+            self.top_bar.set_media_loaded(True)
+            self.top_bar.set_reset_enabled(True)
+            self.video_controls.set_player(None)
+            self.video_controls.set_right_player(None)
+            self.ctx_toolbar.set_collage_mode(True)
+            self.props.show_manga_settings()
+            self.statusBar().showMessage(
+                "Photo Collage — double-click or drop images into frames")
+        else:
+            self.controller.set_collage_mode(False)
+            self.ctx_toolbar.set_collage_mode(False)
+            self.props.clear()
+            base_loaded = self.scene._photo_item is not None
+            self.tool_sidebar.set_manga_mode_active(False, base_loaded)
+            self.top_bar.set_media_loaded(base_loaded)
+            self.top_bar.set_reset_enabled(base_loaded)
+            self._restore_standard_video_controls()
+        self.view.fit_photo()
+
+    def _restore_standard_video_controls(self):
+        """Reconnect the timeline after leaving a photo-only page mode."""
+        if self.scene.is_manga_mode() or self.scene.is_collage_mode():
+            self.video_controls.setVisible(False)
+            return
+        left = self.scene.video_player
+        if left is not None and not left.is_loaded():
+            left = None
+        right = self.scene.video_player_right if self.scene.is_dual_mode() else None
+        if right is not None and not right.is_loaded():
+            right = None
+        self.video_controls.set_player(left)
+        self.video_controls.set_right_player(right)
+
+    def _on_open_manga_panel(self, index: int):
+        ext_list = " ".join(f"*{e}" for e in IMAGE_EXTENSIONS)
+        label = "Collage Frame" if self.scene.is_collage_mode() else "Comic Panel"
+        path = open_file(self, f"Open {label} Image",
+                         f"Images ({ext_list})")
+        if path:
+            self._on_manga_media_dropped(path, index)
+
+    def _on_manga_media_dropped(self, path: str, index: int):
+        if not self.scene.load_manga_panel(index, path):
+            title = "Photo Collage" if self.scene.is_collage_mode() else "Comic Maker"
+            QMessageBox.warning(self, title, f"Cannot open:\n{path}")
+        else:
+            unit = "Frame" if self.scene.is_collage_mode() else "Panel"
+            self.statusBar().showMessage(
+                f"{unit} {index + 1}: {os.path.basename(path)}")
+
+    def _on_regenerate_manga(self):
+        self.scene.clearSelection()
+        if self.scene.is_collage_mode():
+            self.scene.shuffle_collage_layout()
+            self.props.show_manga_settings()
+        else:
+            self.scene.regenerate_manga_layout()
+        self.view.fit_photo()
+
+    def _on_manga_layout_changed(self, name: str):
+        self.ctx_toolbar.set_manga_layout_name(name)
+        if self.scene.is_manga_mode() or self.scene.is_collage_mode():
+            QTimer.singleShot(0, self.view.fit_photo)
 
     # ------------------------------------------------------------------
     # Video controls
@@ -504,6 +667,9 @@ class MainWindow(QMainWindow):
         self.tool_sidebar.set_media_loaded(False)
         self.tool_sidebar.set_meme_checked(False)
         self.tool_sidebar.set_dual_checked(False)
+        self.tool_sidebar.set_manga_checked(False)
+        self.tool_sidebar.set_collage_checked(False)
+        self.ctx_toolbar.set_manga_mode(False)
         self.view.resetTransform()
         self.view.viewport().update()
         self.statusBar().showMessage("Ready")
@@ -530,8 +696,19 @@ class MainWindow(QMainWindow):
     def _on_add_redaction(self, mode: str):
         if not self.scene.has_photo():
             return
-        c = self.scene.sceneRect().center()
+        page_mode = self.scene.is_manga_mode() or self.scene.is_collage_mode()
+        active_panel = self.scene.active_page_panel() if page_mode else None
+        if page_mode and active_panel is None:
+            self.statusBar().showMessage(
+                "Select a Comic/Collage frame before adding Blur or Pixelate")
+            return
+        frame = (active_panel.sceneBoundingRect() if active_panel is not None
+                 else self.scene.sceneRect())
+        c = frame.center()
         item = self.controller.add_redaction(c.x(), c.y(), mode=mode)
+        if active_panel is not None:
+            item.attach_to_page_panel(active_panel.index, frame)
+            self.scene.set_active_page_panel(active_panel.index)
         self.props.update_for_redaction(item)
         self.ctx_toolbar.hide_toolbar()
 
@@ -550,6 +727,7 @@ class MainWindow(QMainWindow):
         redacts  = [i for i in selected if isinstance(i, RedactionItem)]
         lines    = [i for i in selected if isinstance(i, SpeedLinesItem)]
         media    = [i for i in selected if isinstance(i, MediaItem)]
+        manga    = [i for i in selected if isinstance(i, MangaPanelItem)]
         if bubbles:
             self.props.update_for_bubble(bubbles[0])
             self.ctx_toolbar.show_for_bubble()
@@ -565,6 +743,13 @@ class MainWindow(QMainWindow):
             if hasattr(media[0], "has_video") and media[0].has_video():
                 self.video_controls.set_player(media[0].video_player())
                 self.video_controls.set_right_player(None)
+        elif manga:
+            self.props.show_manga_settings()
+            self.ctx_toolbar.show_for_manga_panel(
+                manga[0].zoom_percent(), manga[0].has_image())
+        elif self.scene.is_manga_mode() or self.scene.is_collage_mode():
+            self.props.show_manga_settings()
+            self.ctx_toolbar.hide_toolbar()
         elif self.scene.is_dual_mode():
             self.props.show_dual_settings()
             self.ctx_toolbar.hide_toolbar()

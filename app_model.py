@@ -12,3 +12,5 @@ class AppModel:
     media_path_right: str  = ""
     is_dual:          bool = False
     is_meme:          bool = False
+    is_manga:         bool = False
+    is_collage:       bool = False

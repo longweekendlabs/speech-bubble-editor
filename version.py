@@ -54,9 +54,12 @@ History:
             at the top. Instagram default text style + bundled Inter font,
             blur/pixelate redaction layers, Camtasia-style block text fit, and a
             full-resolution dual-export layout fix.
+  v4.5.0 — Comic and Photo Collage page editors, visual layout generation,
+            magnetic photo reordering, frame-aware effects, named collage
+            presets, bidirectional image scaling, and unified page inspectors.
 """
 
-__version__  = "4.2.0"
+__version__  = "4.5.0"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

@@ -8,7 +8,7 @@ ZoomBar lives below the view.
 
 from PyQt6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsItem, QGraphicsTextItem,
-    QWidget, QHBoxLayout, QLabel, QPushButton, QSlider,
+    QGraphicsPixmapItem, QWidget, QHBoxLayout, QLabel, QPushButton, QSlider,
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QEvent, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
@@ -298,6 +298,9 @@ class PhotoScene(QGraphicsScene):
     double_clicked_on_canvas   = pyqtSignal(float, float)
     bubble_changed             = pyqtSignal(object)
     open_right_media_requested = pyqtSignal()
+    open_manga_panel_requested = pyqtSignal(int)
+    manga_layout_changed       = pyqtSignal(str)
+    manga_panel_zoom_changed   = pyqtSignal(int, bool)
     overlay_added              = pyqtSignal(object)   # MediaItem
     overlay_removed            = pyqtSignal(object)   # MediaItem
     lobe_edit_requested        = pyqtSignal(object, int)  # bubble, lobe index
@@ -324,6 +327,53 @@ class PhotoScene(QGraphicsScene):
         self._meme_top:  MemeBarItem | None = None
         self._meme_bot:  MemeBarItem | None = None
         self._dual_mode  = False
+        self._manga_mode = False
+        self._collage_mode = False
+        self._manga_page = None
+        self._manga_panels: list = []
+        self._active_page_panel_index: int | None = None
+        self._page_drag_mode = "auto"
+        self._panel_drag_source = None
+        self._panel_drop_target = None
+        self._panel_drag_preview: QGraphicsPixmapItem | None = None
+        self._manga_layout_seed: int | None = None
+        self._manga_style = {
+            "page_color": QColor("#f2eee5"),
+            "empty_color": QColor("#e8e1d5"),
+            "border_color": QColor("#241f1b"),
+            "placeholder_color": QColor("#746d65"),
+            "border_width": 6.0,
+            "roughness": 34.0,
+            "image_background": "blur",
+        }
+        self._manga_layout_settings = {
+            "panel_count": 0,  # 0 = random
+            "composition": "Random",
+            "margin": 22,
+            "row_gutter": 18,
+            "column_gutter": 12,
+            "variation": 48,
+            "reading_direction": "Right to left",
+            "show_numbers": False,
+        }
+        self._collage_layout_seed: int | None = None
+        self._collage_style = {
+            "page_color": QColor("#111318"),
+            "empty_color": QColor("#252933"),
+            "border_color": QColor("#111318"),
+            "placeholder_color": QColor("#8b93a1"),
+            "border_width": 0.0,
+            "roughness": 0.0,
+            "corner_radius": 24.0,
+            "image_background": "blur",
+        }
+        self._collage_layout_settings = {
+            "photo_count": 4,
+            "layout_type": "Mosaic",
+            "aspect_ratio": "Portrait · 4:5",
+            "margin": 28,
+            "gap": 18,
+        }
         self._fitting    = False   # re-entrancy guard for fit_scene_to_media
 
         self._overlay_layers: list = []            # list[MediaItem]
@@ -331,6 +381,7 @@ class PhotoScene(QGraphicsScene):
         self._dual_seam: DualSeamItem | None = None
         self._dual_border_color = QColor("#4a4a4a")
         self._dual_border_width = 0.0
+        self.selectionChanged.connect(self._track_active_page_panel)
 
     # ------------------------------------------------------------------
     # Media loading
@@ -398,6 +449,7 @@ class PhotoScene(QGraphicsScene):
 
     def _reset_all(self):
         """Release all media and reset modes."""
+        self._remove_manga_items(show_source=False)
         self._remove_meme_bars()
         self._clear_overlays()
         self._clear_dual_state()
@@ -434,6 +486,10 @@ class PhotoScene(QGraphicsScene):
         self._meme_bot = None
         self._overlay_layers.clear()
         self._dual_mode = False
+        self._manga_mode = False
+        self._collage_mode = False
+        self._manga_page = None
+        self._manga_panels.clear()
         self._dual_seam = None
         self.setSceneRect(QRectF(0, 0, 900, 600))
 
@@ -738,6 +794,652 @@ class PhotoScene(QGraphicsScene):
         if self._dual_seam:
             self._dual_seam.set_geometry(lx + lw, ly, self._dual_gap, lh)
         self._update_meme_bar_layout()
+
+    # ------------------------------------------------------------------
+    # Manga Maker mode (experimental)
+    # ------------------------------------------------------------------
+
+    def enable_manga_mode(self):
+        """Turn current media into the first images of a random manga page."""
+        if self._manga_mode:
+            return
+
+        source_pixmaps = []
+        for item in (self._photo_item, self._photo_item_right, *self._overlay_layers):
+            if item is not None and not item.pixmap().isNull():
+                source_pixmaps.append(QPixmap(item.pixmap()))
+
+        # Manga pages are photo-only in this first experiment.  Preserve the
+        # current frame of a video but stop playback controls at the window.
+        self._remove_meme_bars()
+        self._clear_dual_state()
+        for item in (self._photo_item, *self._overlay_layers):
+            if item is not None:
+                item.setVisible(False)
+                item.setSelected(False)
+
+        self._manga_mode = True
+        self._build_manga_page(source_pixmaps)
+
+    def disable_manga_mode(self):
+        if not self._manga_mode:
+            return
+        self._remove_manga_items(show_source=True)
+        if self.has_photo():
+            self.fit_scene_to_media()
+        else:
+            self.setSceneRect(QRectF(0, 0, 900, 600))
+
+    def _remove_manga_items(self, show_source: bool):
+        self._cancel_panel_reorder()
+        self._remove_page_frame_effects()
+        for panel in list(getattr(self, "_manga_panels", [])):
+            if panel.scene() is self:
+                self.removeItem(panel)
+        self._manga_panels = []
+        page = getattr(self, "_manga_page", None)
+        if page is not None and page.scene() is self:
+            self.removeItem(page)
+        self._manga_page = None
+        self._manga_mode = False
+        self._collage_mode = False
+        self._active_page_panel_index = None
+        if show_source:
+            for item in (self._photo_item, *self._overlay_layers):
+                if item is not None:
+                    item.setVisible(True)
+
+    def _build_manga_page(self, pixmaps: list[QPixmap]):
+        import random
+        from manga_maker import (
+            create_page_background, generate_layout, MangaPanelItem, PANEL_COUNTS,
+        )
+
+        needed = min(len(pixmaps), max(PANEL_COUNTS))
+        eligible_counts = [count for count in PANEL_COUNTS if count >= needed]
+        requested = int(self._manga_layout_settings.get("panel_count", 0))
+        if requested in PANEL_COUNTS and requested >= needed:
+            panel_count = requested
+        elif requested in PANEL_COUNTS and eligible_counts:
+            panel_count = min(eligible_counts)
+        else:
+            panel_count = random.SystemRandom().choice(
+                eligible_counts or [max(PANEL_COUNTS)])
+        self._manga_layout_seed = random.SystemRandom().randrange(2**31)
+        rects, layout_name, _ = generate_layout(
+            panel_count, random.Random(self._manga_layout_seed),
+            self._manga_layout_settings)
+        self._manga_page = create_page_background(self._manga_style["page_color"])
+        self.addItem(self._manga_page)
+        self._manga_panels = []
+        seed_source = random.SystemRandom()
+        for index, rect in enumerate(rects):
+            pixmap = pixmaps[index] if index < len(pixmaps) else None
+            panel = MangaPanelItem(
+                index, rect, pixmap, self._manga_style,
+                seed_source.randrange(2**31),
+                show_number=bool(self._manga_layout_settings["show_numbers"]),
+                reading_direction=str(
+                    self._manga_layout_settings["reading_direction"]),
+            )
+            self.addItem(panel)
+            self._manga_panels.append(panel)
+        from manga_maker import PAGE_HEIGHT, PAGE_WIDTH
+        self.setSceneRect(QRectF(0, 0, PAGE_WIDTH, PAGE_HEIGHT))
+        self._restore_active_page_panel()
+        self._sync_page_frame_effects()
+        self.manga_layout_changed.emit(layout_name)
+
+    def regenerate_manga_layout(self):
+        if not self._manga_mode:
+            return
+        pixmaps = [panel.pixmap() for panel in self._manga_panels
+                   if panel.has_image()]
+        for panel in self._manga_panels:
+            if panel.scene() is self:
+                self.removeItem(panel)
+        self._manga_panels = []
+        if self._manga_page is not None and self._manga_page.scene() is self:
+            self.removeItem(self._manga_page)
+        self._manga_page = None
+        self._build_manga_page(pixmaps)
+
+    def request_open_manga_panel(self, index: int):
+        if (self._manga_mode or self._collage_mode) and 0 <= index < len(self._manga_panels):
+            self.open_manga_panel_requested.emit(index)
+
+    def load_manga_panel(self, index: int, file_path: str) -> bool:
+        if not (self._manga_mode or self._collage_mode) or not 0 <= index < len(self._manga_panels):
+            return False
+        pixmap = QPixmap(file_path)
+        if pixmap.isNull():
+            return False
+        self._manga_panels[index].set_pixmap(pixmap)
+        self.clearSelection()
+        self._manga_panels[index].setSelected(True)
+        return True
+
+    def manga_panel_at(self, scene_pos: QPointF):
+        if not (self._manga_mode or self._collage_mode):
+            return None
+        for panel in reversed(self._manga_panels):
+            if panel.sceneBoundingRect().contains(scene_pos):
+                return panel
+        return next((panel for panel in self._manga_panels
+                     if not panel.has_image()), None)
+
+    def zoom_selected_manga_panel(self, factor: float):
+        from manga_maker import MangaPanelItem
+        panel = next((item for item in self.selectedItems()
+                      if isinstance(item, MangaPanelItem)), None)
+        if panel is not None:
+            panel.zoom_image(factor)
+
+    def set_selected_manga_zoom(self, percent: int):
+        from manga_maker import MangaPanelItem
+        panel = next((item for item in self.selectedItems()
+                      if isinstance(item, MangaPanelItem)), None)
+        if panel is not None:
+            panel.set_zoom_percent(percent)
+
+    def fit_selected_manga_panel(self):
+        from manga_maker import MangaPanelItem
+        panel = next((item for item in self.selectedItems()
+                      if isinstance(item, MangaPanelItem)), None)
+        if panel is not None:
+            panel.show_whole_image()
+
+    def is_manga_mode(self):
+        return self._manga_mode
+
+    def set_manga_style(self, key: str, value):
+        if key not in self._manga_style:
+            return
+        if key == "image_background":
+            value = value if value in ("blur", "solid") else "blur"
+        elif key.endswith("_color"):
+            value = QColor(value)
+        else:
+            value = float(value)
+        self._manga_style[key] = value
+        if key == "page_color" and self._manga_page is not None:
+            self._manga_page.setBrush(QBrush(QColor(value)))
+        for panel in self._manga_panels:
+            panel.set_style(self._manga_style)
+
+    def apply_manga_theme(self, name: str):
+        themes = {
+            "Warm paper": ("#f2eee5", "#e8e1d5", "#241f1b", "#746d65"),
+            "Classic ink": ("#ffffff", "#f4f4f2", "#111111", "#777773"),
+            "Noir": ("#171717", "#282828", "#f0ece2", "#aaa59b"),
+            "Rose pulp": ("#f3dadd", "#ead0d3", "#4b232b", "#9b6670"),
+            "Night blue": ("#17202b", "#243241", "#d5e1ec", "#8196aa"),
+        }
+        colors = themes.get(name)
+        if colors is None:
+            return
+        for key, color in zip(
+                ("page_color", "empty_color", "border_color", "placeholder_color"),
+                colors):
+            self.set_manga_style(key, QColor(color))
+
+    def manga_style(self) -> dict:
+        return dict(self._manga_style)
+
+    def set_manga_layout_setting(self, key: str, value):
+        if key not in self._manga_layout_settings:
+            return
+        self._manga_layout_settings[key] = value
+        if key == "show_numbers":
+            for panel in self._manga_panels:
+                panel.set_number_guide(
+                    bool(self._manga_layout_settings["show_numbers"]),
+                    str(self._manga_layout_settings["reading_direction"]),
+                )
+        elif self._manga_mode and key in ("panel_count", "composition"):
+            self.clearSelection()
+            self.regenerate_manga_layout()
+        elif self._manga_mode and key in (
+                "margin", "row_gutter", "column_gutter", "variation",
+                "reading_direction"):
+            self.relayout_manga_live()
+
+    def apply_manga_layout_preset(self, panel_count: int, composition: str):
+        """Apply a user-facing story preset with a single regeneration."""
+        self._manga_layout_settings["panel_count"] = int(panel_count)
+        self._manga_layout_settings["composition"] = str(composition)
+        if self._manga_mode:
+            self.clearSelection()
+            self.regenerate_manga_layout()
+
+    def relayout_manga_live(self):
+        """Morph the active panels using the current seed and live Shape values."""
+        if not self._manga_mode or not self._manga_panels:
+            return
+        import random
+        from manga_maker import generate_layout
+
+        seed = self._manga_layout_seed
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**31)
+            self._manga_layout_seed = seed
+        rects, layout_name, _ = generate_layout(
+            len(self._manga_panels), random.Random(seed),
+            self._manga_layout_settings)
+        if len(rects) != len(self._manga_panels):
+            return
+        direction = str(self._manga_layout_settings["reading_direction"])
+        show_numbers = bool(self._manga_layout_settings["show_numbers"])
+        for panel, rect in zip(self._manga_panels, rects):
+            panel.set_panel_rect(rect)
+            panel.set_number_guide(show_numbers, direction)
+        self._sync_page_frame_effects()
+        self.manga_layout_changed.emit(layout_name)
+
+    def manga_layout_settings(self) -> dict:
+        return dict(self._manga_layout_settings)
+
+    def set_manga_guides_visible(self, visible: bool):
+        for panel in self._manga_panels:
+            panel.set_guides_visible(visible)
+
+    # ------------------------------------------------------------------
+    # Active frame + magnetic image reordering (shared by both page modes)
+    # ------------------------------------------------------------------
+
+    def page_drag_mode(self) -> str:
+        return self._page_drag_mode
+
+    def set_page_drag_mode(self, mode: str):
+        if mode not in ("auto", "reorder", "crop"):
+            return
+        self._cancel_panel_reorder()
+        self._page_drag_mode = mode
+
+    def should_begin_panel_reorder(self, source, scene_pos: QPointF) -> bool:
+        """Auto mode changes from crop to reorder only after leaving the frame."""
+        if (self._page_drag_mode != "auto" or source not in self._manga_panels
+                or not source.has_image()):
+            return False
+        rect = source.sceneBoundingRect()
+        transition_pad = max(16.0, min(rect.width(), rect.height()) * 0.025)
+        return not rect.adjusted(-transition_pad, -transition_pad,
+                                 transition_pad, transition_pad).contains(scene_pos)
+
+    def _track_active_page_panel(self):
+        if not (self._manga_mode or self._collage_mode):
+            return
+        from manga_maker import MangaPanelItem
+        from speedlines import SpeedLinesItem
+        from redaction import RedactionItem
+
+        selected = self.selectedItems()
+        panel = next((item for item in selected
+                      if isinstance(item, MangaPanelItem)), None)
+        if panel is not None:
+            self.set_active_page_panel(panel.index)
+            return
+        effect = next((item for item in selected
+                       if isinstance(item, (SpeedLinesItem, RedactionItem))
+                       and getattr(item, "_page_panel_index", None) is not None),
+                      None)
+        if effect is not None:
+            self.set_active_page_panel(effect._page_panel_index)
+
+    def set_active_page_panel(self, index: int):
+        if not self._manga_panels:
+            self._active_page_panel_index = None
+            return
+        index = max(0, min(int(index), len(self._manga_panels) - 1))
+        self._active_page_panel_index = index
+        for panel in self._manga_panels:
+            panel.set_active_frame(panel.index == index)
+
+    def _restore_active_page_panel(self):
+        if not self._manga_panels:
+            self._active_page_panel_index = None
+            return
+        index = self._active_page_panel_index
+        if index is None or index >= len(self._manga_panels):
+            index = 0
+        self.set_active_page_panel(index)
+
+    def active_page_panel(self):
+        if not self._manga_panels:
+            return None
+        index = self._active_page_panel_index
+        if index is None:
+            index = 0
+        return next((panel for panel in self._manga_panels
+                     if panel.index == index), None)
+
+    def begin_panel_reorder(self, source, scene_pos: QPointF) -> bool:
+        if (self._page_drag_mode not in ("auto", "reorder")
+                or source not in self._manga_panels
+                or not source.has_image()):
+            return False
+        self._cancel_panel_reorder()
+        self.set_active_page_panel(source.index)
+        self._panel_drag_source = source
+        source.setOpacity(0.42)
+
+        preview_pixmap = source.pixmap().scaled(
+            190, 150, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+        preview = QGraphicsPixmapItem(preview_pixmap)
+        preview.setOffset(-preview_pixmap.width() / 2,
+                          -preview_pixmap.height() / 2)
+        preview.setOpacity(0.88)
+        preview.setZValue(10000)
+        preview.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
+        preview.setPos(scene_pos)
+        self.addItem(preview)
+        self._panel_drag_preview = preview
+        return True
+
+    def _panel_reorder_target_at(self, scene_pos: QPointF, source):
+        # Remaining inside the source is a click/cancel, never an accidental swap.
+        if source.sceneBoundingRect().contains(scene_pos):
+            return None
+        candidates = []
+        for panel in self._manga_panels:
+            if panel is source:
+                continue
+            rect = panel.sceneBoundingRect()
+            if rect.contains(scene_pos):
+                return panel
+            magnetic_pad = max(52.0, min(rect.width(), rect.height()) * 0.16)
+            if rect.adjusted(-magnetic_pad, -magnetic_pad,
+                             magnetic_pad, magnetic_pad).contains(scene_pos):
+                distance = (rect.center() - scene_pos).manhattanLength()
+                candidates.append((distance, panel))
+        return min(candidates, key=lambda entry: entry[0])[1] if candidates else None
+
+    def update_panel_reorder(self, source, scene_pos: QPointF):
+        if source is not self._panel_drag_source:
+            return
+        target = self._panel_reorder_target_at(scene_pos, source)
+        if target is not self._panel_drop_target:
+            if self._panel_drop_target is not None:
+                self._panel_drop_target.set_drop_target(False)
+            self._panel_drop_target = target
+            if target is not None:
+                target.set_drop_target(True)
+        preview = self._panel_drag_preview
+        if preview is not None:
+            destination = QPointF(scene_pos)
+            if target is not None:
+                center = target.sceneBoundingRect().center()
+                # Pull most of the preview toward the candidate centre. The
+                # cursor still contributes enough motion to feel controllable.
+                destination = QPointF(
+                    scene_pos.x() * 0.30 + center.x() * 0.70,
+                    scene_pos.y() * 0.30 + center.y() * 0.70,
+                )
+                preview.setOpacity(0.96)
+            else:
+                preview.setOpacity(0.82)
+            preview.setPos(destination)
+
+    def finish_panel_reorder(self, source, scene_pos: QPointF) -> bool:
+        if source is not self._panel_drag_source:
+            return False
+        self.update_panel_reorder(source, scene_pos)
+        target = self._panel_drop_target
+        moved = target is not None
+        if moved:
+            source_state = source.image_state()
+            target_state = target.image_state()
+            from undo_commands import ReorderPanelImagesCommand
+            self.undo_stack.push(ReorderPanelImagesCommand(
+                source, target, source_state, target_state))
+        self._cancel_panel_reorder()
+        if moved:
+            self.clearSelection()
+            target.setSelected(True)
+            self.set_active_page_panel(target.index)
+            self.manga_panel_zoom_changed.emit(
+                target.zoom_percent(), target.has_image())
+        return moved
+
+    def _cancel_panel_reorder(self):
+        if self._panel_drop_target is not None:
+            self._panel_drop_target.set_drop_target(False)
+        if self._panel_drag_source is not None:
+            self._panel_drag_source.setOpacity(1.0)
+        preview = self._panel_drag_preview
+        if preview is not None and preview.scene() is self:
+            self.removeItem(preview)
+        self._panel_drag_source = None
+        self._panel_drop_target = None
+        self._panel_drag_preview = None
+
+    def _page_frame_effects(self):
+        from speedlines import SpeedLinesItem
+        from redaction import RedactionItem
+        return [item for item in self.items()
+                if isinstance(item, (SpeedLinesItem, RedactionItem))
+                and getattr(item, "_page_panel_index", None) is not None]
+
+    def _sync_page_frame_effects(self):
+        panels = {panel.index: panel for panel in self._manga_panels}
+        for effect in self._page_frame_effects():
+            panel = panels.get(effect._page_panel_index)
+            if panel is None:
+                self.removeItem(effect)
+            else:
+                effect.set_frame(panel.sceneBoundingRect())
+
+    def _remove_page_frame_effects(self):
+        for effect in self._page_frame_effects():
+            if effect.scene() is self:
+                self.removeItem(effect)
+
+    # ------------------------------------------------------------------
+    # Photo Collage mode
+    # ------------------------------------------------------------------
+
+    def enable_collage_mode(self):
+        if self._collage_mode:
+            return
+        import os
+        if os.environ.get("SBE_DISABLE_SAVED_COLLAGE_DEFAULTS") != "1":
+            from collage_presets import default_preset
+            self.apply_collage_preset(default_preset(), rebuild=False)
+        source_pixmaps = []
+        for item in (self._photo_item, self._photo_item_right, *self._overlay_layers):
+            if item is not None and not item.pixmap().isNull():
+                source_pixmaps.append(QPixmap(item.pixmap()))
+
+        self._remove_meme_bars()
+        self._clear_dual_state()
+        for item in (self._photo_item, *self._overlay_layers):
+            if item is not None:
+                item.setVisible(False)
+                item.setSelected(False)
+        self._collage_mode = True
+        self._build_collage_page(source_pixmaps)
+
+    def disable_collage_mode(self):
+        if not self._collage_mode:
+            return
+        self._remove_manga_items(show_source=True)
+        if self.has_photo():
+            self.fit_scene_to_media()
+        else:
+            self.setSceneRect(QRectF(0, 0, 900, 600))
+
+    def _build_collage_page(self, pixmaps: list[QPixmap]):
+        import random
+        from collage_maker import COLLAGE_COUNTS, generate_collage_layout
+        from manga_maker import create_page_background, MangaPanelItem
+
+        needed = min(len(pixmaps), max(COLLAGE_COUNTS))
+        requested = int(self._collage_layout_settings.get("photo_count", 4))
+        count = max(requested, needed, min(COLLAGE_COUNTS))
+        count = min(count, max(COLLAGE_COUNTS))
+        # Never discard loaded photos to satisfy a smaller requested count.
+        # Reflect the safe count back to the live control so UI and canvas agree.
+        self._collage_layout_settings["photo_count"] = count
+        self._collage_layout_seed = random.SystemRandom().randrange(2**31)
+        rects, layout_name, page_size = generate_collage_layout(
+            count, str(self._collage_layout_settings["layout_type"]),
+            self._collage_layout_settings,
+            random.Random(self._collage_layout_seed))
+
+        self._manga_page = create_page_background(self._collage_style["page_color"])
+        self._manga_page.setRect(0, 0, page_size[0], page_size[1])
+        self.addItem(self._manga_page)
+        self._manga_panels = []
+        seed_source = random.SystemRandom()
+        for index, rect in enumerate(rects):
+            pixmap = pixmaps[index] if index < len(pixmaps) else None
+            panel = MangaPanelItem(
+                index, rect, pixmap, self._collage_style,
+                seed_source.randrange(2**31), show_number=False,
+                reading_direction="Left to right")
+            self.addItem(panel)
+            self._manga_panels.append(panel)
+        self.setSceneRect(QRectF(0, 0, page_size[0], page_size[1]))
+        self._restore_active_page_panel()
+        self._sync_page_frame_effects()
+        self.manga_layout_changed.emit(layout_name)
+
+    def regenerate_collage_layout(self):
+        if not self._collage_mode:
+            return
+        pixmaps = [panel.pixmap() for panel in self._manga_panels
+                   if panel.has_image()]
+        for panel in self._manga_panels:
+            if panel.scene() is self:
+                self.removeItem(panel)
+        self._manga_panels = []
+        if self._manga_page is not None and self._manga_page.scene() is self:
+            self.removeItem(self._manga_page)
+        self._manga_page = None
+        self._build_collage_page(pixmaps)
+
+    def shuffle_collage_layout(self):
+        """Try another visual template while preserving every loaded photo."""
+        if not self._collage_mode:
+            return
+        import random
+        choices = ["Grid", "Mosaic", "Hero", "Filmstrip"]
+        current = str(self._collage_layout_settings["layout_type"])
+        alternatives = [name for name in choices if name != current]
+        self._collage_layout_settings["layout_type"] = (
+            random.SystemRandom().choice(alternatives or choices))
+        self.regenerate_collage_layout()
+
+    def set_collage_layout_setting(self, key: str, value):
+        if key not in self._collage_layout_settings:
+            return
+        self._collage_layout_settings[key] = value
+        if not self._collage_mode:
+            return
+        if key in ("photo_count", "layout_type"):
+            self.clearSelection()
+            self.regenerate_collage_layout()
+        else:
+            self.relayout_collage_live()
+
+    def relayout_collage_live(self):
+        if not self._collage_mode or not self._manga_panels:
+            return
+        import random
+        from collage_maker import generate_collage_layout
+
+        seed = self._collage_layout_seed
+        if seed is None:
+            seed = random.SystemRandom().randrange(2**31)
+            self._collage_layout_seed = seed
+        rects, layout_name, page_size = generate_collage_layout(
+            len(self._manga_panels),
+            str(self._collage_layout_settings["layout_type"]),
+            self._collage_layout_settings, random.Random(seed))
+        if len(rects) != len(self._manga_panels):
+            return
+        for panel, rect in zip(self._manga_panels, rects):
+            panel.set_panel_rect(rect)
+        if self._manga_page is not None:
+            self._manga_page.setRect(0, 0, page_size[0], page_size[1])
+        self.setSceneRect(QRectF(0, 0, page_size[0], page_size[1]))
+        self._sync_page_frame_effects()
+        self.manga_layout_changed.emit(layout_name)
+
+    def set_collage_style(self, key: str, value):
+        if key not in self._collage_style:
+            return
+        if key == "image_background":
+            value = value if value in ("blur", "solid") else "blur"
+        elif key.endswith("_color"):
+            value = QColor(value)
+        else:
+            value = float(value)
+        self._collage_style[key] = value
+        if key == "page_color" and self._manga_page is not None:
+            self._manga_page.setBrush(QBrush(QColor(value)))
+        for panel in self._manga_panels:
+            panel.set_style(self._collage_style)
+
+    def apply_collage_theme(self, name: str):
+        themes = {
+            "Gallery white": ("#ffffff", "#ffffff", "#eeeeee"),
+            "Midnight": ("#111318", "#111318", "#252933"),
+            "Warm cream": ("#efe5d3", "#fffaf0", "#e4d6c0"),
+            "Soft blush": ("#ead5d8", "#ffffff", "#dfc5ca"),
+            "Slate": ("#38404a", "#e8edf2", "#4b5663"),
+        }
+        colors = themes.get(name)
+        if colors is None:
+            return
+        self.set_collage_style("page_color", QColor(colors[0]))
+        self.set_collage_style("border_color", QColor(colors[1]))
+        self.set_collage_style("empty_color", QColor(colors[2]))
+
+    def collage_preset(self) -> dict:
+        """Serializable snapshot of every user-facing collage setting."""
+        layout = self.collage_layout_settings()
+        style = self.collage_style()
+        return {
+            "layout": layout,
+            "style": {
+                "page_color": QColor(style["page_color"]).name(),
+                "border_color": QColor(style["border_color"]).name(),
+                "border_width": float(style["border_width"]),
+                "corner_radius": float(style["corner_radius"]),
+                "image_background": str(style["image_background"]),
+            },
+        }
+
+    def apply_collage_preset(self, preset: dict, rebuild: bool = True):
+        """Apply a named/default preset with one layout rebuild."""
+        layout = dict(preset.get("layout", {}))
+        style = dict(preset.get("style", {}))
+        for key in self._collage_layout_settings:
+            if key in layout:
+                self._collage_layout_settings[key] = layout[key]
+        for key in ("page_color", "border_color"):
+            if key in style:
+                self._collage_style[key] = QColor(style[key])
+        for key in ("border_width", "corner_radius"):
+            if key in style:
+                self._collage_style[key] = float(style[key])
+        if style.get("image_background") in ("blur", "solid"):
+            self._collage_style["image_background"] = style["image_background"]
+        if not (rebuild and self._collage_mode):
+            return
+        self.clearSelection()
+        self.regenerate_collage_layout()
+
+    def collage_style(self) -> dict:
+        return dict(self._collage_style)
+
+    def collage_layout_settings(self) -> dict:
+        return dict(self._collage_layout_settings)
+
+    def is_collage_mode(self):
+        return self._collage_mode
 
     # ------------------------------------------------------------------
     # Overlay layers
@@ -1058,7 +1760,7 @@ class PhotoScene(QGraphicsScene):
         return self._video_player_right
 
     def has_photo(self) -> bool:
-        return self._photo_item is not None
+        return self._photo_item is not None or self._manga_mode or self._collage_mode
 
     def has_video(self) -> bool:
         return self._video_player is not None
@@ -1107,6 +1809,7 @@ class PhotoView(QGraphicsView):
     open_media_requested = pyqtSignal()   # emitted when user clicks empty canvas
     photo_dropped        = pyqtSignal(str)
     right_media_dropped  = pyqtSignal(str)
+    manga_media_dropped  = pyqtSignal(str, int)
     zoom_changed         = pyqtSignal(int)
 
     def __init__(self, scene: PhotoScene, parent=None):
@@ -1318,6 +2021,15 @@ class PhotoView(QGraphicsView):
         if not self._photo_scene.has_photo():
             event.ignore()
             return
+        if (self._photo_scene.is_manga_mode()
+                or self._photo_scene.is_collage_mode()):
+            panel = self._photo_scene.manga_panel_at(
+                self.mapToScene(event.position().toPoint()))
+            if panel is not None and panel.has_image():
+                panel.setSelected(True)
+                panel.zoom_image(1.10 if event.angleDelta().y() > 0 else 1 / 1.10)
+                event.accept()
+                return
         # Zoom toward the cursor so "zoom into this area" lands where you point.
         self.setTransformationAnchor(
             QGraphicsView.ViewportAnchor.AnchorUnderMouse)
@@ -1346,6 +2058,15 @@ class PhotoView(QGraphicsView):
             for url in event.mimeData().urls():
                 path = url.toLocalFile()
                 if path.lower().endswith(ALL_MEDIA_EXTENSIONS):
+                    if ((self._photo_scene.is_manga_mode()
+                         or self._photo_scene.is_collage_mode())
+                            and path.lower().endswith(IMAGE_EXTENSIONS)):
+                        panel = self._photo_scene.manga_panel_at(
+                            self.mapToScene(event.position().toPoint()))
+                        if panel is not None:
+                            self.manga_media_dropped.emit(path, panel.index)
+                            event.acceptProposedAction()
+                            return
                     if (self._photo_scene.is_dual_mode() and
                             self._photo_scene.has_photo()):
                         sp = self.mapToScene(event.position().toPoint())

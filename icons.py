@@ -167,6 +167,24 @@ ICON_DUAL = """
 <rect x="11.5" y="3.5" width="7" height="13" rx="1" fill="{color}" opacity="0.12" stroke="{color}" stroke-width="1.5"/>
 """
 
+ICON_MANGA = """
+<rect x="2" y="1.5" width="16" height="17" rx="1.3"
+  fill="{color}" opacity="0.10" stroke="{color}" stroke-width="1.5"/>
+<path d="M2.5 7.2h15M2.5 13.2h15M8.2 1.8v5.1M11.8 7.5v5.4M7 13.5v4.7"
+  stroke="{color}" stroke-width="1.35" stroke-linecap="square"/>
+"""
+
+ICON_COLLAGE = """
+<rect x="2" y="2" width="7" height="7" rx="1"
+  fill="{color}" opacity="0.16" stroke="{color}" stroke-width="1.4"/>
+<rect x="11" y="2" width="7" height="11" rx="1"
+  fill="{color}" opacity="0.10" stroke="{color}" stroke-width="1.4"/>
+<rect x="2" y="11" width="7" height="7" rx="1"
+  fill="{color}" opacity="0.10" stroke="{color}" stroke-width="1.4"/>
+<rect x="11" y="15" width="7" height="3" rx="1"
+  fill="{color}" opacity="0.18" stroke="{color}" stroke-width="1.4"/>
+"""
+
 ICON_BLUR = """
 <rect x="3" y="3" width="14" height="14" rx="3.5" fill="{color}" opacity="0.12" stroke="{color}" stroke-width="1.5"/>
 <circle cx="7.6" cy="7.6" r="1.4" fill="{color}" opacity="0.95"/>

@@ -2,6 +2,29 @@
 
 All notable user-facing changes are tracked here. Release downloads are published on the [GitHub Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases).
 
+## v4.5.0 - 2026-08-05
+
+### Added
+
+- Comic Maker with hand-inked 4, 6, 7, and 8-panel page layouts, live layout tuning, right-to-left reading order, and nondestructive regeneration.
+- Photo Collage with 2–9 photos, visual layout choices, multiple canvas orientations, shuffle, and editable named presets.
+- Magnetic photo reordering while preserving in-frame crop dragging, mouse-wheel zoom, a 10–500% scale range, and Fit.
+- Frame-specific lines, blur, and pixelate effects with a visible active-frame outline.
+- Solid-color and blurred fill choices when a fitted image does not cover its frame.
+
+### Changed
+
+- Consolidated Comic and Collage controls into dedicated right-pane tabs with live sliders, concise tooltips, and editable background/frame colors.
+- Renamed Manga Maker to Comic Maker and promoted the former experimental workspace into the main application.
+- Updated official packaging and project pages around Windows x64 and Linux x64 builds.
+
+### Fixed
+
+- Restored video opening, playback, and timeline controls in normal and dual modes after using Comic or Collage mode.
+- Kept generated pages fitted to the canvas after layout and orientation changes.
+- Prevented page-mode inspectors, layers, and effects from colliding with normal editing controls.
+- Fixed bidirectional image scaling so photos can shrink below their cover size.
+
 ## v4.0.4 - 2026-06-25
 
 ### Added

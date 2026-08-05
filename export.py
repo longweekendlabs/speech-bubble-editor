@@ -135,6 +135,104 @@ def _save_image(parent, image: QImage, path: str):
         QMessageBox.critical(parent, "Export", f"Failed to save:\n{path}")
 
 
+def export_manga_photo(parent, scene):
+    """Export the complete Comic Maker page at its native page resolution."""
+    if not getattr(scene, "is_manga_mode", lambda: False)():
+        QMessageBox.warning(parent, "Export", "Comic Maker is not active.")
+        return
+
+    from manga_maker import PAGE_HEIGHT, PAGE_WIDTH
+
+    selected = list(scene.selectedItems())
+    scene.clearSelection()  # selection outlines are editing UI, not page art
+    scene.set_manga_guides_visible(False)
+    QApplication.processEvents()
+
+    image = QImage(int(PAGE_WIDTH), int(PAGE_HEIGHT),
+                   QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(Qt.GlobalColor.white)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    scene.render(painter, QRectF(0, 0, PAGE_WIDTH, PAGE_HEIGHT), scene.sceneRect())
+    painter.end()
+
+    for item in selected:
+        if item.scene() is scene:
+            item.setSelected(True)
+    scene.set_manga_guides_visible(True)
+
+    from frame_dialog import FrameDialog
+    from frames import apply_frame
+    dlg = FrameDialog(image, parent)
+    if not dlg.exec():
+        return
+    image = apply_frame(image, dlg.settings())
+    scale = dlg.scale()
+    if scale < 1.0:
+        image = image.scaled(
+            max(1, int(image.width() * scale)), max(1, int(image.height() * scale)),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path, _ = QFileDialog.getSaveFileName(
+        parent, "Export Comic Page", f"comic-page-{timestamp}.png",
+        "PNG (*.png);;JPEG (*.jpg *.jpeg);;WebP (*.webp)",
+    )
+    if path:
+        _save_image(parent, image, path)
+
+
+def export_collage_photo(parent, scene):
+    """Export the complete Photo Collage page at its configured aspect ratio."""
+    if not getattr(scene, "is_collage_mode", lambda: False)():
+        QMessageBox.warning(parent, "Export", "Photo Collage is not active.")
+        return
+
+    source = scene.sceneRect()
+    width = max(1, int(round(source.width())))
+    height = max(1, int(round(source.height())))
+    selected = list(scene.selectedItems())
+    scene.clearSelection()
+    scene.set_manga_guides_visible(False)
+    QApplication.processEvents()
+
+    image = QImage(width, height, QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    scene.render(painter, QRectF(0, 0, width, height), source)
+    painter.end()
+
+    for item in selected:
+        if item.scene() is scene:
+            item.setSelected(True)
+    scene.set_manga_guides_visible(True)
+
+    from frame_dialog import FrameDialog
+    from frames import apply_frame
+    dlg = FrameDialog(image, parent)
+    if not dlg.exec():
+        return
+    image = apply_frame(image, dlg.settings())
+    scale = dlg.scale()
+    if scale < 1.0:
+        image = image.scaled(
+            max(1, int(image.width() * scale)), max(1, int(image.height() * scale)),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    path, _ = QFileDialog.getSaveFileName(
+        parent, "Export Photo Collage", f"photo-collage-{timestamp}.png",
+        "PNG (*.png);;JPEG (*.jpg *.jpeg);;WebP (*.webp)",
+    )
+    if path:
+        _save_image(parent, image, path)
+
+
 # ---------------------------------------------------------------------------
 # Video export
 # ---------------------------------------------------------------------------

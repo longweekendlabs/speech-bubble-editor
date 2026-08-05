@@ -89,8 +89,7 @@ class AboutDialog(QDialog):
 
         # ── License ──────────────────────────────────────────────────────
         license_text = (
-            "Official release builds: Windows x64, Linux x64,\n"
-            "macOS Intel, and macOS Apple Silicon.\n\n"
+            "Official release builds: Windows x64 and Linux x64.\n\n"
             "Built with: Python · PyQt6 · OpenCV · FFmpeg · Pillow\n"
             f"{__copyright__}"
         )

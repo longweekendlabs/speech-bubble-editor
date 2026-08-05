@@ -61,6 +61,25 @@ class AddBubbleCommand(QUndoCommand):
         self._scene.removeItem(self._bubble)
 
 
+class ReorderPanelImagesCommand(QUndoCommand):
+    """Move to an empty frame or swap two filled page frames."""
+
+    def __init__(self, source, target, source_state, target_state):
+        super().__init__("Reorder Page Images")
+        self._source = source
+        self._target = target
+        self._source_state = source_state
+        self._target_state = target_state
+
+    def redo(self):
+        self._source.set_image_state(self._target_state)
+        self._target.set_image_state(self._source_state)
+
+    def undo(self):
+        self._source.set_image_state(self._source_state)
+        self._target.set_image_state(self._target_state)
+
+
 class DeleteBubbleCommand(QUndoCommand):
     def __init__(self, scene, bubble):
         super().__init__("Delete Bubble")

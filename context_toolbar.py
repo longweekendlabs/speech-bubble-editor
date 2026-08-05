@@ -21,7 +21,7 @@ Visibility API:
 """
 
 from PyQt6.QtWidgets import (
-    QWidget, QHBoxLayout, QPushButton, QLabel, QFrame,
+    QWidget, QHBoxLayout, QPushButton, QLabel, QFrame, QSlider,
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QColor
@@ -42,12 +42,18 @@ class ContextToolbar(QWidget):
     flip_h_requested = pyqtSignal()
     flip_v_requested = pyqtSignal()
     delete_requested = pyqtSignal()
+    manga_regenerate_requested = pyqtSignal()
+    manga_zoom_changed = pyqtSignal(int)
+    manga_fit_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("ContextToolbar")
         self.setFixedHeight(38)
         self._action_widgets = []
+        self._manga_active = False
+        self._page_mode = "manga"
+        self._updating_manga_zoom = False
         self._build_ui()
         self.hide_toolbar()
 
@@ -55,8 +61,14 @@ class ContextToolbar(QWidget):
 
     def _build_ui(self):
         lay = QHBoxLayout(self)
-        lay.setContentsMargins(14, 0, 14, 0)
-        lay.setSpacing(2)
+        lay.setContentsMargins(10, 0, 10, 0)
+        lay.setSpacing(0)
+
+        self._selection_group = QWidget()
+        normal = QHBoxLayout(self._selection_group)
+        normal.setContentsMargins(0, 0, 0, 0)
+        normal.setSpacing(2)
+        lay.addWidget(self._selection_group, stretch=1)
 
         # ── Selection chip ─────────────────────────────────────────────
         self._chip = QLabel("Bubble selected")
@@ -66,8 +78,8 @@ class ContextToolbar(QWidget):
         # it resize shoved every toolbar button sideways on each click.
         self._chip.setFixedWidth(118)
         self._chip.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(self._chip)
-        lay.addSpacing(10)
+        normal.addWidget(self._chip)
+        normal.addSpacing(8)
 
         # ── Alignment group ────────────────────────────────────────────
         ALIGN = [
@@ -82,9 +94,9 @@ class ContextToolbar(QWidget):
             btn = self._ctx_btn(svg, tip)
             btn.clicked.connect(lambda _, m=mode: self.align_requested.emit(m))
             self._action_widgets.append(btn)
-            lay.addWidget(btn)
+            normal.addWidget(btn)
 
-        lay.addWidget(self._sep())
+        normal.addWidget(self._sep())
 
         # ── Layer order ────────────────────────────────────────────────
         ORDER = [
@@ -97,22 +109,22 @@ class ContextToolbar(QWidget):
             btn = self._ctx_btn(svg, tip)
             btn.clicked.connect(lambda _, m=mode: self.z_requested.emit(m))
             self._action_widgets.append(btn)
-            lay.addWidget(btn)
+            normal.addWidget(btn)
 
-        lay.addWidget(self._sep())
+        normal.addWidget(self._sep())
 
         # ── Transform ─────────────────────────────────────────────────
         flip_h_btn = self._ctx_btn(ICON_FLIP_H, "Flip horizontal")
         flip_h_btn.clicked.connect(self.flip_h_requested)
         self._action_widgets.append(flip_h_btn)
-        lay.addWidget(flip_h_btn)
+        normal.addWidget(flip_h_btn)
 
         flip_v_btn = self._ctx_btn(ICON_FLIP_V, "Flip vertical")
         flip_v_btn.clicked.connect(self.flip_v_requested)
         self._action_widgets.append(flip_v_btn)
-        lay.addWidget(flip_v_btn)
+        normal.addWidget(flip_v_btn)
 
-        lay.addWidget(self._sep())
+        normal.addWidget(self._sep())
 
         # ── Delete ────────────────────────────────────────────────────
         del_btn = self._ctx_btn(ICON_DELETE, "Delete selected bubble  (Del)",
@@ -120,9 +132,77 @@ class ContextToolbar(QWidget):
         del_btn.setObjectName("ContextDeleteBtn")
         del_btn.clicked.connect(self.delete_requested)
         self._action_widgets.append(del_btn)
-        lay.addWidget(del_btn)
+        normal.addWidget(del_btn)
 
-        lay.addStretch()
+        normal.addStretch()
+
+        # Manga Maker replaces this bar in-place; it never adds a second row.
+        self._manga_group = QWidget()
+        manga = QHBoxLayout(self._manga_group)
+        manga.setContentsMargins(0, 0, 0, 0)
+        manga.setSpacing(6)
+
+        self._page_mode_chip = QLabel("COMIC MAKER")
+        self._page_mode_chip.setObjectName("MangaChip")
+        self._page_mode_chip.setFixedHeight(24)
+        manga.addWidget(self._page_mode_chip)
+        self._manga_layout_label = QLabel("Random page")
+        self._manga_layout_label.setObjectName("MangaLayoutLabel")
+        manga.addWidget(self._manga_layout_label)
+        manga.addStretch()
+
+        self._page_hint = QLabel("Drag inside to crop · drag out to reorder")
+        self._page_hint.setObjectName("MangaHint")
+        self._page_hint.setToolTip(
+            "Click a panel to select it, then drag the image inside its frame to crop")
+        manga.addWidget(self._page_hint)
+
+        zoom_label = QLabel("Scale")
+        zoom_label.setObjectName("MangaHint")
+        zoom_label.setToolTip(
+            "Resize the selected image inside the panel without changing the panel")
+        manga.addWidget(zoom_label)
+        self._manga_zoom = QSlider(Qt.Orientation.Horizontal)
+        self._manga_zoom.setRange(10, 500)
+        self._manga_zoom.setValue(100)
+        self._manga_zoom.setFixedWidth(130)
+        self._manga_zoom.setToolTip("Resize the selected image inside its panel")
+        self._manga_zoom.valueChanged.connect(self._on_manga_zoom)
+        manga.addWidget(self._manga_zoom)
+        self._manga_zoom_value = QLabel("100%")
+        self._manga_zoom_value.setObjectName("MangaLayoutLabel")
+        self._manga_zoom_value.setFixedWidth(42)
+        manga.addWidget(self._manga_zoom_value)
+
+        fit = QPushButton("Show all")
+        fit.setToolTip(
+            "Shrink the selected photo until the entire image is visible")
+        fit.setFixedHeight(26)
+        fit.clicked.connect(self.manga_fit_requested)
+        manga.addWidget(fit)
+
+        self._page_regenerate = QPushButton("↻  Regenerate")
+        self._page_regenerate.setObjectName("MangaRegenerateBtn")
+        self._page_regenerate.setToolTip(
+            "Create a different 4, 6, 7, or 8-panel comic page")
+        self._page_regenerate.setFixedHeight(26)
+        self._page_regenerate.clicked.connect(self.manga_regenerate_requested)
+        manga.addWidget(self._page_regenerate)
+
+        lay.addWidget(self._manga_group, stretch=1)
+        self._manga_group.hide()
+
+    def _on_manga_zoom(self, value: int):
+        self._manga_zoom_value.setText(f"{value}%")
+        if not self._updating_manga_zoom:
+            self.manga_zoom_changed.emit(value)
+
+    def _refresh_page_hint(self):
+        unit = "frame" if self._page_mode == "collage" else "panel"
+        self._page_hint.setText("Drag inside to crop · drag out to reorder")
+        self._page_hint.setToolTip(
+            f"Drag inside the active {unit} to reposition its crop. Continue "
+            f"outside toward another {unit} to move/swap; Shift-drag reorders immediately.")
 
     # ------------------------------------------------------------------
 
@@ -149,16 +229,67 @@ class ContextToolbar(QWidget):
     # ------------------------------------------------------------------
 
     def show_for_bubble(self):
+        self._selection_group.show()
+        self._manga_group.hide()
         self._chip.setText("Bubble selected")
         self._set_actions_enabled(True)
 
     def show_for_media(self):
+        self._selection_group.show()
+        self._manga_group.hide()
         self._chip.setText("Layer selected")
         self._set_actions_enabled(True)
 
     def hide_toolbar(self):
+        if self._manga_active:
+            self._selection_group.hide()
+            self._manga_group.show()
+            return
+        self._selection_group.show()
+        self._manga_group.hide()
         self._chip.setText("No selection")
         self._set_actions_enabled(False)
+
+    def set_manga_mode(self, active: bool):
+        self.set_page_mode("manga" if active else None)
+
+    def set_collage_mode(self, active: bool):
+        self.set_page_mode("collage" if active else None)
+
+    def set_page_mode(self, mode: str | None):
+        self._manga_active = mode is not None
+        if mode is not None:
+            self._page_mode = mode
+        if mode == "collage":
+            self._page_mode_chip.setText("PHOTO COLLAGE")
+            self._page_regenerate.setText("↻  Shuffle")
+            self._page_regenerate.setToolTip(
+                "Try a different collage layout while keeping your photos")
+        else:
+            self._page_mode_chip.setText("COMIC MAKER")
+            self._page_regenerate.setText("↻  Regenerate")
+            self._page_regenerate.setToolTip(
+                "Create another comic composition with the current Shape settings")
+        self._refresh_page_hint()
+        if mode is not None:
+            self.set_manga_zoom(100, False)
+        self.hide_toolbar()
+
+    def set_manga_layout_name(self, name: str):
+        self._manga_layout_label.setText(name)
+
+    def show_for_manga_panel(self, zoom_percent: int, has_image: bool = True):
+        self._selection_group.hide()
+        self._manga_group.show()
+        self.set_manga_zoom(zoom_percent, has_image)
+
+    def set_manga_zoom(self, percent: int, enabled: bool = True):
+        self._updating_manga_zoom = True
+        try:
+            self._manga_zoom.setValue(max(10, min(500, int(percent))))
+            self._manga_zoom.setEnabled(enabled)
+        finally:
+            self._updating_manga_zoom = False
 
     def _set_actions_enabled(self, enabled: bool):
         for widget in self._action_widgets:

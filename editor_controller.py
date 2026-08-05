@@ -32,6 +32,7 @@ class EditorController(QObject):
         super().__init__(parent)
         self._model = AppModel()
         self._scene = scene
+        self.last_error = ""
 
     # ------------------------------------------------------------------
     # Properties
@@ -55,8 +56,18 @@ class EditorController(QObject):
 
     def open_media(self, path: str) -> bool:
         """Load photo or video (auto-detected). Returns True on success."""
+        self.last_error = ""
         is_video = os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS
-        ok = self._scene.load_video(path) if is_video else self._scene.load_photo(path)
+        try:
+            ok = (self._scene.load_video(path) if is_video
+                  else self._scene.load_photo(path))
+        except ModuleNotFoundError as error:
+            if is_video and error.name == "cv2":
+                self.last_error = (
+                    "Video support requires OpenCV. Launch with the project "
+                    "virtual environment or run: pip install -r requirements.txt")
+                return False
+            raise
         if ok:
             if self._scene._photo_item is not None:
                 self._scene._photo_item._source_path = path
@@ -69,9 +80,18 @@ class EditorController(QObject):
 
     def open_right_media(self, path: str) -> bool:
         """Load the right-panel photo or video. Returns True on success."""
+        self.last_error = ""
         is_video = os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS
-        ok = (self._scene.load_right_video(path) if is_video
-              else self._scene.load_right_photo(path))
+        try:
+            ok = (self._scene.load_right_video(path) if is_video
+                  else self._scene.load_right_photo(path))
+        except ModuleNotFoundError as error:
+            if is_video and error.name == "cv2":
+                self.last_error = (
+                    "Video support requires OpenCV. Launch with the project "
+                    "virtual environment or run: pip install -r requirements.txt")
+                return False
+            raise
         if ok:
             self._model.media_path_right = path
             self.right_media_loaded.emit(path, is_video)
@@ -151,3 +171,22 @@ class EditorController(QObject):
         else:
             self._scene.disable_dual_mode()
         self._model.is_dual = enabled
+
+    def set_manga_mode(self, enabled: bool):
+        if enabled:
+            self._scene.enable_manga_mode()
+            self._model.is_meme = False
+            self._model.is_dual = False
+        else:
+            self._scene.disable_manga_mode()
+        self._model.is_manga = enabled
+
+    def set_collage_mode(self, enabled: bool):
+        if enabled:
+            self._scene.enable_collage_mode()
+            self._model.is_meme = False
+            self._model.is_dual = False
+            self._model.is_manga = False
+        else:
+            self._scene.disable_collage_mode()
+        self._model.is_collage = enabled

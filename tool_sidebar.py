@@ -12,7 +12,7 @@ from PyQt6.QtGui import QKeySequence
 from icons import (
     make_icon, make_icon_pair, ACCENT, MUTED,
     ICON_SELECT, ICON_MOVE, ICON_BUBBLE,
-    ICON_TEXT, ICON_LAYERS, ICON_MEME, ICON_DUAL,
+    ICON_TEXT, ICON_LAYERS, ICON_MEME, ICON_DUAL, ICON_MANGA, ICON_COLLAGE,
     ICON_BLUR, ICON_PIXELATE, ICON_CROP, ICON_SPEEDLINES, ICON_ROTATE,
 )
 
@@ -30,6 +30,8 @@ TOOL_DEFS = [
     ("layers",  "Layers",  ICON_LAYERS,  "Ctrl+L", False, False),
     ("meme",    "Meme",    ICON_MEME,    None,     True,  False),
     ("dual",    "Dual",    ICON_DUAL,    None,     True,  False),
+    ("collage", "Collage", ICON_COLLAGE, None,     True,  False),
+    ("manga",   "Comic",   ICON_MANGA,   None,     True,  False),
 ]
 
 MEDIA_GATED = {"crop", "rotate", "bubble", "text", "lines", "blur", "pixelate",
@@ -48,6 +50,8 @@ class ToolSidebar(QWidget):
     add_layer_requested  = pyqtSignal()
     meme_toggled         = pyqtSignal(bool)
     dual_toggled         = pyqtSignal(bool)
+    manga_toggled        = pyqtSignal(bool)
+    collage_toggled      = pyqtSignal(bool)
     tool_changed         = pyqtSignal(str)   # "select" | "move"
 
     def __init__(self, parent=None):
@@ -62,7 +66,7 @@ class ToolSidebar(QWidget):
     def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 14, 8, 10)
-        lay.setSpacing(4)
+        lay.setSpacing(2)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._tool_group = QButtonGroup(self)
@@ -87,6 +91,8 @@ class ToolSidebar(QWidget):
         self._buttons["layers"].clicked.connect(self.add_layer_requested)
         self._buttons["meme"].toggled.connect(self.meme_toggled)
         self._buttons["dual"].toggled.connect(self.dual_toggled)
+        self._buttons["manga"].toggled.connect(self.manga_toggled)
+        self._buttons["collage"].toggled.connect(self.collage_toggled)
 
         # Select / Move switch the canvas interaction mode (edit vs hand-pan).
         self._buttons["select"].toggled.connect(
@@ -113,7 +119,7 @@ class ToolSidebar(QWidget):
         btn.setObjectName(f"ToolBtn_{tool_id}")
         btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         btn.setText(label)
-        btn.setFixedSize(64, 56)
+        btn.setFixedSize(64, 50)
         btn.setIconSize(QSize(20, 20))
         btn.setCheckable(checkable)
 
@@ -166,8 +172,38 @@ class ToolSidebar(QWidget):
         btn.setIcon(btn._icon_accent if checked else btn._icon_normal)   # type: ignore[attr-defined]
         btn.blockSignals(False)
 
+    def set_manga_checked(self, checked: bool):
+        btn = self._buttons["manga"]
+        btn.blockSignals(True)
+        btn.setChecked(checked)
+        btn.setIcon(btn._icon_accent if checked else btn._icon_normal)   # type: ignore[attr-defined]
+        btn.blockSignals(False)
+
+    def set_collage_checked(self, checked: bool):
+        btn = self._buttons["collage"]
+        btn.blockSignals(True)
+        btn.setChecked(checked)
+        btn.setIcon(btn._icon_accent if checked else btn._icon_normal)   # type: ignore[attr-defined]
+        btn.blockSignals(False)
+
     def set_meme_enabled(self, enabled: bool):
         self._buttons["meme"].setEnabled(enabled)
 
     def set_dual_enabled(self, enabled: bool):
         self._buttons["dual"].setEnabled(enabled)
+
+    def set_manga_enabled(self, enabled: bool):
+        self._buttons["manga"].setEnabled(enabled)
+
+    def set_collage_enabled(self, enabled: bool):
+        self._buttons["collage"].setEnabled(enabled)
+
+    def set_manga_mode_active(self, active: bool, base_media_loaded: bool):
+        """Enable page-safe tools in Comic mode, including on a blank page."""
+        if active:
+            for tool_id in ("bubble", "text", "lines", "blur", "pixelate", "layers"):
+                self._buttons[tool_id].setEnabled(True)
+            for tool_id in ("crop", "rotate", "meme", "dual"):
+                self._buttons[tool_id].setEnabled(False)
+        else:
+            self.set_media_loaded(base_media_loaded)

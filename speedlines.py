@@ -144,11 +144,16 @@ class SpeedLinesItem(QGraphicsItem):
 
     def set_frame(self, frame: QRectF):
         """Follow the photo after a crop or reload."""
+        old = QRectF(self._frame)
+        focus = self._focus.pos()
+        nx = ((focus.x() - old.left()) / old.width()
+              if old.width() > 0 else 0.5)
+        ny = ((focus.y() - old.top()) / old.height()
+              if old.height() > 0 else 0.5)
         self.prepareGeometryChange()
         self._frame = QRectF(frame)
-        f = self._focus.pos()
-        self._focus.setPos(max(frame.left(), min(f.x(), frame.right())),
-                           max(frame.top(), min(f.y(), frame.bottom())))
+        self._focus.setPos(frame.left() + max(0.0, min(1.0, nx)) * frame.width(),
+                           frame.top() + max(0.0, min(1.0, ny)) * frame.height())
         self.update()
 
     # ------------------------------------------------------------------

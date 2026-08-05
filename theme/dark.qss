@@ -90,6 +90,90 @@ QToolButton:disabled {
     color: #ffffff;
 }
 
+/* Always-visible Comic/Collage choices. */
+#PageOptionButton {
+    background-color: #272727;
+    color: #bcbcbc;
+    border: 1px solid #3b3b3b;
+    border-radius: 6px;
+    padding: 4px 7px;
+    font-size: 11px;
+    font-weight: 600;
+}
+#PageOptionButton:hover:!checked {
+    background-color: #313131;
+    color: #ffffff;
+    border-color: #666666;
+}
+#PageOptionButton:checked {
+    background-color: rgba(255, 138, 61, 0.16);
+    color: #ff9b5c;
+    border: 1px solid #ff8a3d;
+}
+
+#OrientationToggle {
+    min-height: 34px;
+    background-color: #272727;
+    color: #eeeeee;
+    border: 1px solid #484848;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 650;
+}
+#OrientationToggle:hover {
+    background-color: #313131;
+    border-color: #ff8a3d;
+    color: #ff9b5c;
+}
+#PhotoCountButton {
+    background-color: #292929;
+    color: #eeeeee;
+    border: 1px solid #484848;
+    border-radius: 6px;
+    padding: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+#PhotoCountButton:hover:enabled {
+    border-color: #ff8a3d;
+    color: #ff9b5c;
+}
+#PhotoCountButton:disabled {
+    color: #555555;
+    border-color: #333333;
+}
+#PhotoCountLabel {
+    color: #f0f0f0;
+    font-size: 12px;
+    font-weight: 650;
+}
+
+#InspectorDisclosure {
+    background-color: transparent;
+    color: #a9a9a9;
+    border: none;
+    border-top: 1px solid #303030;
+    border-radius: 0;
+    padding: 7px 2px 3px 2px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+}
+#InspectorDisclosure:hover {
+    color: #ffffff;
+    background-color: transparent;
+}
+#InspectorDisclosure:checked {
+    color: #ff9b5c;
+    background-color: transparent;
+    border-top: 1px solid #3a3a3a;
+}
+
+#InspectorDisclosureBody {
+    background-color: #1e1e1e;
+}
+
 /* ── Labels ───────────────────────────────────────────────────────── */
 QLabel {
     background-color: transparent;
@@ -497,6 +581,46 @@ QSplitter::handle:horizontal {
     background-color: #333333;
     color: #9a9a9a;
     border-color: #3a3a3a;
+}
+
+/* ── Manga Maker experimental toolbar ───────────────────────────── */
+#MangaToolbar {
+    background-color: #191919;
+    border-bottom: 1px solid #343434;
+}
+
+#MangaChip {
+    color: #ff8a3d;
+    background-color: rgba(255, 138, 61, 0.12);
+    border: 1px solid rgba(255, 138, 61, 0.38);
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 8px;
+}
+
+#MangaLayoutLabel {
+    color: #e6e6e6;
+    font-weight: 600;
+    padding-left: 8px;
+}
+
+#MangaHint {
+    color: #8f8f8f;
+    font-size: 11px;
+}
+
+#MangaRegenerateBtn {
+    color: #ffffff;
+    background-color: #ff8a3d;
+    border: 1px solid #ff9d5c;
+    border-radius: 6px;
+    font-weight: 700;
+    padding: 4px 12px;
+}
+
+#MangaRegenerateBtn:hover {
+    background-color: #ff9d5c;
 }
 
 /* ── InspectorDock ────────────────────────────────────────────────── */
