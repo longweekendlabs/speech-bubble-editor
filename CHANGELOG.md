@@ -16,7 +16,7 @@ All notable user-facing changes are tracked here. Release downloads are publishe
 
 - Consolidated Comic and Collage controls into dedicated right-pane tabs with live sliders, concise tooltips, and editable background/frame colors.
 - Renamed Manga Maker to Comic Maker and promoted the former experimental workspace into the main application.
-- Updated official packaging and project pages around Windows x64 and Linux x64 builds.
+- Restored the complete Windows x64 setup/portable and Linux x64 AppImage/DEB/RPM/portable release matrix.
 
 ### Fixed
 

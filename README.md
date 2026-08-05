@@ -16,8 +16,8 @@ Get the latest builds from the [download page](https://longweekendlabs.github.io
 
 | Platform | Builds |
 | --- | --- |
-| Windows x64 | Portable `.zip` |
-| Linux x64 | Portable `.tar.gz` |
+| Windows x64 | Setup `.exe`, portable `.zip` |
+| Linux x64 | AppImage, DEB, RPM, portable `.tar.gz` |
 | Source | `.zip`, `.tar.gz`, or clone this repository |
 
 ## Highlights
@@ -58,12 +58,12 @@ venv\Scripts\activate
 Official release builds are produced by GitHub Actions, but local scripts are available.
 
 ```bash
-# Linux portable tar.gz
+# Linux portable tar.gz (GitHub Actions also produces AppImage, DEB, and RPM)
 bash build_linux.sh
 ```
 
 ```powershell
-# Windows portable ZIP; an installer is also made when Inno Setup is installed
+# Windows portable ZIP and, when Inno Setup is installed, Setup.exe
 build_windows.bat
 ```
 

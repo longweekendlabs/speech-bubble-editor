@@ -30,8 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
 
       - name: Read version
         id: version
@@ -58,8 +56,6 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -70,7 +66,12 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg rpm fakeroot dpkg-dev \
+            libegl1 libglib2.0-0 libgl1 libfontconfig1 libdbus-1-3 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 \
+            libxcb-xinerama0 libxcb-xkb1 libxkbcommon-x11-0
 
       - name: Install Python dependencies
         shell: bash
@@ -84,9 +85,164 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python -m unittest -q test_manga_maker.py
 
-      - name: Build portable Linux package
+      - name: Build Linux executable
         shell: bash
-        run: bash ./build_linux.sh
+        run: |
+          python create_icon.py
+          python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+          file dist/SpeechBubbleEditor
+
+      - name: Create portable tar.gz
+        shell: bash
+        run: |
+          version="$(python -c 'import version; print(version.__version__)')"
+          mkdir -p linux
+          tar -czf "linux/SpeechBubbleEditor-v${version}-linux-x64.tar.gz" \
+            -C dist SpeechBubbleEditor
+
+      - name: Create AppImage
+        shell: bash
+        run: |
+          version="$(python -c 'import version; print(version.__version__)')"
+          curl -sSL \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -o appimagetool
+          chmod +x appimagetool
+
+          mkdir -p AppDir/usr/bin
+          cp dist/SpeechBubbleEditor AppDir/usr/bin/
+          chmod +x AppDir/usr/bin/SpeechBubbleEditor
+          cp icons/icon.png AppDir/icon.png
+
+          cat > AppDir/SpeechBubbleEditor.desktop <<'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Create speech bubbles, comic pages, photo collages, and video edits
+          Exec=SpeechBubbleEditor
+          Icon=icon
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          cat > AppDir/AppRun <<'EOF'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "${HERE}/usr/bin/SpeechBubbleEditor" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool \
+            --no-appstream AppDir \
+            "linux/SpeechBubbleEditor-v${version}-x86_64.AppImage" \
+          || APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 ./appimagetool \
+            AppDir "linux/SpeechBubbleEditor-v${version}-x86_64.AppImage"
+          chmod +x "linux/SpeechBubbleEditor-v${version}-x86_64.AppImage"
+
+      - name: Create DEB
+        shell: bash
+        run: |
+          package="speech-bubble-editor"
+          version="$(python -c 'import version; print(version.__version__)')"
+          debdir="_deb/${package}_${version}_amd64"
+          mkdir -p "${debdir}/DEBIAN" "${debdir}/usr/local/bin" \
+            "${debdir}/usr/share/applications" "${debdir}/usr/share/pixmaps"
+          install -m 755 dist/SpeechBubbleEditor \
+            "${debdir}/usr/local/bin/SpeechBubbleEditor"
+          install -m 644 icons/icon.png \
+            "${debdir}/usr/share/pixmaps/${package}.png"
+
+          cat > "${debdir}/usr/share/applications/${package}.desktop" <<EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Create speech bubbles, comic pages, photo collages, and video edits
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${package}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          cat > "${debdir}/DEBIAN/control" <<EOF
+          Package: ${package}
+          Version: ${version}
+          Architecture: amd64
+          Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
+          Description: Speech Bubble Editor
+           Create speech bubbles, comic pages, photo collages, and video edits.
+           All dependencies are bundled; no system Python or Qt is required.
+          EOF
+
+          dpkg-deb --build "${debdir}" \
+            "linux/${package}_${version}_amd64.deb"
+
+      - name: Create RPM
+        shell: bash
+        run: |
+          package="speech-bubble-editor"
+          version="$(python -c 'import version; print(version.__version__)')"
+          stage="${PWD}/_rpm_stage"
+          topdir="${PWD}/_rpmbuild"
+          mkdir -p "${stage}/usr/local/bin" \
+            "${stage}/usr/share/applications" "${stage}/usr/share/pixmaps"
+          install -m 755 dist/SpeechBubbleEditor \
+            "${stage}/usr/local/bin/SpeechBubbleEditor"
+          install -m 644 icons/icon.png \
+            "${stage}/usr/share/pixmaps/${package}.png"
+
+          cat > "${stage}/usr/share/applications/${package}.desktop" <<EOF
+          [Desktop Entry]
+          Version=1.0
+          Name=Speech Bubble Editor
+          Comment=Create speech bubbles, comic pages, photo collages, and video edits
+          Exec=/usr/local/bin/SpeechBubbleEditor
+          Icon=${package}
+          Terminal=false
+          Type=Application
+          Categories=Graphics;Photography;
+          EOF
+
+          mkdir -p "${topdir}"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
+          cat > "${topdir}/SPECS/${package}.spec" <<EOF
+          Name:           ${package}
+          Version:        ${version}
+          Release:        1%{?dist}
+          Summary:        Speech bubbles, comic pages, collages, and video edits
+          License:        MIT
+          BuildArch:      x86_64
+
+          %description
+          Speech Bubble Editor is a private desktop editor for speech bubbles,
+          comic pages, photo collages, layered media, and video edits.
+
+          %install
+          mkdir -p %{buildroot}/usr/local/bin
+          mkdir -p %{buildroot}/usr/share/applications
+          mkdir -p %{buildroot}/usr/share/pixmaps
+          install -m 755 %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
+          install -m 644 %{_app_src}/usr/share/applications/${package}.desktop %{buildroot}/usr/share/applications/${package}.desktop
+          install -m 644 %{_app_src}/usr/share/pixmaps/${package}.png %{buildroot}/usr/share/pixmaps/${package}.png
+
+          %files
+          /usr/local/bin/SpeechBubbleEditor
+          /usr/share/applications/${package}.desktop
+          /usr/share/pixmaps/${package}.png
+          EOF
+
+          rpmbuild -bb \
+            --define "_topdir ${topdir}" \
+            --define "_app_src ${stage}" \
+            --define "__strip /bin/true" \
+            "${topdir}/SPECS/${package}.spec"
+          find "${topdir}/RPMS" -name '*.rpm' -exec cp {} linux/ \;
+
+      - name: Verify Linux packages
+        shell: bash
+        run: |
+          ls -lh linux/
+          test "$(find linux -maxdepth 1 -type f | wc -l)" -eq 4
 
       - uses: actions/upload-artifact@v4
         with:
@@ -99,8 +255,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/setup-python@v5
         with:
@@ -134,6 +288,27 @@ jobs:
             -DestinationPath "win/SpeechBubbleEditor-v$version-windows-x64-portable.zip" `
             -Force
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $version = python -c "import version; print(version.__version__)"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "/DAppVersion=$version" `
+            "/FSpeechBubbleEditor-v$version-win64-Setup" installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Move-Item "Output/SpeechBubbleEditor-v$version-win64-Setup.exe" `
+            "win/SpeechBubbleEditor-v$version-win64-Setup.exe" -Force
+
+      - name: Verify Windows packages
+        shell: pwsh
+        run: |
+          Get-ChildItem win
+          if ((Get-ChildItem win -File).Count -ne 2) { exit 1 }
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x64
@@ -147,8 +322,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag || github.ref }}
 
       - uses: actions/download-artifact@v4
         with:
@@ -172,9 +345,13 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease || false }}
         shell: bash
         run: |
-          NOTES="Speech Bubble Editor ${TAG_NAME}: Windows x64, Linux x64, and source packages."
+          NOTES="Speech Bubble Editor ${TAG_NAME}: Windows setup and portable packages; Linux AppImage, DEB, RPM, and portable packages; plus source archives."
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" release-assets/* --clobber
+            gh release edit "$TAG_NAME" \
+              --title "Speech Bubble Editor ${TAG_NAME}" \
+              --notes "$NOTES" \
+              --latest
           else
             prerelease_flag=""
             if [ "$PRERELEASE" = "true" ]; then
