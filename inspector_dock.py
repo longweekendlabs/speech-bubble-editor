@@ -203,21 +203,21 @@ class CollageTemplateButton(QToolButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         selected = self.isChecked()
         hovered = self.underMouse()
-        border = QColor("#ff8a3d") if selected else QColor(
-            "#626262" if hovered else "#414141")
+        border = QColor("#ff7a45") if selected else QColor(
+            "#5d7898" if hovered else "#35475c")
         painter.setPen(QPen(border, 1.5))
-        painter.setBrush(QColor(255, 138, 61, 25) if selected else QColor("#262626"))
+        painter.setBrush(QColor(255, 122, 69, 28) if selected else QColor("#1c2938"))
         painter.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 6, 6)
 
         if self._vertical:
             page = QRectF(18, 7, 26, 42)
         else:
             page = QRectF(9, 12, 44, 32)
-        painter.setPen(QPen(QColor("#8b8b8b"), 1))
-        painter.setBrush(QColor("#181818"))
+        painter.setPen(QPen(QColor("#65758b"), 1))
+        painter.setBrush(QColor("#0b1119"))
         painter.drawRect(page)
         gap = 2.0
-        fill = QColor("#b7b7b7") if selected else QColor("#858585")
+        fill = QColor("#dbe5f0") if selected else QColor("#8190a4")
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(fill)
         x, y, w, h = page.x() + 2, page.y() + 2, page.width() - 4, page.height() - 4
@@ -247,7 +247,7 @@ class CollageTemplateButton(QToolButton):
                 for index in range(3):
                     painter.drawRect(QRectF(x+index*(cell+gap), y, cell, h))
 
-        painter.setPen(QColor("#ff9b5c") if selected else QColor("#c1c1c1"))
+        painter.setPen(QColor("#ff9a70") if selected else QColor("#acb9c8"))
         font = painter.font()
         font.setPixelSize(10)
         font.setBold(selected)
@@ -337,8 +337,8 @@ class SwatchButton(QPushButton):
                         p.fillRect(x, y, min(sq, r.right() - x + 1),
                                    min(sq, r.bottom() - y + 1), QColor("#8a8a8a"))
         p.fillRect(r, self._color)
-        p.setPen(QPen(QColor("#ff8a3d") if self.underMouse()
-                      else QColor("#3a3a3a"), 1))
+        p.setPen(QPen(QColor("#ff7a45") if self.underMouse()
+                      else QColor("#35475c"), 1))
         p.drawRect(r)
 
 
@@ -406,7 +406,7 @@ def _set_btn_color(btn: QPushButton, color: QColor):
     btn.setStyleSheet(
         "QPushButton {"
         f"background-color: rgba({color.red()},{color.green()},{color.blue()},{color.alpha()});"
-        "border: 1px solid #3a3a3a; border-radius: 4px;"
+        "border: 1px solid #35475c; border-radius: 4px;"
         "}"
     )
 
@@ -478,21 +478,21 @@ class StylePreviewButton(QToolButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if not self.isEnabled():
-            bg = QColor("#1e1e1e")
-            border = QColor("#2a2a2a")
-            stroke = QColor("#5a5a5a")
+            bg = QColor("#101722")
+            border = QColor("#202c3b")
+            stroke = QColor("#526075")
         elif self.isChecked():
-            bg = QColor(255, 138, 61, 32)
-            border = QColor("#ff8a3d")
-            stroke = QColor("#ff8a3d")
+            bg = QColor(255, 122, 69, 34)
+            border = QColor("#ff7a45")
+            stroke = QColor("#ff7a45")
         elif self.underMouse():
-            bg = QColor("#333333")
-            border = QColor("#4a4a4a")
-            stroke = QColor("#e6e6e6")
+            bg = QColor("#243348")
+            border = QColor("#526a86")
+            stroke = QColor("#eef3f8")
         else:
-            bg = QColor("#2a2a2a")
-            border = QColor("#3a3a3a")
-            stroke = QColor("#e6e6e6")
+            bg = QColor("#1c2938")
+            border = QColor("#35475c")
+            stroke = QColor("#dbe5f0")
 
         outer = QRectF(1, 1, self.width() - 2, self.height() - 2)
         painter.setPen(QPen(border, 1.4))
@@ -538,7 +538,7 @@ class StylePreviewButton(QToolButton):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(stroke))
             painter.drawRoundedRect(QRectF(7, 14, 32, 14), 3, 3)
-            hole = QColor("#141414") if self.isChecked() else QColor("#2a2a2a")
+            hole = QColor("#0b1119") if self.isChecked() else QColor("#1c2938")
             painter.setBrush(QBrush(hole))
             painter.drawRoundedRect(QRectF(11, 18, 24, 2.4), 1.2, 1.2)
             painter.drawRoundedRect(QRectF(11, 22.4, 17, 2.4), 1.2, 1.2)
@@ -573,13 +573,13 @@ class TailCountButton(QToolButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         if not self.isEnabled():
-            bg, br, ink = QColor("#1e1e1e"), QColor("#2a2a2a"), QColor("#5a5a5a")
+            bg, br, ink = QColor("#101722"), QColor("#202c3b"), QColor("#526075")
         elif self.isChecked():
-            bg, br, ink = QColor(255, 138, 61, 32), QColor("#ff8a3d"), QColor("#ff8a3d")
+            bg, br, ink = QColor(255, 122, 69, 34), QColor("#ff7a45"), QColor("#ff7a45")
         elif self.underMouse():
-            bg, br, ink = QColor("#333333"), QColor("#4a4a4a"), QColor("#e6e6e6")
+            bg, br, ink = QColor("#243348"), QColor("#526a86"), QColor("#eef3f8")
         else:
-            bg, br, ink = QColor("#2a2a2a"), QColor("#3a3a3a"), QColor("#e6e6e6")
+            bg, br, ink = QColor("#1c2938"), QColor("#35475c"), QColor("#dbe5f0")
         p.setPen(QPen(br, 1.4))
         p.setBrush(bg)
         p.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 7, 7)
@@ -617,13 +617,13 @@ class AccentButton(QToolButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         if not self.isEnabled():
-            bg, br, ink = QColor("#1e1e1e"), QColor("#2a2a2a"), QColor("#5a5a5a")
+            bg, br, ink = QColor("#101722"), QColor("#202c3b"), QColor("#526075")
         elif self.isChecked():
-            bg, br, ink = QColor(255, 138, 61, 32), QColor("#ff8a3d"), QColor("#ff8a3d")
+            bg, br, ink = QColor(255, 122, 69, 34), QColor("#ff7a45"), QColor("#ff9a70")
         elif self.underMouse():
-            bg, br, ink = QColor("#333333"), QColor("#4a4a4a"), QColor("#e6e6e6")
+            bg, br, ink = QColor("#243348"), QColor("#ff7a45"), QColor("#eef3f8")
         else:
-            bg, br, ink = QColor("#2a2a2a"), QColor("#3a3a3a"), QColor("#e6e6e6")
+            bg, br, ink = QColor("#1c2938"), QColor("#35475c"), QColor("#dbe5f0")
         p.setPen(QPen(br, 1.4))
         p.setBrush(bg)
         p.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 7, 7)
@@ -639,7 +639,7 @@ class AccentButton(QToolButton):
                     x = 18 + col * 4.2 + (2 if row % 2 else 0)
                     y = 19 + row * 4.0
                     p.drawEllipse(QPointF(x, y), 1.25, 1.25)
-            p.setBrush(QColor("#2a2a2a") if not self.isChecked() else QColor("#141414"))
+            p.setBrush(QColor("#1c2938") if not self.isChecked() else QColor("#0b1119"))
             p.setPen(QPen(ink, 1.5))
             p.drawEllipse(body)
         elif k == "ticks":
@@ -701,17 +701,17 @@ class BalloonPresetButton(QToolButton):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        border = QColor("#4a4a4a") if self.underMouse() else QColor("#3a3a3a")
+        border = QColor("#526a86") if self.underMouse() else QColor("#35475c")
         p.setPen(QPen(border, 1.2))
-        p.setBrush(QColor("#2a2a2a"))
+        p.setBrush(QColor("#1c2938"))
         p.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 6, 6)
         oval = QRectF(8, 8, self.width() - 16, self.height() - 16)
         if self._fill.alpha() == 0:
             # Transparent fill: show the checkerboard so "Ghost" reads clearly.
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor("#4a4a4a"))
+            p.setBrush(QColor("#526a86"))
             p.drawEllipse(oval)
-            p.setBrush(QColor("#333333"))
+            p.setBrush(QColor("#243348"))
             p.setClipRect(QRectF(oval.center().x(), oval.top(),
                                  oval.width() / 2, oval.height()))
             p.drawEllipse(oval)
@@ -740,13 +740,13 @@ class OutlineWidthButton(QToolButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if not self.isEnabled():
-            bg, border, stroke = QColor("#1e1e1e"), QColor("#2a2a2a"), QColor("#5a5a5a")
+            bg, border, stroke = QColor("#101722"), QColor("#202c3b"), QColor("#526075")
         elif self.isChecked():
-            bg, border, stroke = QColor(255, 138, 61, 32), QColor("#ff8a3d"), QColor("#ff8a3d")
+            bg, border, stroke = QColor(255, 122, 69, 34), QColor("#ff7a45"), QColor("#ff7a45")
         elif self.underMouse():
-            bg, border, stroke = QColor("#333333"), QColor("#4a4a4a"), QColor("#e6e6e6")
+            bg, border, stroke = QColor("#243348"), QColor("#526a86"), QColor("#eef3f8")
         else:
-            bg, border, stroke = QColor("#2a2a2a"), QColor("#3a3a3a"), QColor("#e6e6e6")
+            bg, border, stroke = QColor("#1c2938"), QColor("#35475c"), QColor("#dbe5f0")
         painter.setPen(QPen(border, 1.4))
         painter.setBrush(QBrush(bg))
         painter.drawRoundedRect(QRectF(1, 1, self.width() - 2, self.height() - 2), 7, 7)
@@ -776,13 +776,13 @@ class TailShapeButton(QToolButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if not self.isEnabled():
-            bg, border, stroke = QColor("#1e1e1e"), QColor("#2a2a2a"), QColor("#5a5a5a")
+            bg, border, stroke = QColor("#101722"), QColor("#202c3b"), QColor("#526075")
         elif self.isChecked():
-            bg, border, stroke = QColor(255, 138, 61, 32), QColor("#ff8a3d"), QColor("#ff8a3d")
+            bg, border, stroke = QColor(255, 122, 69, 34), QColor("#ff7a45"), QColor("#ff7a45")
         elif self.underMouse():
-            bg, border, stroke = QColor("#333333"), QColor("#4a4a4a"), QColor("#e6e6e6")
+            bg, border, stroke = QColor("#243348"), QColor("#526a86"), QColor("#eef3f8")
         else:
-            bg, border, stroke = QColor("#2a2a2a"), QColor("#3a3a3a"), QColor("#e6e6e6")
+            bg, border, stroke = QColor("#1c2938"), QColor("#35475c"), QColor("#dbe5f0")
 
         outer = QRectF(1, 1, self.width() - 2, self.height() - 2)
         painter.setPen(QPen(border, 1.4))
@@ -880,7 +880,7 @@ class InspectorDock(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumWidth(320)
+        self.setMinimumWidth(272)
         self.setMaximumWidth(380)
         self.setObjectName("InspectorDock")
         self._bubble     = None
@@ -893,7 +893,7 @@ class InspectorDock(QWidget):
         self._font_combo = None
         self._layer_items = {}
         self._refreshing_layers = False
-        self._dual_border_color_val = QColor("#4a4a4a")
+        self._dual_border_color_val = QColor("#485d76")
         self._build_ui()
 
     @property
@@ -920,9 +920,7 @@ class InspectorDock(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
 
-        # Balloon+-style tabs instead of one endless scrolling column: the
-        # controls are split so each tab fits the panel height without a
-        # scrollbar at normal window sizes.
+        # Tabs split the full feature set into stable, predictable work areas.
         self._tabs = QTabBar()
         self._tabs.addTab("Shape")
         self._tabs.addTab("Text")
@@ -959,6 +957,16 @@ class InspectorDock(QWidget):
         text_scroll, self._text_lay = _make_page()
         fx_scroll, self._fx_lay = _make_page()
 
+        self._shape_intro_title, self._shape_intro_text = self._add_tab_intro(
+            self._shape_lay, "Shape",
+            "Choose the bubble form, fill, border, and tail.")
+        self._text_intro_title, self._text_intro_text = self._add_tab_intro(
+            self._text_lay, "Text",
+            "Edit wording, typography, alignment, and spacing.")
+        self._fx_intro_title, self._fx_intro_text = self._add_tab_intro(
+            self._fx_lay, "Effects",
+            "Add shadows, expression marks, photos, and motion effects.")
+
         # Nothing selected = nothing to configure. Showing a wall of disabled
         # controls on launch was pure noise (and forced a scrollbar); each page
         # gets a short placeholder instead.
@@ -983,9 +991,30 @@ class InspectorDock(QWidget):
         self._stack.addWidget(fx_scroll)
 
         layers_page = QWidget()
+        layers_page.setObjectName("InspectorPage")
         layers_lay = QVBoxLayout(layers_page)
-        layers_lay.setContentsMargins(8, 10, 8, 12)
-        layers_lay.setSpacing(8)
+        layers_lay.setContentsMargins(0, 0, 0, 0)
+        layers_lay.setSpacing(0)
+
+        self._layers_intro_title, self._layers_intro_text = self._add_tab_intro(
+            layers_lay, "Layers",
+            "Control visibility and front-to-back order.")
+
+        layers_header = QWidget()
+        layers_header.setObjectName("InspectorSectionHeader")
+        layers_header.setFixedHeight(38)
+        layers_header_lay = QHBoxLayout(layers_header)
+        layers_header_lay.setContentsMargins(14, 0, 12, 0)
+        layers_title = QLabel("LAYER STACK")
+        layers_title.setObjectName("InspectorSectionTitle")
+        layers_header_lay.addWidget(layers_title)
+        layers_header_lay.addStretch()
+        layers_order = QLabel("FRONT TO BACK")
+        layers_order.setObjectName("InspectorHint")
+        layers_header_lay.addWidget(layers_order)
+        layers_lay.addWidget(layers_header)
+
+        self._layers_stack = QStackedWidget()
         self._layers_list = QListWidget()
         self._layers_list.setObjectName("LayersList")
         self._layers_list.setDragDropMode(QListWidget.DragDropMode.InternalMove)
@@ -996,11 +1025,26 @@ class InspectorDock(QWidget):
         self._layers_list.itemClicked.connect(
             lambda _item: self._on_layer_selection())
         self._layers_list.model().rowsMoved.connect(self._on_layers_reordered)
-        layers_lay.addWidget(self._layers_list)
-        layer_actions = QHBoxLayout()
+        self._layers_stack.addWidget(self._layers_list)
+
+        self._layers_empty = QLabel(
+            "No editable layers yet.\n\nAdd a bubble, image layer, blur, pixelate, "
+            "or speed lines to start building the stack.")
+        self._layers_empty.setObjectName("LayersEmptyState")
+        self._layers_empty.setWordWrap(True)
+        self._layers_empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._layers_empty.setContentsMargins(28, 28, 28, 28)
+        self._layers_stack.addWidget(self._layers_empty)
+        layers_lay.addWidget(self._layers_stack, stretch=1)
+
+        self._layers_actions = QWidget()
+        self._layers_actions.setObjectName("LayersActionBar")
+        layer_actions = QHBoxLayout(self._layers_actions)
+        layer_actions.setContentsMargins(10, 10, 10, 12)
+        layer_actions.setSpacing(8)
         for label, delta, tip in (
-            ("Up", -1, "Move selected layer up"),
-            ("Down", 1, "Move selected layer down"),
+            ("Move up", -1, "Move selected layer up"),
+            ("Move down", 1, "Move selected layer down"),
         ):
             btn = QPushButton(label)
             btn.setObjectName("LayerActionButton")
@@ -1008,8 +1052,24 @@ class InspectorDock(QWidget):
             btn.setToolTip(tip)
             btn.clicked.connect(lambda _checked=False, d=delta: self._move_selected_layer(d))
             layer_actions.addWidget(btn)
-        layers_lay.addLayout(layer_actions)
+        layers_lay.addWidget(self._layers_actions)
         self._stack.addWidget(layers_page)
+
+    def _add_tab_intro(self, layout, title: str, description: str):
+        intro = QWidget()
+        intro.setObjectName("InspectorTabIntro")
+        intro_lay = QVBoxLayout(intro)
+        intro_lay.setContentsMargins(14, 10, 14, 11)
+        intro_lay.setSpacing(3)
+        title_label = QLabel(title)
+        title_label.setObjectName("InspectorTabIntroTitle")
+        intro_lay.addWidget(title_label)
+        description_label = QLabel(description)
+        description_label.setObjectName("InspectorTabIntroText")
+        description_label.setWordWrap(True)
+        intro_lay.addWidget(description_label)
+        layout.addWidget(intro)
+        return title_label, description_label
 
     def _build_inspector_sections(self):
         # --- SHAPE tab: the bubble's form ----------------------------------
@@ -2432,6 +2492,11 @@ class InspectorDock(QWidget):
     # ------------------------------------------------------------------
 
     def _create_font_combo(self):
+        # A short-lived offscreen window can be destroyed before this deferred
+        # setup runs. In the live editor the layout is present; during teardown
+        # there is simply nothing left to populate.
+        if self._font_combo_placeholder is None:
+            return
         self._font_combo = QComboBox()
         self._font_combo.setEditable(True)
         self._font_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
@@ -2440,7 +2505,12 @@ class InspectorDock(QWidget):
         families = sorted(QFontDatabase.families(), key=str.casefold)
         self._font_combo.addItems(families)
         self._font_combo.currentTextChanged.connect(self._on_font_family_name)
-        idx = self._font_row_layout.indexOf(self._font_combo_placeholder)
+        try:
+            idx = self._font_row_layout.indexOf(self._font_combo_placeholder)
+        except RuntimeError:
+            self._font_combo.deleteLater()
+            self._font_combo = None
+            return
         if idx >= 0:
             self._font_row_layout.removeWidget(self._font_combo_placeholder)
             self._font_combo_placeholder.deleteLater()
@@ -2622,6 +2692,23 @@ class InspectorDock(QWidget):
         self._tabs.setTabText(self.FX_TAB, "Selected FX" if page_mode else "FX")
         self._tabs.setTabText(self.LAYERS_TAB, "Layers")
         self._tabs.setTabVisible(self.TEXT_TAB, not page_mode)
+        if collage:
+            self._shape_intro_title.setText("Photo collage")
+            self._shape_intro_text.setText(
+                "Choose the frame layout, spacing, colors, and finish.")
+        elif comic:
+            self._shape_intro_title.setText("Comic page")
+            self._shape_intro_text.setText(
+                "Shape the page rhythm, panels, gutters, and paper.")
+        else:
+            self._shape_intro_title.setText("Shape")
+            self._shape_intro_text.setText(
+                "Choose the bubble form, fill, border, and tail.")
+        self._fx_intro_title.setText("Selected effects" if page_mode else "Effects")
+        self._fx_intro_text.setText(
+            "Edit effects attached to the active frame."
+            if page_mode else
+            "Add shadows, expression marks, photos, and motion effects.")
 
     def _configure_tabs_for_object(self):
         self._tabs.setTabText(self.SHAPE_TAB, "Shape")
@@ -2629,6 +2716,12 @@ class InspectorDock(QWidget):
         self._tabs.setTabText(self.FX_TAB, "FX")
         self._tabs.setTabText(self.LAYERS_TAB, "Layers")
         self._tabs.setTabVisible(self.TEXT_TAB, True)
+        self._shape_intro_title.setText("Shape")
+        self._shape_intro_text.setText(
+            "Choose the bubble form, fill, border, and tail.")
+        self._fx_intro_title.setText("Effects")
+        self._fx_intro_text.setText(
+            "Add shadows, expression marks, photos, and motion effects.")
 
     # ------------------------------------------------------------------
     # Public update API
@@ -3342,6 +3435,10 @@ class InspectorDock(QWidget):
             if item.isSelected():
                 list_item.setSelected(True)
         self._layers_list.blockSignals(False)
+        has_layers = bool(items)
+        self._layers_stack.setCurrentWidget(
+            self._layers_list if has_layers else self._layers_empty)
+        self._layers_actions.setVisible(has_layers)
         self._refreshing_layers = False
 
     def _normalize_layer_z_values(self):

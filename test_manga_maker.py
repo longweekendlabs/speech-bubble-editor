@@ -19,6 +19,7 @@ from collage_maker import (
 from manga_maker import PAGE_HEIGHT, PAGE_WIDTH, PANEL_COUNTS, generate_layout
 from inspector_dock import (
     CollageTemplateStrip, InspectorDock, OptionButtonGrid, PhotoCountStepper,
+    STYLE_LABELS,
 )
 from main_window import MainWindow
 from tool_sidebar import ToolSidebar
@@ -292,6 +293,11 @@ class PageOptionButtonTests(unittest.TestCase):
     def test_left_tool_is_named_comic(self):
         sidebar = ToolSidebar()
         self.assertEqual(sidebar._buttons["manga"].text(), "Comic")
+
+    def test_inspector_keeps_every_bubble_style(self):
+        inspector = InspectorDock()
+        self.assertEqual(set(inspector._style_btns), set(STYLE_LABELS))
+        self.assertEqual(len(inspector._style_btns), 19)
 
     def test_collage_changes_always_refit_the_whole_page(self):
         window = MainWindow()

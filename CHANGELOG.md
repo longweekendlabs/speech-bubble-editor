@@ -2,6 +2,24 @@
 
 All notable user-facing changes are tracked here. Release downloads are published on the [GitHub Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases).
 
+## v4.5.1 - 2026-09-02
+
+### Changed
+
+- Reworked the editor chrome around a consistent blue-and-orange Night Desk theme with clearer surface hierarchy, spacing, contrast, and interaction states.
+- Made the main workspace responsive with a resizable inspector, labelled and compact tool-rail modes, and top-bar controls that adapt at narrower window sizes.
+- Unified the Shape, Text, FX, and Layers inspectors with matching introductions, section structure, control styling, and orange active states.
+- Restyled the Layers tab with a proper layer stack, useful empty state, drag ordering, visibility controls, and integrated move actions while preserving all existing layer behavior.
+- Refined the opening canvas with a focused speech-bubble composition card and direct open/drop guidance.
+
+### Fixed
+
+- Prevented selecting or deselecting a bubble from changing the context-toolbar height, refitting the canvas, or causing visible zoom and image-position jumps.
+- Reduced oversized default bubbles on low-resolution media while preserving proportional sizing on larger images.
+- Kept resize handles, tail handles, and selection outlines at a stable on-screen size across zoom levels.
+- Prevented the Long Weekend Labs byline from clipping in the application header.
+- Preserved the complete set of bubble styles and editor tools throughout the interface overhaul.
+
 ## v4.5.0 - 2026-08-05
 
 ### Added

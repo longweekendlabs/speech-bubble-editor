@@ -13,7 +13,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRectF, QPointF, QEvent, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import (
     QPixmap, QPainter, QColor, QUndoStack, QFont, QPen,
-    QFontMetrics, QTransform, QBrush, QImage,
+    QFontMetrics, QTransform, QBrush, QImage, QPainterPath,
 )
 
 from video_player import VideoPlayer, FrameDecodeWorker
@@ -184,7 +184,7 @@ class RightMediaPlaceholder(QGraphicsItem):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.fillRect(self._rect, QColor("#121212"))
 
-        pen = QPen(QColor("#4a4a4a"))
+        pen = QPen(QColor("#485d76"))
         pen.setStyle(Qt.PenStyle.DashLine)
         pen.setWidth(2)
         painter.setPen(pen)
@@ -224,7 +224,7 @@ class DualSeamItem(QGraphicsItem):
         super().__init__()
         self._rect         = QRectF(x, y, w, h)
         self._gap_color    = QColor("#121212")
-        self._border_color = QColor("#4a4a4a")
+        self._border_color = QColor("#485d76")
         self._border_width = 0.0
         self._feather      = 0
         self.setZValue(-0.5)
@@ -379,7 +379,7 @@ class PhotoScene(QGraphicsScene):
         self._overlay_layers: list = []            # list[MediaItem]
         self._dual_gap = _DUAL_GAP                 # instance copy of gap
         self._dual_seam: DualSeamItem | None = None
-        self._dual_border_color = QColor("#4a4a4a")
+        self._dual_border_color = QColor("#485d76")
         self._dual_border_width = 0.0
         self.selectionChanged.connect(self._track_active_page_panel)
 
@@ -1834,7 +1834,7 @@ class PhotoView(QGraphicsView):
 
     def _update_background_brush(self):
         """Keep the empty canvas aligned with the fixed v4 dark theme."""
-        self.setBackgroundBrush(QColor("#121212"))
+        self.setBackgroundBrush(QColor("#080c12"))
 
     # --- tools & cursor -----------------------------------------------------
 
@@ -1923,39 +1923,48 @@ class PhotoView(QGraphicsView):
         super().drawBackground(painter, rect)
         if not self._photo_scene.has_photo():
             # Welcome screen — draw in viewport coordinates so it's always centered
-            icon_bg_color     = QColor("#232323")
-            icon_border_color = QColor("#4a4a4a")
-            icon_plus_color   = QColor("#9a9a9a")
-            main_text_color   = QColor("#e6e6e6")
-            sub_text_color    = QColor("#9a9a9a")
+            panel_color       = QColor("#121b27")
+            panel_border      = QColor("#2c3a4a")
+            accent_color      = QColor("#ff7a45")
+            main_text_color   = QColor("#f4f7fb")
+            sub_text_color    = QColor("#94a3b5")
 
             painter.save()
             painter.resetTransform()
             vr = self.viewport().rect()
 
-            # Icon area
-            icon_size = 64
-            ix = vr.center().x() - icon_size // 2
-            iy = vr.center().y() - icon_size // 2 - 40
-            painter.setBrush(QBrush(icon_bg_color))
-            painter.setPen(QPen(icon_border_color, 2))
-            painter.drawRoundedRect(ix, iy, icon_size, icon_size, 12, 12)
-            painter.setPen(QPen(icon_plus_color, 3))
-            painter.setFont(QFont("sans-serif", 28))
-            painter.drawText(
-                ix, iy, icon_size, icon_size,
-                int(Qt.AlignmentFlag.AlignCenter), "+"
-            )
+            # A restrained speech-card makes the empty state belong to this app.
+            card_w = min(520, max(360, vr.width() - 72))
+            card_h = 236
+            cx = vr.center().x() - card_w // 2
+            cy = vr.center().y() - card_h // 2 - 8
+            path = QPainterPath()
+            path.addRoundedRect(QRectF(cx, cy, card_w, card_h - 18), 18, 18)
+            path.moveTo(cx + 70, cy + card_h - 18)
+            path.lineTo(cx + 50, cy + card_h)
+            path.lineTo(cx + 102, cy + card_h - 18)
+            painter.setBrush(QBrush(panel_color))
+            painter.setPen(QPen(panel_border, 1))
+            painter.drawPath(path)
+
+            painter.setPen(QPen(accent_color))
+            eyebrow = QFont()
+            eyebrow.setPixelSize(11)
+            eyebrow.setBold(True)
+            eyebrow.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 1.2)
+            painter.setFont(eyebrow)
+            painter.drawText(cx + 32, cy + 28, card_w - 64, 18,
+                             int(Qt.AlignmentFlag.AlignLeft), "NEW COMPOSITION")
 
             # Main message
             painter.setPen(QPen(main_text_color))
             f1 = QFont()
-            f1.setPixelSize(18)
+            f1.setPixelSize(22)
             f1.setBold(True)
             painter.setFont(f1)
             painter.drawText(
-                vr.left(), iy + icon_size + 18, vr.width(), 28,
-                int(Qt.AlignmentFlag.AlignHCenter), "Open a photo or video to get started"
+                cx + 32, cy + 56, card_w - 64, 30,
+                int(Qt.AlignmentFlag.AlignLeft), "Start with your media"
             )
 
             # Sub-message
@@ -1964,15 +1973,28 @@ class PhotoView(QGraphicsView):
             f2.setPixelSize(13)
             painter.setFont(f2)
             painter.drawText(
-                vr.left(), iy + icon_size + 52, vr.width(), 22,
-                int(Qt.AlignmentFlag.AlignHCenter),
-                "Click anywhere here, drag & drop a file, or use  Open  above"
+                cx + 32, cy + 92, card_w - 64, 22,
+                int(Qt.AlignmentFlag.AlignLeft),
+                "Open a photo or video, then build bubbles, captions, and effects."
             )
+
+            button = QRectF(cx + 32, cy + 134, 164, 42)
+            painter.setBrush(QBrush(accent_color))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawRoundedRect(button, 8, 8)
+            painter.setPen(QPen(QColor("#111722")))
+            f3 = QFont()
+            f3.setPixelSize(13)
+            f3.setBold(True)
+            painter.setFont(f3)
             painter.drawText(
-                vr.left(), iy + icon_size + 74, vr.width(), 22,
-                int(Qt.AlignmentFlag.AlignHCenter),
-                "Then double-click the canvas or use  + Bubble  to add speech bubbles"
+                button, int(Qt.AlignmentFlag.AlignCenter), "Open media…"
             )
+            painter.setPen(QPen(sub_text_color))
+            f2.setPixelSize(12)
+            painter.setFont(f2)
+            painter.drawText(cx + 212, cy + 144, card_w - 244, 22,
+                             int(Qt.AlignmentFlag.AlignLeft), "or drop a file here")
             painter.restore()
 
     def mousePressEvent(self, event):

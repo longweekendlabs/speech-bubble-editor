@@ -192,6 +192,19 @@ class ContextToolbar(QWidget):
         lay.addWidget(self._manga_group, stretch=1)
         self._manga_group.hide()
 
+        # Idle content occupies the same fixed row as selection/page controls.
+        # Swapping content instead of hiding the toolbar prevents Fit Window
+        # from recomputing zoom whenever selection changes.
+        self._idle_group = QWidget()
+        idle = QHBoxLayout(self._idle_group)
+        idle.setContentsMargins(4, 0, 4, 0)
+        idle_hint = QLabel("Select a bubble or layer for alignment and arrange controls")
+        idle_hint.setObjectName("ContextIdleHint")
+        idle.addWidget(idle_hint)
+        idle.addStretch()
+        lay.addWidget(self._idle_group, stretch=1)
+        self._idle_group.hide()
+
     def _on_manga_zoom(self, value: int):
         self._manga_zoom_value.setText(f"{value}%")
         if not self._updating_manga_zoom:
@@ -229,12 +242,16 @@ class ContextToolbar(QWidget):
     # ------------------------------------------------------------------
 
     def show_for_bubble(self):
+        self.show()
+        self._idle_group.hide()
         self._selection_group.show()
         self._manga_group.hide()
         self._chip.setText("Bubble selected")
         self._set_actions_enabled(True)
 
     def show_for_media(self):
+        self.show()
+        self._idle_group.hide()
         self._selection_group.show()
         self._manga_group.hide()
         self._chip.setText("Layer selected")
@@ -242,13 +259,15 @@ class ContextToolbar(QWidget):
 
     def hide_toolbar(self):
         if self._manga_active:
+            self.show()
+            self._idle_group.hide()
             self._selection_group.hide()
             self._manga_group.show()
             return
-        self._selection_group.show()
+        self.show()
+        self._selection_group.hide()
         self._manga_group.hide()
-        self._chip.setText("No selection")
-        self._set_actions_enabled(False)
+        self._idle_group.show()
 
     def set_manga_mode(self, active: bool):
         self.set_page_mode("manga" if active else None)
@@ -279,6 +298,8 @@ class ContextToolbar(QWidget):
         self._manga_layout_label.setText(name)
 
     def show_for_manga_panel(self, zoom_percent: int, has_image: bool = True):
+        self.show()
+        self._idle_group.hide()
         self._selection_group.hide()
         self._manga_group.show()
         self.set_manga_zoom(zoom_percent, has_image)

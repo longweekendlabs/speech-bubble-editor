@@ -100,6 +100,10 @@ class TailHandle(QGraphicsEllipseItem):
         self.setPen(QPen(QColor("#121212"), 2.0))
         self.setZValue(10)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        # Editing affordances are UI, not artwork. Keep the tail target the
+        # same physical size when a small image is fitted above 100% zoom.
+        self.setFlag(
+            QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
         self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
         self.setToolTip("Drag to repoint tail")
 
@@ -154,6 +158,9 @@ class ResizeHandle(QGraphicsRectItem):
         self.setZValue(11)
         self.setCursor(QCursor(self.CURSORS[anchor]))
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
+        # Handles remain a predictable screen size at every canvas zoom.
+        self.setFlag(
+            QGraphicsItem.GraphicsItemFlag.ItemIgnoresTransformations, True)
         self.setAcceptHoverEvents(True)
 
     # --- geometry: hit area is much larger than the drawn handle -------------
@@ -1627,11 +1634,13 @@ class BubbleItem(QGraphicsItem):
         # Size from the frame's AREA, not its width: width alone swaps when the
         # photo is rotated, so bubbles added after a rotation came out visibly
         # smaller on the very same picture. sqrt(w*h) is rotation-invariant.
-        target_w = math.sqrt(canvas_w * canvas_h) * 0.30
+        target_w = math.sqrt(canvas_w * canvas_h) * 0.21
         factor = target_w / DEFAULT_W
-        # Never let the body eat more than a third of the frame height.
-        max_by_h = (canvas_h * 0.30) / DEFAULT_H
-        factor = max(0.5, min(factor, max_by_h, 12.0))
+        # Keep a new bubble compact on low-resolution portraits. The old 0.5
+        # floor made a 220 px default at least 110 px wide even on a 320 px
+        # image, before the view enlarged it again to fit the window.
+        max_by_h = (canvas_h * 0.24) / DEFAULT_H
+        factor = max(0.18, min(factor, max_by_h, 12.0))
         if abs(factor - 1.0) < 0.02:
             return
 
@@ -2525,9 +2534,12 @@ class BubbleItem(QGraphicsItem):
         """Dark solid underlay + bright dashes on top, so the selection reads
         against both a white sky and a black shadow."""
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(QColor(10, 10, 10, 200), 2.6))
+        underlay = QPen(QColor(10, 10, 10, 200), 2.6)
+        underlay.setCosmetic(True)
+        painter.setPen(underlay)
         painter.drawRect(rect)
         pen = QPen(QColor("#ff8a3d"), 1.8, Qt.PenStyle.DashLine)
+        pen.setCosmetic(True)
         pen.setDashPattern([5, 4])
         painter.setPen(pen)
         painter.drawRect(rect)

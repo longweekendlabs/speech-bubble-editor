@@ -56,7 +56,9 @@ class ToolSidebar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedWidth(80)
+        self._compact = False
+        self._manual_compact_override = False
+        self.setFixedWidth(104)
         self.setObjectName("ToolSidebar")
         self._buttons: dict[str, QToolButton] = {}
         self._build_ui()
@@ -65,14 +67,17 @@ class ToolSidebar(QWidget):
 
     def _build_ui(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 14, 8, 10)
-        lay.setSpacing(2)
+        lay.setContentsMargins(8, 10, 8, 8)
+        lay.setSpacing(1)
         lay.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self._tool_group = QButtonGroup(self)
         self._tool_group.setExclusive(True)
 
+        group_breaks = {"crop", "bubble", "blur", "layers", "meme"}
         for tool_id, label, svg, shortcut, checkable, in_group in TOOL_DEFS:
+            if tool_id in group_breaks:
+                lay.addSpacing(6)
             btn = self._make_tool_btn(tool_id, label, svg, shortcut, checkable)
             self._buttons[tool_id] = btn
 
@@ -106,22 +111,24 @@ class ToolSidebar(QWidget):
         lay.addStretch()
 
         # Collapse button
-        collapse = QToolButton()
-        collapse.setObjectName("SidebarCollapse")
-        collapse.setText("«")
-        collapse.setFixedSize(60, 28)
-        collapse.setToolTip("Collapse sidebar")
-        lay.addWidget(collapse)
+        self._collapse = QToolButton()
+        self._collapse.setObjectName("SidebarCollapse")
+        self._collapse.setText("«  Compact")
+        self._collapse.setFixedHeight(28)
+        self._collapse.setToolTip("Use a compact icon-only toolbar")
+        self._collapse.clicked.connect(self._toggle_compact)
+        lay.addWidget(self._collapse)
 
     def _make_tool_btn(self, tool_id: str, label: str, svg: str,
                        shortcut: str | None, checkable: bool) -> QToolButton:
         btn = QToolButton()
         btn.setObjectName(f"ToolBtn_{tool_id}")
-        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         btn.setText(label)
-        btn.setFixedSize(64, 50)
-        btn.setIconSize(QSize(20, 20))
+        btn.setFixedSize(88, 34)
+        btn.setIconSize(QSize(18, 18))
         btn.setCheckable(checkable)
+        btn.setAccessibleName(label)
 
         # Normal and accent icons
         icon_normal, icon_accent = make_icon_pair(svg, 20)
@@ -147,6 +154,28 @@ class ToolSidebar(QWidget):
             )
 
         return btn
+
+    def _toggle_compact(self):
+        self._manual_compact_override = True
+        self.set_compact(not self._compact)
+
+    def set_compact(self, compact: bool, automatic: bool = False):
+        """Switch between labelled and icon-only tools without changing actions."""
+        if automatic and self._manual_compact_override:
+            return
+        self._compact = bool(compact)
+        self.setFixedWidth(56 if self._compact else 104)
+        for tool_id, label, _svg, _shortcut, _checkable, _group in TOOL_DEFS:
+            btn = self._buttons[tool_id]
+            btn.setToolButtonStyle(
+                Qt.ToolButtonStyle.ToolButtonIconOnly
+                if self._compact else Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+            )
+            btn.setFixedSize(40 if self._compact else 88, 34)
+            btn.setText(label)
+        self._collapse.setText("»" if self._compact else "«  Compact")
+        self._collapse.setToolTip(
+            "Show tool labels" if self._compact else "Use a compact icon-only toolbar")
 
     # ------------------------------------------------------------------
     # Public API (mirrors v3 ToolSidebar)

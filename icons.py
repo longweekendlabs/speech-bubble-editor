@@ -14,10 +14,11 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import QByteArray
 
 
-ACCENT  = "#ff8a3d"
-FG      = "#e6e6e6"
-MUTED   = "#9a9a9a"
-DANGER  = "#f87171"
+# Night-desk palette: warm proofing orange against cool ink-blue chrome.
+ACCENT  = "#ff7a45"
+FG      = "#e7edf5"
+MUTED   = "#8c9aad"
+DANGER  = "#ff6b7a"
 
 
 def make_icon(svg_body: str, size: int = 20, color: str = FG) -> QIcon:

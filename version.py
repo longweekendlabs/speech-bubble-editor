@@ -57,9 +57,12 @@ History:
   v4.5.0 — Comic and Photo Collage page editors, visual layout generation,
             magnetic photo reordering, frame-aware effects, named collage
             presets, bidirectional image scaling, and unified page inspectors.
+  v4.5.1 — Responsive editor polish, stable selection layout and low-resolution
+            bubble sizing, unified inspector structure, and the blue-and-orange
+            Night Desk interface theme.
 """
 
-__version__  = "4.5.0"
+__version__  = "4.5.1"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

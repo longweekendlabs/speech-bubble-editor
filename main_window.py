@@ -8,7 +8,7 @@ import os
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QMessageBox, QApplication, QLineEdit, QTextEdit, QPlainTextEdit,
-    QComboBox, QSpinBox, QDoubleSpinBox,
+    QComboBox, QSpinBox, QDoubleSpinBox, QSplitter,
 )
 from PyQt6.QtCore import Qt, QPointF, QEvent, QRect, QRectF, QTimer
 from PyQt6.QtGui import QKeySequence, QShortcut
@@ -29,15 +29,13 @@ from file_dialogs import open_file
 from about_dialog import AboutDialog
 from shortcuts_dialog import ShortcutsDialog
 
-import export as exporter
-
 
 class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"{__app_name__} · v{__version__}")
-        self.setMinimumSize(1180, 720)
+        self.setMinimumSize(820, 620)
         self.resize(1440, 900)
         self._build_ui()
         self._connect_signals()
@@ -72,15 +70,22 @@ class MainWindow(QMainWindow):
         canvas_vbox.addWidget(self.video_controls)
         self.zoom_bar.setVisible(False)   # zoom lives in TopBar only
 
-        # Content row: sidebar | canvas | inspector (no splitter — inspector is fixed width)
-        self.inspector.setFixedWidth(320)
+        # Content row: labelled tools | resizable canvas/inspector workspace.
+        workspace = QSplitter(Qt.Orientation.Horizontal)
+        workspace.setObjectName("WorkspaceSplitter")
+        workspace.setChildrenCollapsible(False)
+        workspace.addWidget(canvas_widget)
+        workspace.addWidget(self.inspector)
+        workspace.setStretchFactor(0, 1)
+        workspace.setStretchFactor(1, 0)
+        workspace.setSizes([1000, 308])
+
         content = QWidget()
         content_hbox = QHBoxLayout(content)
         content_hbox.setContentsMargins(0, 0, 0, 0)
         content_hbox.setSpacing(0)
         content_hbox.addWidget(self.tool_sidebar)
-        content_hbox.addWidget(canvas_widget, stretch=1)
-        content_hbox.addWidget(self.inspector)
+        content_hbox.addWidget(workspace, stretch=1)
 
         # Main layout: TopBar → ContextToolbar → content
         central = QWidget()
@@ -93,6 +98,12 @@ class MainWindow(QMainWindow):
         vbox.addWidget(content, stretch=1)
 
         self.statusBar().showMessage("Ready")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = event.size().width() < 1100
+        self.top_bar.set_compact(compact)
+        self.tool_sidebar.set_compact(compact, automatic=True)
 
     # ------------------------------------------------------------------
     # Signal wiring
@@ -409,6 +420,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_export(self):
+        # Export pulls in subprocess/archive helpers that are irrelevant until
+        # the user actually exports. Keep them off the startup path.
+        import export as exporter
+
         self.video_controls.stop()
         if self.scene.is_manga_mode():
             exporter.export_manga_photo(self, self.scene)

@@ -61,7 +61,11 @@ class TopBar(QWidget):
 
         byline = QLabel("by Long Weekend Labs")
         byline.setObjectName("TopBarByline")
+        byline.setMinimumWidth(138)
+        byline.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
         lay.addWidget(byline)
+        self._byline = byline
 
         lay.addStretch(1)
 
@@ -157,6 +161,7 @@ class TopBar(QWidget):
         )
         self.btn_more.clicked.connect(self._show_more_menu)
         lay.addWidget(self.btn_more)
+        self._compact = False
 
     # ------------------------------------------------------------------
     # Widget factories
@@ -262,6 +267,8 @@ class TopBar(QWidget):
         menu = QMenu(self)
 
         ITEMS = [
+            ("New project", self.reset_requested.emit, self.btn_reset.isEnabled()),
+            None,
             ("Keyboard Shortcuts",        self.shortcuts_requested.emit),
             None,
             ("About Speech Bubble Editor",  self.about_requested.emit),
@@ -277,12 +284,15 @@ class TopBar(QWidget):
             if item is None:
                 menu.addSeparator()
                 continue
-            label, callback = item
+            if len(item) == 3:
+                label, callback, enabled = item
+            else:
+                label, callback = item
+                enabled = callback is not None
             act = QAction(label, menu)
             if callback:
                 act.triggered.connect(callback)
-            else:
-                act.setEnabled(False)
+            act.setEnabled(enabled)
             menu.addAction(act)
 
         pos = self.btn_more.mapToGlobal(
@@ -316,6 +326,20 @@ class TopBar(QWidget):
 
     def set_reset_enabled(self, enabled: bool):
         self.btn_reset.setEnabled(enabled)
+
+    def set_compact(self, compact: bool):
+        """Keep primary actions readable while collapsing secondary chrome."""
+        compact = bool(compact)
+        if compact == self._compact:
+            return
+        self._compact = compact
+        self._byline.setVisible(not compact)
+        self.btn_undo.setText("" if compact else "Undo")
+        self.btn_redo.setText("" if compact else "Redo")
+        self.btn_reset.setVisible(not compact)
+        for btn in (self.btn_undo, self.btn_redo):
+            btn.setFixedWidth(34 if compact else btn.sizeHint().width())
+        self.btn_zoom.setMinimumWidth(84 if compact else 110)
 
     def update_zoom(self, percent: int):
         """Called by PhotoView.zoom_changed signal."""
