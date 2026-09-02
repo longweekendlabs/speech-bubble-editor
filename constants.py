@@ -38,3 +38,16 @@ MERGE_ID_TAIL_SHAPE = 56
 MERGE_ID_TAIL_COUNT = 57
 MERGE_ID_TEXT_OUTLINE = 58
 MERGE_ID_INSET_PHOTO = 59
+
+# ---------------------------------------------------------------------------
+# Project links
+#
+# Single source of truth for every outbound URL. about_dialog.py and the
+# top-bar More menu both read from here so a moved page is fixed once.
+# ---------------------------------------------------------------------------
+
+URL_HOMEPAGE      = "https://longweekendlabs.github.io/speech-bubble-editor/"
+URL_REPO          = "https://github.com/longweekendlabs/speech-bubble-editor"
+URL_RELEASES      = f"{URL_REPO}/releases/latest"
+URL_ISSUES        = f"{URL_REPO}/issues"
+FEEDBACK_EMAIL    = "iemrecnl@gmail.com"

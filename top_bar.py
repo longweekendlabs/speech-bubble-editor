@@ -10,11 +10,15 @@ from PyQt6.QtWidgets import (
     QFrame, QMenu, QSizePolicy, QWidgetAction,
 )
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
-from PyQt6.QtGui import QKeySequence, QAction, QIcon, QPixmap, QPainter, QColor
+from PyQt6.QtGui import (QKeySequence, QAction, QIcon, QPixmap, QPainter,
+                         QColor, QDesktopServices)
+from PyQt6.QtCore import QUrl
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import QByteArray
 
-from constants import ALL_EXTENSIONS
+from constants import (ALL_EXTENSIONS, URL_HOMEPAGE, URL_REPO,
+                       URL_RELEASES, FEEDBACK_EMAIL)
+from version import __app_name__, __version__
 from file_dialogs import open_file
 from icons import (
     make_icon, ACCENT, FG, MUTED,
@@ -263,8 +267,20 @@ class TopBar(QWidget):
     # More menu
     # ------------------------------------------------------------------
 
+    def _send_feedback(self):
+        """Open a mail draft pre-filled with the build the report came from."""
+        subject = QUrl.toPercentEncoding(
+            f"{__app_name__} {__version__} feedback"
+        ).data().decode()
+        QDesktopServices.openUrl(
+            QUrl(f"mailto:{FEEDBACK_EMAIL}?subject={subject}")
+        )
+
     def _show_more_menu(self):
         menu = QMenu(self)
+
+        def _open(url):
+            QDesktopServices.openUrl(QUrl(url))
 
         ITEMS = [
             ("New project", self.reset_requested.emit, self.btn_reset.isEnabled()),
@@ -272,13 +288,13 @@ class TopBar(QWidget):
             ("Keyboard Shortcuts",        self.shortcuts_requested.emit),
             None,
             ("About Speech Bubble Editor",  self.about_requested.emit),
-            ("Release Notes",               None),
-            ("Help & Documentation",        None),
+            ("Release Notes",               lambda: _open(URL_RELEASES)),
+            ("Help & Documentation",        lambda: _open(URL_HOMEPAGE)),
             None,
-            ("Send Feedback",               None),
-            ("View on GitHub",              None),
+            ("Send Feedback",               self._send_feedback),
+            ("View on GitHub",              lambda: _open(URL_REPO)),
             None,
-            ("Check for Updates",           None),
+            ("Check for Updates",           lambda: _open(URL_RELEASES)),
         ]
         for item in ITEMS:
             if item is None:
