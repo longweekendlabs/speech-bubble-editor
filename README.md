@@ -6,74 +6,63 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
 
-Add a speech bubble to a photo, lay out a comic page, build a collage, or trim a video clip. Speech Bubble Editor is a real desktop application, not a web tool: you install it, open it, and your pictures stay on your own machine. Nothing is uploaded, no account is needed, and there is no subscription.
+Drop a photo in, say something over it, and you are done. Speech Bubble Editor turns a picture into a comic panel, a meme, a collage, or a captioned video clip, with hand-drawn bubbles that actually look drawn. Everything runs on your own machine: no account, no upload, no subscription.
+
+### [Download for Windows and Linux](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 
 ![Speech Bubble Editor interface](docs/screenshots/editor-shape.png)
 
-## Install
+## Bubbles that look drawn, not stamped
 
-Download from the [**latest release**](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest) or the [download page](https://longweekendlabs.github.io/speech-bubble-editor/). Pick one file for your system.
+Seven styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption. Each one is inked with a natural, slightly irregular line instead of a perfect vector shape, so a bubble sits on a photo like it belongs there.
 
-### Windows
+Grab the tail and drag it anywhere. Resize from any corner. Set the fill, the outline weight and colour, the opacity, and the shadow. Point the tail at whoever is talking and it stays pointed there while you move the bubble.
 
-| File | Use this when |
-| --- | --- |
-| `SpeechBubbleEditor-vX.Y.Z-win64-Setup.exe` | **Recommended.** Normal installer, adds Start menu and desktop shortcuts. Installs for your user only, so no administrator password is required. |
-| `SpeechBubbleEditor-vX.Y.Z-windows-x64-portable.zip` | You want to run it from a USB stick or without installing. Unzip and run the `.exe`. |
+<img src="docs/screenshots/editor-shape.png" width="49%" alt="Shape inspector with bubble styles, fill, border, and tail controls" /> <img src="docs/screenshots/editor-text.png" width="49%" alt="Text inspector with typography controls" />
 
-Windows shows a blue "Windows protected your PC" screen the first time, because the installer is not code signed. Click **More info**, then **Run anyway**.
+## Type that carries the joke
 
-### Linux
+Twelve bundled comic and display faces, from Bangers and Permanent Marker to Klee and Yusei Magic, plus Japanese-capable fonts for manga work. Size, weight, alignment, colour, and a proper outline so white text survives a bright background.
 
-| File | Use this when |
-| --- | --- |
-| `SpeechBubbleEditor-vX.Y.Z-x86_64.AppImage` | **Recommended.** Works on any distribution, no installation, no dependencies. |
-| `speech-bubble-editor-X.Y.Z-1.x86_64.rpm` | Fedora, RHEL, openSUSE. |
-| `speech-bubble-editor_X.Y.Z_amd64.deb` | Debian, Ubuntu, Mint, Pop!_OS. |
-| `SpeechBubbleEditor-vX.Y.Z-linux-x64.tar.gz` | You want a plain folder you can put anywhere. |
+Nothing is downloaded at runtime. The fonts ship inside the app and render the same on every machine.
 
-AppImage:
+## Comic pages and collages
 
-```bash
-chmod +x SpeechBubbleEditor-*-x86_64.AppImage
-./SpeechBubbleEditor-*-x86_64.AppImage
-```
+**Comic Maker** builds 4, 6, 7, and 8 panel hand-inked layouts. Regenerate the layout as many times as you like and your bubbles and photos stay where they are.
 
-Fedora and openSUSE:
+**Photo Collage** handles 2 to 9 frames on portrait, square, story, landscape, or photo canvases. Drag a photo from one frame to another and they swap. Move the crop inside a frame without moving the frame. Scale anywhere from 10% to 500%. Fill the gaps with a blur of the photo itself or a solid colour. Save any arrangement as a named preset.
 
-```bash
-sudo dnf install ./speech-bubble-editor-*.x86_64.rpm
-```
+## Effects and layers
 
-Debian and Ubuntu:
+Lines, blur, and pixelate that follow whichever frame you are working in, so a speed line does not spill into the panel next door. Blur and pixelate double as a quick way to hide a face or a licence plate.
 
-```bash
-sudo apt install ./speech-bubble-editor_*_amd64.deb
-```
+The layer list covers images, videos, bubbles, and captions together. Reorder by dragging, hide anything without deleting it, and pull one element to the front without hunting for it on the canvas.
 
-The RPM and DEB add Speech Bubble Editor to your applications menu. Everything the app needs, including FFmpeg for video export, is bundled inside the package.
+<img src="docs/screenshots/editor-effects.png" width="49%" alt="Effects inspector with shadow and expression controls" /> <img src="docs/screenshots/editor-layers.png" width="49%" alt="Layers inspector with the bubble layer stack" />
 
-## What it does
+## Video, not just stills
 
-- Seven bubble styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption.
-- Draggable tails, resize handles, fill and outline colours, opacity, shadows, and full font control.
-- Comic Maker with 4, 6, 7, and 8 panel hand-inked layouts you can regenerate without losing your work.
-- Photo Collage with 2 to 9 frames, named presets, and portrait, square, story, landscape, or photo canvases.
-- Drag photos between frames, move the crop inside a frame, scale from 10% to 500%, and fill the background with blur or a solid colour.
-- Lines, blur, and pixelate effects that follow the frame you are working in.
-- Video support with a timeline, trim, cut, reverse, slow motion, and audio mute.
-- A layer list covering images, videos, bubbles, and captions.
-- Meme mode and dual mode for quick social layouts.
-- Full resolution image export and video export powered by FFmpeg.
-- Undo, redo, reset, keyboard shortcuts, and your operating system's own file dialogs.
+Open a clip and the timeline appears. Trim the ends, cut a section out of the middle, reverse it, slow it down, or mute the audio. Bubbles and captions ride on top and export with the video. FFmpeg is bundled, so there is nothing to install alongside.
+
+## Meme mode and dual mode
+
+Two one-click layouts for the formats people actually post: classic top and bottom meme text, and a stacked two-panel setup for reaction shots.
+
+## The rest
+
+Full resolution image export. Undo and redo everywhere. Keyboard shortcuts for the things you repeat. Your operating system's own file dialogs, not a toolkit imitation. A dark interface that stays out of the way of the picture.
+
+## Download
+
+Windows and Linux x64 builds are on the [**releases page**](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest): a Windows installer and portable zip, and an AppImage, RPM, DEB, and tar.gz for Linux. The [download page](https://longweekendlabs.github.io/speech-bubble-editor/) picks the right one for you.
 
 ## Feedback
 
-Found a bug or want something added? [Open an issue](https://github.com/longweekendlabs/speech-bubble-editor/issues) so it is tracked in public. If you would rather write privately, email [iemrecnl@gmail.com](mailto:iemrecnl@gmail.com?subject=Speech%20Bubble%20Editor%20feedback) and mention which version you are on, shown in the More menu (the three dots at the top right) under About Speech Bubble Editor.
+[Open an issue](https://github.com/longweekendlabs/speech-bubble-editor/issues) for a bug or a request. To write privately, email [iemrecnl@gmail.com](mailto:iemrecnl@gmail.com?subject=Speech%20Bubble%20Editor%20feedback) and mention your version, shown in the More menu under About.
 
 ## Build from source
 
-You do not need this to use the app. It is here for anyone who wants to modify it. Requires Python 3.11 or newer.
+Not needed to use the app. Requires Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/longweekendlabs/speech-bubble-editor.git
@@ -83,8 +72,6 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 python main.py
 ```
-
-Fedora users can build a local RPM with `./build_rpm.sh`. Release packages for both platforms are built automatically by GitHub Actions.
 
 ## License
 
