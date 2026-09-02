@@ -4,7 +4,7 @@ PyInstaller spec for Speech Bubble Editor v4 cross-platform builds.
 Supports Linux (x86_64, aarch64) and Windows (x64, ARM64-compatible).
 
 Build:
-    pyinstaller --clean --noconfirm speech_bubble_v3.spec
+    pyinstaller --clean --noconfirm speech_bubble.spec
 """
 
 import os

@@ -2,7 +2,7 @@
 """
 PyInstaller spec for the Linux RPM build — ONEDIR layout.
 
-Same analysis as speech_bubble_v3.spec but produces a directory bundle
+Same analysis as speech_bubble.spec but produces a directory bundle
 (dist/SpeechBubbleEditor/ with an _internal/ folder) instead of a single
 self-extracting binary. Onedir is what the RPM installs to /opt so the app
 starts instantly instead of re-extracting ~400 MB to /tmp on every launch.

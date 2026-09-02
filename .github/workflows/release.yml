@@ -89,7 +89,7 @@ jobs:
         shell: bash
         run: |
           python create_icon.py
-          python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+          python -m PyInstaller --clean --noconfirm speech_bubble.spec
           file dist/SpeechBubbleEditor
 
       - name: Create portable tar.gz
@@ -281,7 +281,7 @@ jobs:
         shell: pwsh
         run: |
           python create_icon.py
-          python -m PyInstaller --clean --noconfirm speech_bubble_v3.spec
+          python -m PyInstaller --clean --noconfirm speech_bubble.spec
           $version = python -c "import version; print(version.__version__)"
           New-Item -ItemType Directory -Force -Path win | Out-Null
           Compress-Archive -Path "dist/SpeechBubbleEditor.exe" `

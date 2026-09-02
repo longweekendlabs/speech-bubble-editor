@@ -40,6 +40,7 @@ desktop.ini
 *.log
 
 # Local agent and handoff notes
+.claude/
 AGENTS.md
 CLAUDE.md
 GEMINI.md
