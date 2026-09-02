@@ -7,7 +7,7 @@
   <meta name="description" content="A private desktop editor for speech bubbles, comic pages, photo collages, layers, and video edits." />
   <meta property="og:title" content="Speech Bubble Editor" />
   <meta property="og:description" content="Speech bubbles, hand-inked comic layouts, photo collages, frame effects, and video tools for desktop." />
-  <meta property="og:image" content="https://raw.githubusercontent.com/longweekendlabs/speech-bubble-editor/main/newui_for_sbe_v40.png" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/longweekendlabs/speech-bubble-editor/main/docs/screenshots/editor-shape.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     :root {
@@ -20,11 +20,9 @@
       --text: #eef4ff;
       --muted: #9caec8;
       --dim: #6f809a;
-      --cyan: #29d8dc;
-      --cyan-2: #158a99;
+      --orange: #ff7a2f;
+      --orange-deep: #d95714;
       --blue: #6fa8ff;
-      --green: #4ade80;
-      --yellow: #facc15;
       --shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
     }
     html { scroll-behavior: smooth; }
@@ -32,7 +30,7 @@
       margin: 0;
       min-height: 100vh;
       background:
-        radial-gradient(circle at 12% -8%, rgba(41, 216, 220, 0.15), transparent 34%),
+        radial-gradient(circle at 12% -8%, rgba(255, 122, 47, 0.14), transparent 34%),
         radial-gradient(circle at 90% 12%, rgba(111, 168, 255, 0.12), transparent 32%),
         linear-gradient(180deg, #0b0f16 0%, #0e1420 46%, #0b0f16 100%);
       color: var(--text);
@@ -88,9 +86,9 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      color: var(--cyan);
-      background: rgba(41, 216, 220, 0.1);
-      border: 1px solid rgba(41, 216, 220, 0.25);
+      color: var(--orange);
+      background: rgba(255, 122, 47, 0.1);
+      border: 1px solid rgba(255, 122, 47, 0.28);
       border-radius: 999px;
       padding: 6px 11px;
       font-size: 12px;
@@ -128,8 +126,8 @@
       white-space: nowrap;
       transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
     }
-    .button:hover { transform: translateY(-1px); border-color: rgba(41, 216, 220, 0.45); background: #1d2a3c; }
-    .button.primary { background: linear-gradient(180deg, #18a9b9, #0d7787); border-color: rgba(41, 216, 220, 0.62); }
+    .button:hover { transform: translateY(-1px); border-color: rgba(255, 122, 47, 0.5); background: #1d2a3c; }
+    .button.primary { background: linear-gradient(180deg, var(--orange), var(--orange-deep)); border-color: #ff985d; color: #111820; }
     .button.ghost { color: var(--muted); }
     .meta-row { display: flex; flex-wrap: wrap; gap: 10px; color: var(--dim); font-size: 13px; }
     .pill {
@@ -142,7 +140,7 @@
       background: rgba(255, 255, 255, 0.035);
     }
     .preview {
-      border: 1px solid rgba(41, 216, 220, 0.23);
+      border: 1px solid rgba(111, 168, 255, 0.34);
       border-radius: 14px;
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015));
       box-shadow: var(--shadow);
@@ -158,12 +156,12 @@
       border-bottom: 1px solid var(--line-soft);
     }
     .dot { width: 10px; height: 10px; border-radius: 50%; background: #526075; }
-    .dot.cyan { background: var(--cyan); }
+    .dot.accent { background: var(--orange); }
     .preview img { width: 100%; display: block; }
     .section { padding: 72px 0; border-top: 1px solid rgba(156, 176, 204, 0.12); }
     .section-head { max-width: 680px; margin-bottom: 28px; }
     .label {
-      color: var(--cyan);
+      color: var(--orange);
       font-size: 12px;
       font-weight: 800;
       letter-spacing: 0.08em;
@@ -194,14 +192,37 @@
       height: 38px;
       display: grid;
       place-items: center;
-      border: 1px solid rgba(41, 216, 220, 0.24);
+      border: 1px solid rgba(111, 168, 255, 0.28);
       border-radius: 9px;
-      background: rgba(41, 216, 220, 0.08);
-      color: var(--cyan);
+      background: rgba(111, 168, 255, 0.09);
+      color: var(--blue);
       margin-bottom: 16px;
     }
     .card h3 { margin: 0 0 8px; font-size: 17px; }
     .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .screenshot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+    .screenshot-card {
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid var(--line-soft);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+    }
+    .screenshot-card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      object-fit: cover;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .screenshot-card figcaption { padding: 15px 17px 17px; }
+    .screenshot-card strong { display: block; font-size: 15px; }
+    .screenshot-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; }
     .workflow {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -224,9 +245,9 @@
       height: 28px;
       margin-bottom: 14px;
       border-radius: 50%;
-      background: rgba(41, 216, 220, 0.13);
-      border: 1px solid rgba(41, 216, 220, 0.35);
-      color: var(--cyan);
+      background: rgba(255, 122, 47, 0.12);
+      border: 1px solid rgba(255, 122, 47, 0.38);
+      color: var(--orange);
       font-size: 13px;
       font-weight: 800;
     }
@@ -279,8 +300,8 @@
       font-weight: 700;
       margin-top: 8px;
     }
-    .dl-btn:hover { border-color: rgba(41, 216, 220, 0.45); background: rgba(41, 216, 220, 0.08); }
-    .dl-primary { background: rgba(41, 216, 220, 0.12); border-color: rgba(41, 216, 220, 0.32); }
+    .dl-btn:hover { border-color: rgba(255, 122, 47, 0.5); background: rgba(255, 122, 47, 0.08); }
+    .dl-primary { background: rgba(255, 122, 47, 0.13); border-color: rgba(255, 122, 47, 0.38); }
     .dl-secondary { color: var(--muted); }
     .dl-btn small { color: var(--dim); font-weight: 600; }
     .loading { color: var(--dim); font-size: 13px; }
@@ -298,7 +319,7 @@
       background: rgba(21, 31, 45, 0.55);
       padding: 16px;
     }
-    .more-card:hover { border-color: rgba(41, 216, 220, 0.38); }
+    .more-card:hover { border-color: rgba(255, 122, 47, 0.42); }
     .more-card h3 { margin: 0 0 3px; font-size: 15px; }
     .more-card p { margin: 0; color: var(--muted); font-size: 13px; }
     footer {
@@ -324,7 +345,7 @@
       .nav-links { display: none; }
       .hero { padding: 46px 0 42px; }
       .hero-grid { gap: 30px; }
-      .feature-grid, .workflow, .platforms, .more { grid-template-columns: 1fr; }
+      .feature-grid, .screenshot-grid, .workflow, .platforms, .more { grid-template-columns: 1fr; }
       .footer-inner { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -337,6 +358,7 @@
         <span><strong>Speech Bubble Editor</strong><span>by Long Weekend Labs</span></span>
       </a>
       <div class="nav-links">
+        <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#workflow">Workflow</a>
         <a href="#download">Download</a>
@@ -355,7 +377,7 @@
           <div class="hero-actions">
             <a class="button primary" href="#download">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-              Download v4.5
+              Download latest
             </a>
             <a class="button" href="https://github.com/longweekendlabs/speech-bubble-editor/releases/latest" target="_blank" rel="noopener">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
@@ -373,8 +395,36 @@
           </div>
         </div>
         <div class="preview" aria-label="Speech Bubble Editor screenshot">
-          <div class="preview-bar"><span class="dot cyan"></span><span class="dot"></span><span class="dot"></span></div>
-          <img src="https://raw.githubusercontent.com/longweekendlabs/speech-bubble-editor/main/newui_for_sbe_v40.png" alt="Speech Bubble Editor interface with a video, comic bubble, inspector, and timeline" />
+          <div class="preview-bar"><span class="dot accent"></span><span class="dot"></span><span class="dot"></span></div>
+          <img src="screenshots/editor-shape.png" alt="Speech Bubble Editor with a café photo, selected speech bubble, and Shape inspector" />
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="screenshots">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="label">Inside the editor</p>
+          <h2>One canvas. Four clear editing views.</h2>
+          <p>The inspector keeps shape, typography, effects, and layer order separate while the artwork stays steady on the canvas.</p>
+        </div>
+        <div class="screenshot-grid">
+          <figure class="screenshot-card">
+            <img src="screenshots/editor-shape.png" loading="lazy" alt="Shape inspector showing bubble styles, fill, border, and tail controls" />
+            <figcaption><strong>Shape</strong><span>Choose a bubble, then tune its fill, outline, and tail.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img src="screenshots/editor-text.png" loading="lazy" alt="Text inspector showing speech bubble text and typography controls" />
+            <figcaption><strong>Text</strong><span>Edit wording, font, alignment, size, color, and outline.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img src="screenshots/editor-effects.png" loading="lazy" alt="Effects inspector showing shadow and expression controls" />
+            <figcaption><strong>Effects</strong><span>Add shadows, expression marks, bubble photos, and defaults.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img src="screenshots/editor-layers.png" loading="lazy" alt="Layers inspector showing the bubble layer stack and ordering controls" />
+            <figcaption><strong>Layers</strong><span>Control visibility and front-to-back order without clutter.</span></figcaption>
+          </figure>
         </div>
       </div>
     </section>

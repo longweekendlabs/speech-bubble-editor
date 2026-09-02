@@ -8,7 +8,7 @@ Speech bubbles, comic pages, photo collages, layers, and video edits for desktop
 
 Speech Bubble Editor is a native desktop app for expressive bubbles, captions, comic pages, and photo collages. Open media, build and rearrange a composition, tune its frames and effects, or edit a video—all locally, without uploading your files to a cloud service.
 
-![Speech Bubble Editor interface](newui_for_sbe_v40.png)
+![Speech Bubble Editor interface](docs/screenshots/editor-shape.png)
 
 ## Download
 
@@ -55,16 +55,10 @@ venv\Scripts\activate
 
 ## Build Packages
 
-Official release builds are produced by GitHub Actions, but local scripts are available.
+Official cross-platform release builds are produced by GitHub Actions. Fedora users can also build an RPM locally:
 
 ```bash
-# Linux portable tar.gz (GitHub Actions also produces AppImage, DEB, and RPM)
-bash build_linux.sh
-```
-
-```powershell
-# Windows portable ZIP and, when Inno Setup is installed, Setup.exe
-build_windows.bat
+./build_rpm.sh
 ```
 
 ## Project Layout
@@ -79,7 +73,10 @@ build_windows.bat
 ├── icons/                  # app icons and Long Weekend Labs logo
 ├── fonts/                  # bundled fonts
 ├── theme/                  # Qt stylesheet
-└── docs/                   # GitHub Pages website
+├── docs/                   # GitHub Pages website and screenshots
+├── speech_bubble.spec      # cross-platform PyInstaller configuration
+├── speech_bubble_rpm.spec  # Fedora RPM PyInstaller configuration
+└── build_rpm.sh            # local Fedora RPM builder
 ```
 
 ## Release Process
