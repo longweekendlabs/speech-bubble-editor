@@ -58,7 +58,7 @@ Windows and Linux x64 builds are on the [**releases page**](https://github.com/l
 
 ## Feedback
 
-[Open an issue](https://github.com/longweekendlabs/speech-bubble-editor/issues) for a bug or a request. To write privately, email [iemrecnl@gmail.com](mailto:iemrecnl@gmail.com?subject=Speech%20Bubble%20Editor%20feedback) and mention your version, shown in the More menu under About.
+[Open an issue](https://github.com/longweekendlabs/speech-bubble-editor/issues) for a bug or a request.
 
 ## License
 
