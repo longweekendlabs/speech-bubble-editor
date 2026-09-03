@@ -10,7 +10,7 @@ Drop a photo in, say something over it, and you are done. Speech Bubble Editor t
 
 ### [Download for Windows and Linux](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 
-![Speech Bubble Editor interface](docs/screenshots/editor-shape.png)
+![Speech Bubble Editor showing its built-in bubble shapes](docs/screenshots/bubble-shapes.png)
 
 ## Bubbles that look drawn, not stamped
 
@@ -18,7 +18,7 @@ Seven styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption. 
 
 Grab the tail and drag it anywhere. Resize from any corner. Set the fill, the outline weight and colour, the opacity, and the shadow. Point the tail at whoever is talking and it stays pointed there while you move the bubble.
 
-<img src="docs/screenshots/editor-shape.png" width="49%" alt="Shape inspector with bubble styles, fill, border, and tail controls" /> <img src="docs/screenshots/editor-text.png" width="49%" alt="Text inspector with typography controls" />
+<img src="docs/screenshots/bubble-shapes.png" width="49%" alt="Four friends using oval, soft-box, cloud, and starburst bubbles" /> <img src="docs/screenshots/typography.png" width="49%" alt="Speech bubble typography and caption controls on a taxi-side scene" />
 
 ## Type that carries the joke
 
@@ -32,13 +32,15 @@ Nothing is downloaded at runtime. The fonts ship inside the app and render the s
 
 **Photo Collage** handles 2 to 9 frames on portrait, square, story, landscape, or photo canvases. Drag a photo from one frame to another and they swap. Move the crop inside a frame without moving the frame. Scale anywhere from 10% to 500%. Fill the gaps with a blur of the photo itself or a solid colour. Save any arrangement as a named preset.
 
+<img src="docs/screenshots/comic-maker.png" width="49%" alt="Four-panel Comic Maker story" /> <img src="docs/screenshots/photo-collage.png" width="49%" alt="Four-photo mosaic in Photo Collage" />
+
 ## Effects and layers
 
 Lines, blur, and pixelate that follow whichever frame you are working in, so a speed line does not spill into the panel next door. Blur and pixelate double as a quick way to hide a face or a licence plate.
 
 The layer list covers images, videos, bubbles, and captions together. Reorder by dragging, hide anything without deleting it, and pull one element to the front without hunting for it on the canvas.
 
-<img src="docs/screenshots/editor-effects.png" width="49%" alt="Effects inspector with shadow and expression controls" /> <img src="docs/screenshots/editor-layers.png" width="49%" alt="Layers inspector with the bubble layer stack" />
+<img src="docs/screenshots/effects.png" width="49%" alt="Effects inspector with shadow and expression controls" /> <img src="docs/screenshots/layers.png" width="49%" alt="Layers inspector with a three-bubble conversation" />
 
 ## Video, not just stills
 
@@ -47,6 +49,8 @@ Open a clip and the timeline appears. Trim the ends, cut a section out of the mi
 ## Meme mode and dual mode
 
 Two one-click layouts for the formats people actually post: classic top and bottom meme text, and a stacked two-panel setup for reaction shots.
+
+![Meme mode with top and bottom captions](docs/screenshots/meme-mode.png)
 
 ## The rest
 

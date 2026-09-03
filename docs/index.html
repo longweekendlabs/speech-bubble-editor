@@ -7,7 +7,7 @@
   <meta name="description" content="A private desktop editor for speech bubbles, comic pages, photo collages, layers, and video edits." />
   <meta property="og:title" content="Speech Bubble Editor" />
   <meta property="og:description" content="Speech bubbles, hand-inked comic layouts, photo collages, frame effects, and video tools for desktop." />
-  <meta property="og:image" content="https://raw.githubusercontent.com/longweekendlabs/speech-bubble-editor/main/docs/screenshots/editor-shape.png" />
+  <meta property="og:image" content="https://raw.githubusercontent.com/longweekendlabs/speech-bubble-editor/main/docs/screenshots/bubble-shapes.png" />
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     :root {
@@ -223,6 +223,7 @@
     .screenshot-card figcaption { padding: 15px 17px 17px; }
     .screenshot-card strong { display: block; font-size: 15px; }
     .screenshot-card span { display: block; margin-top: 3px; color: var(--muted); font-size: 13px; }
+    .screenshot-card.wide { grid-column: 1 / -1; }
     .workflow {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -346,6 +347,7 @@
       .hero { padding: 46px 0 42px; }
       .hero-grid { gap: 30px; }
       .feature-grid, .screenshot-grid, .workflow, .platforms, .more { grid-template-columns: 1fr; }
+      .screenshot-card.wide { grid-column: auto; }
       .footer-inner { align-items: flex-start; flex-direction: column; }
     }
   </style>
@@ -396,7 +398,7 @@
         </div>
         <div class="preview" aria-label="Speech Bubble Editor screenshot">
           <div class="preview-bar"><span class="dot accent"></span><span class="dot"></span><span class="dot"></span></div>
-          <img src="screenshots/editor-shape.png" alt="Speech Bubble Editor with a café photo, selected speech bubble, and Shape inspector" />
+          <img src="screenshots/bubble-shapes.png" alt="Speech Bubble Editor showing four friends in a pub with four different built-in bubble shapes" />
         </div>
       </div>
     </section>
@@ -405,25 +407,37 @@
       <div class="wrap">
         <div class="section-head">
           <p class="label">Inside the editor</p>
-          <h2>One canvas. Four clear editing views.</h2>
-          <p>The inspector keeps shape, typography, effects, and layer order separate while the artwork stays steady on the canvas.</p>
+          <h2>From one punchline to a whole page.</h2>
+          <p>Start with a single photo, build a multi-panel story, arrange a collage, or turn a frame into a finished meme—all without leaving the editor.</p>
         </div>
         <div class="screenshot-grid">
           <figure class="screenshot-card">
-            <img src="screenshots/editor-shape.png" loading="lazy" alt="Shape inspector showing bubble styles, fill, border, and tail controls" />
-            <figcaption><strong>Shape</strong><span>Choose a bubble, then tune its fill, outline, and tail.</span></figcaption>
+            <img src="screenshots/welcome.png" loading="lazy" alt="Speech Bubble Editor opening canvas with a clear prompt to open or drop media" />
+            <figcaption><strong>Start clean</strong><span>Open or drop media into a focused canvas with the full toolset ready.</span></figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img src="screenshots/editor-text.png" loading="lazy" alt="Text inspector showing speech bubble text and typography controls" />
-            <figcaption><strong>Text</strong><span>Edit wording, font, alignment, size, color, and outline.</span></figcaption>
+            <img src="screenshots/typography.png" loading="lazy" alt="A taxi-side sitcom scene using a hand-drawn speech bubble and a bold caption bar" />
+            <figcaption><strong>Typography and captions</strong><span>Mix hand-drawn dialogue with bold caption treatments and precise type controls.</span></figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img src="screenshots/editor-effects.png" loading="lazy" alt="Effects inspector showing shadow and expression controls" />
-            <figcaption><strong>Effects</strong><span>Add shadows, expression marks, bubble photos, and defaults.</span></figcaption>
+            <img src="screenshots/effects.png" loading="lazy" alt="A rooftop ensemble scene using a puffy bubble, shadow, and expression marks" />
+            <figcaption><strong>Expression effects</strong><span>Add shadow, impact ticks, and visual emphasis when the line needs extra energy.</span></figcaption>
           </figure>
           <figure class="screenshot-card">
-            <img src="screenshots/editor-layers.png" loading="lazy" alt="Layers inspector showing the bubble layer stack and ordering controls" />
-            <figcaption><strong>Layers</strong><span>Control visibility and front-to-back order without clutter.</span></figcaption>
+            <img src="screenshots/layers.png" loading="lazy" alt="Three-person apartment scene with oval, cloud, and starburst bubbles listed in the Layers inspector" />
+            <figcaption><strong>Layered conversations</strong><span>Keep every speaker visible, ordered, and editable in a proper layer stack.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img src="screenshots/comic-maker.png" loading="lazy" alt="Comic Maker arranging a four-frame sitcom story about an enormous sandwich" />
+            <figcaption><strong>Comic Maker</strong><span>Turn a sequence into 4, 6, 7, or 8-panel pages with live composition controls.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <img src="screenshots/photo-collage.png" loading="lazy" alt="Photo Collage arranging diner, subway, bowling, and market scenes in a mosaic" />
+            <figcaption><strong>Photo Collage</strong><span>Arrange 2–9 photos, shuffle layouts, and tune frames, spacing, and crop.</span></figcaption>
+          </figure>
+          <figure class="screenshot-card wide">
+            <img src="screenshots/meme-mode.png" loading="lazy" alt="Meme mode adding top and bottom caption bars to a diner scene" />
+            <figcaption><strong>Meme mode</strong><span>Build a finished captioned image directly on the canvas, ready for export.</span></figcaption>
           </figure>
         </div>
       </div>
