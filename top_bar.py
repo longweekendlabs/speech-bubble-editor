@@ -17,7 +17,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import QByteArray
 
 from constants import (ALL_EXTENSIONS, URL_HOMEPAGE, URL_REPO,
-                       URL_RELEASES, FEEDBACK_EMAIL)
+                       URL_RELEASES, URL_ISSUES)
 from version import __app_name__, __version__
 from file_dialogs import open_file
 from icons import (
@@ -268,13 +268,11 @@ class TopBar(QWidget):
     # ------------------------------------------------------------------
 
     def _send_feedback(self):
-        """Open a mail draft pre-filled with the build the report came from."""
-        subject = QUrl.toPercentEncoding(
+        """Open a new issue pre-filled with the build the report came from."""
+        title = QUrl.toPercentEncoding(
             f"{__app_name__} {__version__} feedback"
         ).data().decode()
-        QDesktopServices.openUrl(
-            QUrl(f"mailto:{FEEDBACK_EMAIL}?subject={subject}")
-        )
+        QDesktopServices.openUrl(QUrl(f"{URL_ISSUES}/new?title={title}"))
 
     def _show_more_menu(self):
         menu = QMenu(self)
