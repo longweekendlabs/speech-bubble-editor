@@ -105,12 +105,12 @@ class FrameDecodeWorker(QObject):
     # Carries (generation, frame_idx, QImage).  Callers check generation.
     frame_ready = pyqtSignal(int, int, QImage)   # (generation, frame_idx, image)
 
-    def __init__(self, player: VideoPlayer):
+    def __init__(self, player: VideoPlayer, generation: int = 0):
         super().__init__()
         self._player      = player
         self._lock        = threading.Lock()
         self._latest_idx  = -1
-        self._generation  = 0     # current generation; incremented on new video load
+        self._generation  = generation  # unique across successive scene players
         self._req_gen     = 0     # generation stamped on the latest request
         self._in_flight   = 0     # number of _decode invocations queued/running
         self._paused      = False
@@ -162,28 +162,22 @@ class FrameDecodeWorker(QObject):
     @pyqtSlot()
     def _decode(self):
         with self._lock:
-            idx        = self._latest_idx
-            gen        = self._req_gen
+            idx = self._latest_idx
+            gen = self._req_gen
             self._in_flight -= 1
-            stale      = self._in_flight > 0   # a newer request is already queued
-            if self._in_flight == 0:
-                self._idle.set()
-
-        if stale or idx == -1:
-            return
-
-        # Decode BGR array on the background thread (cv2 access here only).
-        frame = self._player._read_frame(idx)
-        if frame is None:
-            return
-
-        # Convert BGR → RGB and build a QImage (QImage is safe off-thread).
-        import cv2
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        h, w, ch  = frame_rgb.shape
-        image = QImage(frame_rgb.tobytes(), w, h, ch * w,
-                       QImage.Format.Format_RGB888).copy()  # .copy() detaches from buffer
-        self.frame_ready.emit(gen, idx, image)
+            stale = self._in_flight > 0
+        try:
+            if stale or idx == -1:
+                return
+            frame = self._player._read_frame(idx)
+            if frame is not None:
+                self.frame_ready.emit(gen, idx, VideoPlayer._bgr_to_image(frame))
+        finally:
+            # A zero queue length does not mean decoding is finished. Export
+            # and media replacement must wait until read/conversion completes.
+            with self._lock:
+                if self._in_flight == 0:
+                    self._idle.set()
 
 
 class VideoPlayer:
@@ -404,12 +398,17 @@ class VideoPlayer:
 
     @staticmethod
     def _bgr_to_pixmap(frame) -> QPixmap:
+        return QPixmap.fromImage(VideoPlayer._bgr_to_image(frame))
+
+    @staticmethod
+    def _bgr_to_image(frame) -> QImage:
+        """Own the pixel memory so an image can safely cross worker threads."""
         import cv2
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch  = frame_rgb.shape
         img = QImage(frame_rgb.tobytes(), w, h, ch * w,
                      QImage.Format.Format_RGB888)
-        return QPixmap.fromImage(img)
+        return img.copy()
 
     @staticmethod
     def qimage_to_bgr(img: QImage) -> object:

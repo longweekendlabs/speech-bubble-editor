@@ -1,6 +1,7 @@
 PyQt6>=6.4.0
 PyQt6-Qt6>=6.4.0
 Pillow>=9.0.0
-opencv-python>=4.7.0
+# Existing SBE environments: uninstall opencv-python before installing this file.
+opencv-python-headless>=4.7.0
 numpy>=1.23.0
 pyinstaller>=6.0.0

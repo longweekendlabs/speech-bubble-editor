@@ -2,9 +2,9 @@
 ; Download Inno Setup 6: https://jrsoftware.org/isdl.php
 
 #define AppName      "Speech Bubble Editor"
-; AppVersion can be overridden from command line: ISCC /DAppVersion=4.0.4 installer.iss
+; Pass AppVersion from version.py, as the release workflow does.
 #ifndef AppVersion
-  #define AppVersion "4.0.4"
+  #error AppVersion must be supplied from version.py with /DAppVersion
 #endif
 #define AppPublisher "Long Weekend Labs"
 #define AppExeName   "SpeechBubbleEditor.exe"
@@ -35,7 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Files]
-Source: "dist\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\SpeechBubbleEditor\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"

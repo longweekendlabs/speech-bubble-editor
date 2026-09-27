@@ -22,7 +22,8 @@ from video_player import VideoPlayer
 def _find_ffmpeg() -> str | None:
     """Return path to FFmpeg: bundled copy first, then system PATH."""
     if hasattr(sys, "_MEIPASS"):
-        bundled = os.path.join(sys._MEIPASS, "ffmpeg")
+        executable = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+        bundled = os.path.join(sys._MEIPASS, executable)
         if os.path.isfile(bundled):
             return bundled
     return shutil.which("ffmpeg")

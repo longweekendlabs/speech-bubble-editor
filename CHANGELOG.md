@@ -2,7 +2,27 @@
 
 All notable user-facing changes are tracked here. Release downloads are published on the [GitHub Releases page](https://github.com/longweekendlabs/speech-bubble-editor/releases).
 
-## v4.5.1 - 2026-09-02
+## [Unreleased]
+
+### Added
+
+- Apple Silicon macOS app and drag-to-Applications DMG for macOS 15 or newer.
+
+### Changed
+
+- Packaged builds run their installed files directly instead of unpacking the app into a temporary folder on every launch. Windows setup and portable packages and Linux packages share this layout.
+- Reduced package weight by bundling the Qt components the editor uses, while retaining fonts, image formats, and video/audio support.
+- Reused unchanged bubble outlines and hand-drawn strokes between repaints, reducing editing and preview work without changing their appearance or export resolution.
+- Moved photo and first-video-frame decoding into a background worker for the main canvas, the right side of dual mode, and added image/video layers. A loading message appears while the existing canvas remains available; Reset cancels the pending import, and a newer file replaces an older pending request.
+
+### Fixed
+
+- Prevented results from cancelled imports and frames from replaced videos from appearing over newer media.
+- Waited for active frame decoding to finish before replacing or releasing a video, avoiding concurrent access during replacement and export.
+- Stopped the previous right-side video when replacing it with a photo.
+- Fixed Windows audio export locating the bundled `ffmpeg.exe`, and ensured Windows packages include the actual FFmpeg executable rather than a package-manager launcher.
+
+## [4.5.1] - 2026-09-02
 
 ### Changed
 
@@ -20,7 +40,7 @@ All notable user-facing changes are tracked here. Release downloads are publishe
 - Prevented the Long Weekend Labs byline from clipping in the application header.
 - Preserved the complete set of bubble styles and editor tools throughout the interface overhaul.
 
-## v4.5.0 - 2026-08-05
+## [4.5.0] - 2026-08-05
 
 ### Added
 
@@ -43,7 +63,7 @@ All notable user-facing changes are tracked here. Release downloads are publishe
 - Prevented page-mode inspectors, layers, and effects from colliding with normal editing controls.
 - Fixed bidirectional image scaling so photos can shrink below their cover size.
 
-## v4.0.4 - 2026-06-25
+## [4.0.4] - 2026-06-25
 
 ### Added
 
@@ -91,20 +111,20 @@ All notable user-facing changes are tracked here. Release downloads are publishe
 - Project save/load format for editable sessions.
 - More automated UI smoke tests before releases.
 
-## v4.0.3 - 2026-06-24
+## [4.0.3] - 2026-06-24
 
 - Major v4 UI redesign with context toolbar, inspector updates, and expanded bubble styles.
 - Early pass at SVG icons, theme cleanup, and canvas behavior fixes.
 
-## v4.0.2 - 2026-06-24
+## [4.0.2] - 2026-06-24
 
 - Release workflow preparation and v4 packaging fixes.
 
-## v4.0.1 - 2026-06-24
+## [4.0.1] - 2026-06-24
 
 - Restored missing installer configuration for release packaging.
 
-## v4.0.0 - 2026-06-24
+## [4.0.0] - 2026-06-24
 
 - Initial v4 release preparation.
 - Integrated the v4 feature work from the phase-based development branch.

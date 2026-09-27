@@ -1,84 +1,82 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""
-PyInstaller spec for Speech Bubble Editor v4 cross-platform builds.
-Supports Linux (x86_64, aarch64) and Windows (x64, ARM64-compatible).
+"""Self-contained directory bundle for Windows, Linux, and macOS.
 
-Build:
-    pyinstaller --clean --noconfirm speech_bubble.spec
+Installers/archive formats compress this directory for distribution. The app
+runs in place: it must never unpack its runtime on each launch.
 """
-
 import os
-import sys as _sys
-import shutil as _shutil
+import shutil
+import runpy
+import sys
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    version('opencv-python')
+except PackageNotFoundError:
+    pass
+else:
+    raise RuntimeError('Uninstall opencv-python, then reinstall requirements.txt; '
+                       'only opencv-python-headless should provide cv2')
 
 _app_dir = os.path.dirname(os.path.abspath(SPEC))
+# Use the real executable, not a package-manager shim (Windows CI supplies it).
+_ffmpeg_bin = os.environ.get('SBE_FFMPEG') or shutil.which('ffmpeg')
+if not _ffmpeg_bin or not os.path.isfile(_ffmpeg_bin):
+    raise RuntimeError('FFmpeg is required for packaged video/audio export')
 
-# Collect ALL PyQt6 submodules + data + binaries so Qt platform plugins
-# (libqcocoa.dylib on macOS, qwindows.dll on Windows) are never missing.
-from PyInstaller.utils.hooks import collect_all as _collect_all
-_qt_datas, _qt_binaries, _qt_hidden = _collect_all('PyQt6')
-
-# Bundle FFmpeg when present on PATH. GitHub Actions installs it before
-# packaging so exported builds can preserve or mute audio without requiring
-# a separate user install.
-_ffmpeg_bin = _shutil.which('ffmpeg')
-_extra_binaries = [(_ffmpeg_bin, '.')] if _ffmpeg_bin else []
-
-_hidden = [
-    'cv2',
-    'numpy',
-    'PIL',
-    'PyQt6',
-    'PyQt6.QtCore',
-    'PyQt6.QtGui',
-    'PyQt6.QtWidgets',
-    'PyQt6.QtNetwork',   # QLocalServer / QLocalSocket for single-instance guard
-    'PyQt6.sip',
-] + _qt_hidden
-
+# PyInstaller's module-specific Qt hooks include the platform, image-format
+# and SVG plugins. collect_all('PyQt6') also pulls in QML/Quick, Designer,
+# Multimedia, PDF, SQL, developer tools, etc. that this app never uses.
 a = Analysis(
-    ['main.py'],
+    [os.path.join(_app_dir, 'main.py')],
     pathex=[_app_dir],
-    binaries=_qt_binaries + _extra_binaries,
-    datas=[
-        (os.path.join(_app_dir, 'fonts'), 'fonts'),
-        (os.path.join(_app_dir, 'icons'), 'icons'),
-        (os.path.join(_app_dir, 'theme'), 'theme'),
-    ] + _qt_datas,
-    hiddenimports=_hidden,
+    binaries=[(_ffmpeg_bin, '.')],
+    datas=[(os.path.join(_app_dir, name), name)
+           for name in ('fonts', 'icons', 'theme')],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
 )
-
 pyz = PYZ(a.pure)
-
-# ── Linux / Windows — single-file binary ────────────────────────────────────
-# UPX disabled for cross-arch compatibility (ARM64 Windows / Linux aarch64).
-_icon = os.path.join(_app_dir, 'icons', 'icon.ico') if _sys.platform == 'win32' \
-        else os.path.join(_app_dir, 'icons', 'icon.png')
-
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='SpeechBubbleEditor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=_icon,
+    icon=os.path.join(_app_dir, 'icons',
+                      'icon.ico' if sys.platform == 'win32' else 'icon.png'),
 )
+coll = COLLECT(
+    exe, a.binaries, a.datas,
+    strip=False,
+    upx=False,
+    name='SpeechBubbleEditor',
+)
+
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='Speech Bubble Editor.app',
+        icon=os.path.join(_app_dir, 'icons', 'icon.icns'),
+        bundle_identifier='com.longweekendlabs.speechbubbleeditor',
+        version=runpy.run_path(os.path.join(_app_dir, 'version.py'))['__version__'],
+        info_plist={
+            'NSHighResolutionCapable': True,
+            'LSMinimumSystemVersion': '15.0',
+            'NSHumanReadableCopyright': 'Copyright © 2026 Long Weekend Labs',
+        },
+    )

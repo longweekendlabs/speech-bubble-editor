@@ -320,6 +320,7 @@ class PhotoScene(QGraphicsScene):
         self._decode_thread_right: QThread | None = None
         # Generation counter per side: incremented on each new video load so
         # late-arriving results from old videos are silently discarded.
+        self._decode_serial = 0
         self._decode_gen_left  = 0
         self._decode_gen_right = 0
 
@@ -391,12 +392,7 @@ class PhotoScene(QGraphicsScene):
         pixmap = QPixmap(file_path)
         if pixmap.isNull():
             return False
-        self._reset_all()
-        self._photo_item = MediaItem(pixmap)
-        self._photo_item.setPos(0, 0)
-        self.addItem(self._photo_item)
-        self.setSceneRect(QRectF(0, 0, pixmap.width(), pixmap.height()))
-        return True
+        return self.install_media(pixmap)
 
     def load_video(self, file_path: str) -> bool:
         player = VideoPlayer()
@@ -406,14 +402,21 @@ class PhotoScene(QGraphicsScene):
         if first is None:
             player.release()
             return False
+        return self.install_media(first, player)
+
+    def install_media(self, pixmap: QPixmap, player=None) -> bool:
+        """Install decoded media on the GUI thread without reopening the file."""
+        if pixmap.isNull():
+            return False
         self._reset_all()
         self._video_player = player
-        self._photo_item = MediaItem(first)
+        self._photo_item = MediaItem(pixmap)
         self._photo_item.setPos(0, 0)
         self.addItem(self._photo_item)
-        self.setSceneRect(QRectF(0, 0, float(player.width), float(player.height)))
-        self._decode_gen_left, self._decode_worker, self._decode_thread = \
-            self._start_decode_worker(player, self._on_left_frame_ready)
+        self.setSceneRect(QRectF(0, 0, pixmap.width(), pixmap.height()))
+        if player is not None:
+            self._decode_gen_left, self._decode_worker, self._decode_thread = \
+                self._start_decode_worker(player, self._on_left_frame_ready)
         return True
 
     def _start_decode_worker(self, player: VideoPlayer, ready_slot) \
@@ -426,7 +429,8 @@ class PhotoScene(QGraphicsScene):
         initial stamp; callers should store it and compare against incoming
         frame_ready emissions to detect stale results.
         """
-        worker = FrameDecodeWorker(player)
+        self._decode_serial += 1
+        worker = FrameDecodeWorker(player, generation=self._decode_serial)
         thread = QThread(self)
         worker.moveToThread(thread)
         worker.frame_ready.connect(ready_slot)
@@ -457,6 +461,7 @@ class PhotoScene(QGraphicsScene):
         self._stop_decode_worker(self._decode_worker, self._decode_thread)
         self._decode_worker = None
         self._decode_thread = None
+        self._decode_gen_left = -1
         if self._video_player is not None:
             self._video_player.release()
             self._video_player = None
@@ -670,6 +675,7 @@ class PhotoScene(QGraphicsScene):
         self._stop_decode_worker(self._decode_worker_right, self._decode_thread_right)
         self._decode_worker_right = None
         self._decode_thread_right = None
+        self._decode_gen_right = -1
         if self._video_player_right is not None:
             self._video_player_right.release()
             self._video_player_right = None
@@ -688,7 +694,7 @@ class PhotoScene(QGraphicsScene):
         pixmap = QPixmap(file_path)
         if pixmap.isNull():
             return False
-        return self._install_right_media(pixmap)
+        return self.install_right_media(pixmap)
 
     def load_right_video(self, file_path: str) -> bool:
         if not self._dual_mode or not self.has_photo():
@@ -700,16 +706,23 @@ class PhotoScene(QGraphicsScene):
         if first is None:
             player.release()
             return False
+        return self.install_right_media(first, player)
+
+    def install_right_media(self, pixmap: QPixmap, player=None) -> bool:
+        if not self._dual_mode or not self.has_photo() or pixmap.isNull():
+            return False
         # Stop old right worker before replacing the player.
         self._stop_decode_worker(self._decode_worker_right, self._decode_thread_right)
         self._decode_worker_right = None
         self._decode_thread_right = None
+        self._decode_gen_right = -1
         if self._video_player_right is not None:
             self._video_player_right.release()
         self._video_player_right = player
-        self._decode_gen_right, self._decode_worker_right, self._decode_thread_right = \
-            self._start_decode_worker(player, self._on_right_frame_ready)
-        return self._install_right_media(first)
+        if player is not None:
+            self._decode_gen_right, self._decode_worker_right, self._decode_thread_right = \
+                self._start_decode_worker(player, self._on_right_frame_ready)
+        return self._install_right_media(pixmap)
 
     def _install_right_media(self, pixmap: QPixmap) -> bool:
         """
@@ -1467,6 +1480,10 @@ class PhotoScene(QGraphicsScene):
             if px.isNull():
                 return None
 
+        return self.create_overlay_from_media(px, p)
+
+    def create_overlay_from_media(self, px: QPixmap, p=None):
+        """Configure a decoded layer without file I/O on the GUI thread."""
         item = MediaItem(px, is_overlay=True)
         if p is not None:
             item.set_video_player(p)

@@ -152,6 +152,12 @@ class MainWindow(QMainWindow):
         self.controller.undo_stack.canUndoChanged.connect(tb.set_undo_enabled)
         self.controller.undo_stack.canRedoChanged.connect(tb.set_redo_enabled)
         self.controller.media_loaded.connect(self._on_media_loaded)
+        self.controller.right_media_loaded.connect(self._on_right_media_loaded)
+        self.controller.import_started.connect(
+            lambda path: self.statusBar().showMessage(f"Opening {os.path.basename(path)}…"))
+        self.controller.import_failed.connect(self._on_import_failed)
+        self.controller.overlay_loaded.connect(self._on_overlay_loaded)
+        self.controller.import_busy_changed.connect(self._on_import_busy_changed)
 
         # Canvas
         sc.double_clicked_on_canvas.connect(self._on_canvas_double_click)
@@ -239,12 +245,28 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_open_media(self, path: str):
-        if not self.controller.open_media(path):
-            detail = self.controller.last_error
-            message = f"Cannot open:\n{path}"
-            if detail:
-                message += f"\n\n{detail}"
-            QMessageBox.warning(self, "Open", message)
+        self.controller.open_media_async(path)
+
+    def _on_import_failed(self, path, target, detail):
+        self.statusBar().showMessage("Could not open media")
+        message = f"Cannot open:\n{path}"
+        if detail:
+            message += f"\n\n{detail}"
+        title = {'right': 'Open Right Media', 'overlay': 'Add Layer'}.get(target, 'Open')
+        QMessageBox.warning(self, title, message)
+
+    def _on_import_busy_changed(self, busy):
+        # Reset can cancel an import even when the starting canvas is empty.
+        self.top_bar.set_reset_enabled(busy or self.scene.has_photo())
+        if not busy and self.statusBar().currentMessage().startswith('Opening '):
+            self.statusBar().showMessage(
+                os.path.basename(self.controller.model.media_path) or 'Ready')
+
+    def closeEvent(self, event):
+        self.video_controls.stop()
+        self.controller.shutdown()
+        self.scene.reset_project()
+        super().closeEvent(event)
 
     def _on_media_loaded(self, path: str, is_video: bool):
         self.top_bar.set_media_loaded(True)
@@ -286,17 +308,12 @@ class MainWindow(QMainWindow):
             self._on_right_media_dropped(path)
 
     def _on_right_media_dropped(self, path: str):
-        ok = self.controller.open_right_media(path)
-        if not ok:
-            detail = self.controller.last_error
-            message = f"Cannot open:\n{path}"
-            if detail:
-                message += f"\n\n{detail}"
-            QMessageBox.warning(self, "Open Right Media", message)
-        else:
-            if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
-                self.video_controls.set_right_player(self.scene.video_player_right)
-            self.view.fit_photo()
+        self.controller.open_media_async(path, 'right')
+
+    def _on_right_media_loaded(self, path: str, is_video: bool):
+        self.video_controls.set_right_player(self.scene.video_player_right if is_video else None)
+        self.view.fit_photo()
+        self.statusBar().showMessage(os.path.basename(path))
 
     # ------------------------------------------------------------------
     # Overlay layers
@@ -309,10 +326,10 @@ class MainWindow(QMainWindow):
         path = open_file(self, "Add Layer", f"All supported media ({ext_list})")
         if not path:
             return
-        item = self.controller.add_overlay(path)
-        if item is None:
-            QMessageBox.warning(self, "Add Layer", f"Cannot open:\n{path}")
-            return
+        self.controller.open_media_async(path, 'overlay')
+
+    def _on_overlay_loaded(self, item):
+        self.statusBar().showMessage("Layer added")
         if hasattr(item, "has_video") and item.has_video():
             self.video_controls.set_player(item.video_player())
             self.video_controls.set_right_player(None)
@@ -328,6 +345,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_crop(self):
+        self.controller.cancel_import()
         if not self.scene.has_photo():
             return
         if self.scene.has_video():
@@ -360,6 +378,7 @@ class MainWindow(QMainWindow):
             self.view.fit_photo()
 
     def _on_rotate(self):
+        self.controller.cancel_import()
         if not self.scene.has_photo():
             return
         if self.scene.has_video():
@@ -420,6 +439,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_export(self):
+        self.controller.cancel_import()
         # Export pulls in subprocess/archive helpers that are irrelevant until
         # the user actually exports. Keep them off the startup path.
         import export as exporter

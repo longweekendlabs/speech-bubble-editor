@@ -13,8 +13,6 @@ on:
         default: false
         type: boolean
   push:
-    branches:
-      - main
     tags:
       - "v*"
 
@@ -50,6 +48,7 @@ jobs:
           name: source
           path: release/*
           if-no-files-found: error
+          retention-days: 3
 
   linux:
     name: Linux x64
@@ -83,14 +82,16 @@ jobs:
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python -m unittest -q test_manga_maker.py
+        run: python -m unittest -q test_manga_maker.py test_render_cache.py test_media_loading.py
 
       - name: Build Linux executable
         shell: bash
         run: |
           python create_icon.py
           python -m PyInstaller --clean --noconfirm speech_bubble.spec
-          file dist/SpeechBubbleEditor
+          file dist/SpeechBubbleEditor/SpeechBubbleEditor
+          python tools/check_bundle.py dist/SpeechBubbleEditor
+          python tools/run_packaged_check.py dist/SpeechBubbleEditor/SpeechBubbleEditor build/frozen-smoke.json
 
       - name: Create portable tar.gz
         shell: bash
@@ -110,8 +111,8 @@ jobs:
           chmod +x appimagetool
 
           mkdir -p AppDir/usr/bin
-          cp dist/SpeechBubbleEditor AppDir/usr/bin/
-          chmod +x AppDir/usr/bin/SpeechBubbleEditor
+          cp -a dist/SpeechBubbleEditor AppDir/usr/
+          chmod +x AppDir/usr/SpeechBubbleEditor/SpeechBubbleEditor
           cp icons/icon.png AppDir/icon.png
 
           cat > AppDir/SpeechBubbleEditor.desktop <<'EOF'
@@ -129,7 +130,7 @@ jobs:
           cat > AppDir/AppRun <<'EOF'
           #!/bin/bash
           HERE="$(dirname "$(readlink -f "$0")")"
-          exec "${HERE}/usr/bin/SpeechBubbleEditor" "$@"
+          exec "${HERE}/usr/SpeechBubbleEditor/SpeechBubbleEditor" "$@"
           EOF
           chmod +x AppDir/AppRun
 
@@ -148,7 +149,9 @@ jobs:
           debdir="_deb/${package}_${version}_amd64"
           mkdir -p "${debdir}/DEBIAN" "${debdir}/usr/local/bin" \
             "${debdir}/usr/share/applications" "${debdir}/usr/share/pixmaps"
-          install -m 755 dist/SpeechBubbleEditor \
+          mkdir -p "${debdir}/opt/speech-bubble-editor"
+          cp -a dist/SpeechBubbleEditor/. "${debdir}/opt/speech-bubble-editor/"
+          ln -s /opt/speech-bubble-editor/SpeechBubbleEditor \
             "${debdir}/usr/local/bin/SpeechBubbleEditor"
           install -m 644 icons/icon.png \
             "${debdir}/usr/share/pixmaps/${package}.png"
@@ -169,10 +172,12 @@ jobs:
           Package: ${package}
           Version: ${version}
           Architecture: amd64
-          Maintainer: Long Weekend Labs <longweekendlabs@users.noreply.github.com>
+          Maintainer: Long Weekend Labs <2272935+longweekendlabs@users.noreply.github.com>
+          Depends: xdg-desktop-portal
+          Recommends: xdg-desktop-portal-gtk | xdg-desktop-portal-kde | xdg-desktop-portal-gnome
           Description: Speech Bubble Editor
            Create speech bubbles, comic pages, photo collages, and video edits.
-           All dependencies are bundled; no system Python or Qt is required.
+           Python and Qt are bundled; file dialogs use the desktop portal.
           EOF
 
           dpkg-deb --build "${debdir}" \
@@ -187,7 +192,9 @@ jobs:
           topdir="${PWD}/_rpmbuild"
           mkdir -p "${stage}/usr/local/bin" \
             "${stage}/usr/share/applications" "${stage}/usr/share/pixmaps"
-          install -m 755 dist/SpeechBubbleEditor \
+          mkdir -p "${stage}/opt/speech-bubble-editor"
+          cp -a dist/SpeechBubbleEditor/. "${stage}/opt/speech-bubble-editor/"
+          ln -s /opt/speech-bubble-editor/SpeechBubbleEditor \
             "${stage}/usr/local/bin/SpeechBubbleEditor"
           install -m 644 icons/icon.png \
             "${stage}/usr/share/pixmaps/${package}.png"
@@ -206,12 +213,17 @@ jobs:
 
           mkdir -p "${topdir}"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
           cat > "${topdir}/SPECS/${package}.spec" <<EOF
+          %global __os_install_post %{nil}
+          %global debug_package %{nil}
+          AutoReqProv: no
           Name:           ${package}
           Version:        ${version}
           Release:        1%{?dist}
           Summary:        Speech bubbles, comic pages, collages, and video edits
           License:        MIT
           BuildArch:      x86_64
+          Requires:       xdg-desktop-portal
+          Recommends:     (xdg-desktop-portal-gtk or xdg-desktop-portal-kde or xdg-desktop-portal-gnome)
 
           %description
           Speech Bubble Editor is a private desktop editor for speech bubbles,
@@ -221,11 +233,14 @@ jobs:
           mkdir -p %{buildroot}/usr/local/bin
           mkdir -p %{buildroot}/usr/share/applications
           mkdir -p %{buildroot}/usr/share/pixmaps
-          install -m 755 %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
+          mkdir -p %{buildroot}/opt/speech-bubble-editor
+          cp -a %{_app_src}/opt/speech-bubble-editor/. %{buildroot}/opt/speech-bubble-editor/
+          cp -a %{_app_src}/usr/local/bin/SpeechBubbleEditor %{buildroot}/usr/local/bin/SpeechBubbleEditor
           install -m 644 %{_app_src}/usr/share/applications/${package}.desktop %{buildroot}/usr/share/applications/${package}.desktop
           install -m 644 %{_app_src}/usr/share/pixmaps/${package}.png %{buildroot}/usr/share/pixmaps/${package}.png
 
           %files
+          /opt/speech-bubble-editor
           /usr/local/bin/SpeechBubbleEditor
           /usr/share/applications/${package}.desktop
           /usr/share/pixmaps/${package}.png
@@ -249,6 +264,7 @@ jobs:
           name: linux-x64
           path: linux/*
           if-no-files-found: error
+          retention-days: 3
 
   windows:
     name: Windows x64
@@ -263,7 +279,15 @@ jobs:
 
       - name: Install FFmpeg
         shell: pwsh
-        run: choco install ffmpeg -y --no-progress
+        run: |
+          choco install ffmpeg -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Chocolatey's bin/ffmpeg.exe can be a launcher shim. Bundle the
+          # actual standalone executable so video/audio works on a clean PC.
+          $ffmpeg = Get-ChildItem "$env:ChocolateyInstall/lib/ffmpeg" -Filter ffmpeg.exe -Recurse |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $ffmpeg) { throw "FFmpeg executable not found" }
+          "SBE_FFMPEG=$ffmpeg" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Python dependencies
         shell: pwsh
@@ -275,16 +299,21 @@ jobs:
         shell: pwsh
         run: |
           $env:QT_QPA_PLATFORM = "offscreen"
-          python -m unittest -q test_manga_maker.py
+          python -m unittest -q test_manga_maker.py test_render_cache.py test_media_loading.py
 
       - name: Build Windows executable
         shell: pwsh
         run: |
           python create_icon.py
           python -m PyInstaller --clean --noconfirm speech_bubble.spec
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $version = python -c "import version; print(version.__version__)"
           New-Item -ItemType Directory -Force -Path win | Out-Null
-          Compress-Archive -Path "dist/SpeechBubbleEditor.exe" `
+          python tools/check_bundle.py dist/SpeechBubbleEditor
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/run_packaged_check.py dist/SpeechBubbleEditor/SpeechBubbleEditor.exe build/frozen-smoke.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Compress-Archive -Path "dist/SpeechBubbleEditor" `
             -DestinationPath "win/SpeechBubbleEditor-v$version-windows-x64-portable.zip" `
             -Force
 
@@ -314,10 +343,58 @@ jobs:
           name: windows-x64
           path: win/*
           if-no-files-found: error
+          retention-days: 3
+
+  macos:
+    name: macOS Apple Silicon
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: arm64
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if ! command -v ffmpeg >/dev/null; then brew install ffmpeg; fi
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run editor tests
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m unittest -q test_manga_maker.py test_render_cache.py test_media_loading.py
+
+      - name: Build and verify macOS app
+        shell: bash
+        run: |
+          python -m PyInstaller --clean --noconfirm speech_bubble.spec
+          python tools/check_bundle.py "dist/Speech Bubble Editor.app"
+          python tools/run_packaged_check.py \
+            "dist/Speech Bubble Editor.app/Contents/MacOS/SpeechBubbleEditor" build/frozen-smoke.json
+          codesign --verify --deep --strict "dist/Speech Bubble Editor.app"
+
+      - name: Create macOS disk image
+        shell: bash
+        run: |
+          bash tools/package_macos.sh "dist/Speech Bubble Editor.app" mac
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64
+          path: mac/*.dmg
+          if-no-files-found: error
+          retention-days: 3
 
   release:
     name: GitHub Release
-    needs: [source, linux, windows]
+    needs: [source, linux, windows, macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     steps:
@@ -345,7 +422,7 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease || false }}
         shell: bash
         run: |
-          NOTES="Speech Bubble Editor ${TAG_NAME}: Windows setup and portable packages; Linux AppImage, DEB, RPM, and portable packages; plus source archives."
+          NOTES="Speech Bubble Editor ${TAG_NAME}: Windows setup and portable packages; Linux AppImage, DEB, RPM, and portable packages; Apple Silicon macOS DMG; plus source archives."
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" release-assets/* --clobber
             gh release edit "$TAG_NAME" \

@@ -62,7 +62,7 @@ History:
             Night Desk interface theme.
 """
 
-__version__  = "4.5.1"
+__version__  = "4.5.2"
 __app_name__ = "Speech Bubble Editor"
 __org_name__ = "Long Weekend Labs"
 __copyright__ = "© 2026 Long Weekend Labs"

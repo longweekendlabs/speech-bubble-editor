@@ -631,6 +631,11 @@ class BubbleItem(QGraphicsItem):
         self._editing_lobe: int = -1
         # Per-bubble phase so two balloons never ink identically.
         self._ink_seed: float = 0.0
+        # Small, per-item vector caches. Keys include geometry rather than
+        # relying on every setter/drag/undo path to invalidate them correctly.
+        self._body_path_cache = None
+        self._outline_path_cache = None
+        self._ink_path_cache = []
         self._accents: set[str] = set()   # any combination of ACCENTS
         self._accent_amount = 50          # strength / density, %
         # Inset photo (Balloon+ "Photo" tab): an image clipped to the bubble.
@@ -2098,8 +2103,8 @@ class BubbleItem(QGraphicsItem):
             # pen — this is what makes it read as drawn rather than plotted.
             if self._border_width > 0:
                 painter.setBrush(QBrush(self._border_color))
-                painter.drawPath(ink_stroke(path, self._border_width,
-                                            seed=self._ink_seed))
+                painter.drawPath(self._cached_ink_stroke(
+                    path, self._border_width, self._ink_seed))
             # Dot-chain tails are separate circles: fill them, then ink them.
             # They used to inherit the ink brush and render solid black.
             if self._tail_shape == "dots":
@@ -2112,8 +2117,8 @@ class BubbleItem(QGraphicsItem):
                     painter.drawPath(dots)
                     if self._border_width > 0:
                         painter.setBrush(QBrush(self._border_color))
-                        painter.drawPath(ink_stroke(dots, self._border_width,
-                                                    seed=self._ink_seed + 1.3))
+                        painter.drawPath(self._cached_ink_stroke(
+                            dots, self._border_width, self._ink_seed + 1.3))
             self._paint_accents_over(painter, path)
             if self.is_lobed():
                 self._paint_lobe_texts(painter)
@@ -2133,8 +2138,23 @@ class BubbleItem(QGraphicsItem):
     # ------------------------------------------------------------------
 
     def _build_body_path(self) -> QPainterPath:
-        return build_body_path(self._style, self._body_rect,
-                               getattr(self, '_ink_seed', 0.0))
+        key = (self._style, QRectF(self._body_rect), self._ink_seed)
+        if self._body_path_cache is None or self._body_path_cache[0] != key:
+            self._body_path_cache = (
+                key, build_body_path(self._style, self._body_rect, self._ink_seed))
+        # QPainterPath is implicitly shared; a caller can mutate its copy
+        # without corrupting the cached vector geometry.
+        return QPainterPath(self._body_path_cache[1])
+
+    def _cached_ink_stroke(self, path, width, seed):
+        for source, cached_width, cached_seed, stroke in self._ink_path_cache:
+            if cached_width == width and cached_seed == seed and source == path:
+                return QPainterPath(stroke)
+        stroke = ink_stroke(path, width, seed)
+        # One body plus up to three dot tails; never accumulate drag history.
+        self._ink_path_cache.append((QPainterPath(path), width, seed, stroke))
+        self._ink_path_cache = self._ink_path_cache[-4:]
+        return QPainterPath(stroke)
 
 
     def _paint_live_text_outline(self, painter: QPainter):
@@ -2738,6 +2758,14 @@ class BubbleItem(QGraphicsItem):
         All styles go through the same direction-aware tail builder, so a tail
         welds correctly onto an oval, a cloud, a starburst or a wobbly box at
         any angle the user drags it to."""
+        key = (self._style, QRectF(self._body_rect), self._ink_seed,
+               self._tail_shape, self._tail_width,
+               tuple((tip.x(), tip.y()) for tip in self._tail_tips()))
+        if self._outline_path_cache is None or self._outline_path_cache[0] != key:
+            self._outline_path_cache = (key, self._build_outline_path())
+        return QPainterPath(self._outline_path_cache[1])
+
+    def _build_outline_path(self) -> QPainterPath:
         path = self._build_body_path()
         if self._tail_shape in ("dots", "none"):
             return path

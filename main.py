@@ -133,6 +133,9 @@ def _load_fonts():
 
 def main():
     try:
+        smoke_test = len(sys.argv) == 3 and sys.argv[1] == "--smoke-test"
+        startup_test = len(sys.argv) == 3 and sys.argv[1] == "--startup-test"
+        diagnostic = smoke_test or startup_test
         if (
             sys.platform.startswith("linux")
             and os.environ.get("QT_QPA_PLATFORM") != "offscreen"
@@ -153,7 +156,7 @@ def main():
         _logger.info("QApplication created OK")
 
         # Fast-fail before building the window if another instance is running
-        if _check_duplicate_instance():
+        if not diagnostic and _check_duplicate_instance():
             _logger.info("duplicate instance detected — exiting")
             from PyQt6.QtWidgets import QMessageBox
             QMessageBox.information(None, "Already Running",
@@ -178,13 +181,21 @@ def main():
         window = MainWindow()
         _logger.info("MainWindow created OK")
 
-        _start_single_instance_server(window)
+        if not diagnostic:
+            _start_single_instance_server(window)
 
         # Defer font loading so the window appears before font-file scanning.
         QTimer.singleShot(0, _load_fonts)
 
+        if startup_test:
+            from startup_probe import StartupProbe
+            window._startup_probe = StartupProbe(app, window, sys.argv[2])
         window.show()
         _logger.info("window.show() called — entering event loop")
+        # Opt-in packaged-build check. Normal launches do no diagnostic work.
+        if smoke_test:
+            from smoke_check import run_smoke_check
+            QTimer.singleShot(500, lambda: run_smoke_check(app, window, sys.argv[2]))
         sys.exit(app.exec())
     except Exception:
         _logger.exception("EXCEPTION in main()")

@@ -28,10 +28,14 @@ fi
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 python -m pip install --quiet --upgrade pip
+# Both distributions own cv2; remove the old wheel in reused Fedora build envs.
+python -m pip uninstall -y opencv-python
 python -m pip install --quiet -r requirements.txt
 
 python create_icon.py
 python -m PyInstaller --clean --noconfirm speech_bubble_rpm.spec
+python tools/check_bundle.py "dist/${BUNDLE}"
+python tools/run_packaged_check.py "dist/${BUNDLE}/${BUNDLE}" build/frozen-smoke.json
 deactivate
 
 [ -d "dist/${BUNDLE}" ] || { echo "PyInstaller produced no dist/${BUNDLE}"; exit 1; }
@@ -81,6 +85,8 @@ Summary:        Add comic speech bubbles and captions to photos and video
 License:        MIT
 URL:            https://github.com/longweekendlabs/speech-bubble-editor
 BuildArch:      ${ARCH}
+Requires:       xdg-desktop-portal
+Recommends:     (xdg-desktop-portal-gtk or xdg-desktop-portal-kde or xdg-desktop-portal-gnome)
 
 %description
 Speech Bubble Editor places hand-inked comic and manga speech balloons,

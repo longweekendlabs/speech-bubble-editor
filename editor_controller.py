@@ -28,11 +28,17 @@ class EditorController(QObject):
     media_loaded       = pyqtSignal(str, bool)   # path, is_video
     right_media_loaded = pyqtSignal(str, bool)   # path, is_video
 
+    overlay_loaded = pyqtSignal(object)
+    import_started = pyqtSignal(str)
+    import_failed = pyqtSignal(str, str, str)
+    import_busy_changed = pyqtSignal(bool)
+
     def __init__(self, scene: PhotoScene, parent=None):
         super().__init__(parent)
         self._model = AppModel()
         self._scene = scene
         self.last_error = ""
+        self._loader = None
 
     # ------------------------------------------------------------------
     # Properties
@@ -54,8 +60,72 @@ class EditorController(QObject):
     # Media
     # ------------------------------------------------------------------
 
+    def open_media_async(self, path: str, target: str = 'left'):
+        if self._loader is None:
+            from media_loader import MediaLoader
+            from PyQt6.QtWidgets import QApplication
+            self._loader = MediaLoader(self)
+            self._loader.ready.connect(self._install_import)
+            self._loader.failed.connect(self.import_failed)
+            self._loader.busy_changed.connect(self.import_busy_changed)
+            QApplication.instance().aboutToQuit.connect(self._loader.shutdown)
+        self.last_error = ''
+        self.import_started.emit(path)
+        self._loader.request(path, target)
+
+    def cancel_import(self):
+        if self._loader is not None:
+            self._loader.cancel()
+
+    def shutdown(self):
+        if self._loader is not None:
+            self._loader.shutdown()
+
+    def _install_import(self, path, target, prepared):
+        from PyQt6.QtGui import QPixmap
+        try:
+            pixmap = QPixmap.fromImage(prepared.image)
+            is_video = prepared.player is not None
+            if target == 'overlay':
+                if not self._scene.has_photo():
+                    return
+                item = self._scene.create_overlay_from_media(pixmap, prepared.player)
+                self._scene.undo_stack.push(AddOverlayCommand(self._scene, item))
+                prepared.player = None
+                self.overlay_loaded.emit(item)
+                return
+            if target == 'right':
+                ok = self._scene.install_right_media(pixmap, prepared.player)
+            else:
+                ok = self._scene.install_media(pixmap, prepared.player)
+            if not ok:
+                return
+            prepared.player = None  # ownership transferred to the scene
+            if target == 'right':
+                self._model.media_path_right = path
+                self.right_media_loaded.emit(path, is_video)
+            else:
+                self._record_media_loaded(path, is_video)
+        except Exception as error:
+            self.last_error = str(error)
+            self.import_failed.emit(path, target, self.last_error)
+        finally:
+            prepared.release()
+
+    def _record_media_loaded(self, path, is_video):
+        if self._scene._photo_item is not None:
+            self._scene._photo_item._source_path = path
+        self._model.media_path = path
+        self._model.media_path_right = ''
+        self._model.is_dual = False
+        self._model.is_meme = False
+        self._model.is_manga = False
+        self._model.is_collage = False
+        self.media_loaded.emit(path, is_video)
+
     def open_media(self, path: str) -> bool:
         """Load photo or video (auto-detected). Returns True on success."""
+        self.cancel_import()
         self.last_error = ""
         is_video = os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS
         try:
@@ -69,17 +139,12 @@ class EditorController(QObject):
                 return False
             raise
         if ok:
-            if self._scene._photo_item is not None:
-                self._scene._photo_item._source_path = path
-            self._model.media_path       = path
-            self._model.media_path_right = ""
-            self._model.is_dual  = False
-            self._model.is_meme  = False
-            self.media_loaded.emit(path, is_video)
+            self._record_media_loaded(path, is_video)
         return ok
 
     def open_right_media(self, path: str) -> bool:
         """Load the right-panel photo or video. Returns True on success."""
+        self.cancel_import()
         self.last_error = ""
         is_video = os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS
         try:
@@ -99,6 +164,7 @@ class EditorController(QObject):
 
     def reset_project(self):
         """Return the editor to a blank launch state."""
+        self.cancel_import()
         self._scene.reset_project()
         self._model = AppModel()
 
@@ -159,6 +225,7 @@ class EditorController(QObject):
     # ------------------------------------------------------------------
 
     def set_meme_mode(self, enabled: bool):
+        self.cancel_import()
         if enabled:
             self._scene.enable_meme_mode()
         else:
@@ -166,6 +233,7 @@ class EditorController(QObject):
         self._model.is_meme = enabled
 
     def set_dual_mode(self, enabled: bool):
+        self.cancel_import()
         if enabled:
             self._scene.enable_dual_mode()
         else:
@@ -173,6 +241,7 @@ class EditorController(QObject):
         self._model.is_dual = enabled
 
     def set_manga_mode(self, enabled: bool):
+        self.cancel_import()
         if enabled:
             self._scene.enable_manga_mode()
             self._model.is_meme = False
@@ -182,6 +251,7 @@ class EditorController(QObject):
         self._model.is_manga = enabled
 
     def set_collage_mode(self, enabled: bool):
+        self.cancel_import()
         if enabled:
             self._scene.enable_collage_mode()
             self._model.is_meme = False
