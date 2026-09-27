@@ -4,17 +4,17 @@
 
 [![GitHub Release](https://img.shields.io/github/v/release/longweekendlabs/speech-bubble-editor?style=flat-square)](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
+[![Platforms](https://img.shields.io/badge/platform-Windows%20x64%20%7C%20Linux%20x64%20%7C%20macOS%20Apple%20Silicon-lightgrey?style=flat-square)](https://longweekendlabs.github.io/speech-bubble-editor/)
 
 Drop a photo in, say something over it, and you are done. Speech Bubble Editor turns a picture into a comic panel, a meme, a collage, or a captioned video clip, with hand-drawn bubbles that actually look drawn. Everything runs on your own machine: no account, no upload, no subscription.
 
-### [Download for Windows and Linux](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
+### [Download for Windows, Linux, and macOS](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest)
 
 ![Speech Bubble Editor showing its built-in bubble shapes](docs/screenshots/bubble-shapes.png)
 
 ## Bubbles that look drawn, not stamped
 
-Seven styles: oval, cloud, rectangle, starburst, text-only, scrim, and caption. Each one is inked with a natural, slightly irregular line instead of a perfect vector shape, so a bubble sits on a photo like it belongs there.
+Nineteen styles, including speech, round, soft box, cloud, starburst, twin and triple balloons, text-only, scrim, and caption. Balloon bodies use a natural, slightly irregular ink line, so a bubble sits on a photo like it belongs there.
 
 Grab the tail and drag it anywhere. Resize from any corner. Set the fill, the outline weight and colour, the opacity, and the shadow. Point the tail at whoever is talking and it stays pointed there while you move the bubble.
 
@@ -52,13 +52,19 @@ Two one-click layouts for the formats people actually post: classic top and bott
 
 ![Meme mode with top and bottom captions](docs/screenshots/meme-mode.png)
 
+## Less waiting, more editing
+
+The app starts from its installed files without unpacking its runtime on every launch. Smaller packages keep the fonts, image formats, and video tools included. Unchanged bubble outlines are reused between redraws while exports keep their full resolution.
+
+Open a photo or video on the main canvas, in dual mode, or as a layer while decoding runs in the background. The current canvas stays available, and Reset cancels a pending import.
+
 ## The rest
 
 Full resolution image export. Undo and redo everywhere. Keyboard shortcuts for the things you repeat. Your operating system's own file dialogs, not a toolkit imitation. A dark interface that stays out of the way of the picture.
 
 ## Download
 
-Windows and Linux x64 builds are on the [**releases page**](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest): a Windows installer and portable zip, and an AppImage, RPM, DEB, and tar.gz for Linux. The [download page](https://longweekendlabs.github.io/speech-bubble-editor/) picks the right one for you.
+Windows x64, Linux x64, and Apple Silicon macOS builds are on the [**releases page**](https://github.com/longweekendlabs/speech-bubble-editor/releases/latest): a Windows installer and portable zip, an AppImage, RPM, DEB, and tar.gz for Linux, and a DMG for macOS 15 or newer. The [download page](https://longweekendlabs.github.io/speech-bubble-editor/) picks the right one for you.
 
 ## Feedback
 

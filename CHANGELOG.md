@@ -4,6 +4,8 @@ All notable user-facing changes are tracked here. Release downloads are publishe
 
 ## [Unreleased]
 
+## [4.5.2] - 2026-09-27
+
 ### Added
 
 - Apple Silicon macOS app and drag-to-Applications DMG for macOS 15 or newer.

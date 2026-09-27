@@ -431,12 +431,23 @@ jobs:
           PRERELEASE: ${{ inputs.prerelease || false }}
         shell: bash
         run: |
-          NOTES="Speech Bubble Editor ${TAG_NAME}: Windows setup and portable packages; Linux AppImage, DEB, RPM, and portable packages; Apple Silicon macOS DMG; plus source archives."
+          python - <<'PYNOTES'
+          import os
+          from pathlib import Path
+          version = os.environ['TAG_NAME'].removeprefix('v')
+          changelog = Path('CHANGELOG.md').read_text(encoding='utf-8')
+          heading = f'## [{version}] - '
+          if heading not in changelog:
+              raise SystemExit(f'No changelog entry for {version}')
+          entry = changelog.split(heading, 1)[1].split('\n', 1)[1].split('\n## ', 1)[0].strip()
+          notes = entry + '\n\n### Downloads\n\nWindows x64 setup and portable ZIP; Linux x64 AppImage, RPM, DEB and tar.gz; Apple Silicon macOS DMG; source archives.\n\nOn macOS 15 or newer, open the DMG and drag the app into Applications. The app is not Apple-notarized; macOS may ask you to allow it in Privacy & Security.\n'
+          Path('release-notes.md').write_text(notes, encoding='utf-8')
+          PYNOTES
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" release-assets/* --clobber
             gh release edit "$TAG_NAME" \
               --title "Speech Bubble Editor ${TAG_NAME}" \
-              --notes "$NOTES" \
+              --notes-file release-notes.md \
               --latest
           else
             prerelease_flag=""
@@ -445,6 +456,6 @@ jobs:
             fi
             gh release create "$TAG_NAME" release-assets/* \
               --title "Speech Bubble Editor ${TAG_NAME}" \
-              --notes "$NOTES" \
+              --notes-file release-notes.md \
               $prerelease_flag
           fi
