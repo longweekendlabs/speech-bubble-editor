@@ -3,6 +3,12 @@ name: Build and Release
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: "Platforms to build (choose one when correcting a platform-specific failure)"
+        required: true
+        default: all
+        type: choice
+        options: [all, windows, linux, macos]
       tag:
         description: "Existing tag to release, for example v4.5.0. Leave blank to build artifacts only."
         required: false
@@ -51,6 +57,7 @@ jobs:
           retention-days: 3
 
   linux:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'linux'
     name: Linux x64
     runs-on: ubuntu-22.04
     steps:
@@ -267,6 +274,7 @@ jobs:
           retention-days: 3
 
   windows:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'windows'
     name: Windows x64
     runs-on: windows-latest
     steps:
@@ -346,6 +354,7 @@ jobs:
           retention-days: 3
 
   macos:
+    if: github.event_name != 'workflow_dispatch' || inputs.platform == 'all' || inputs.platform == 'macos'
     name: macOS Apple Silicon
     runs-on: macos-15
     timeout-minutes: 30

@@ -3,6 +3,7 @@
 SpeechBubbleEditor --smoke-test /absolute/path/report.json
 The check uses temporary fixtures, never user media or saved preferences.
 """
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import tempfile
@@ -54,7 +55,11 @@ def run_smoke_check(app, window, report_path):
             if family not in QFontDatabase.families():
                 raise AssertionError(f'Missing bundled font: {family}')
         report['checks'].append('bundled fonts')
-        with tempfile.TemporaryDirectory(prefix='sbe-smoke-') as directory:
+        with tempfile.TemporaryDirectory(prefix='sbe-smoke-') as directory, ExitStack() as cleanup:
+            # Windows cannot delete fixtures still held by VideoCapture. Close
+            # workers and scene media before TemporaryDirectory removes files.
+            cleanup.callback(window.scene.reset_project)
+            cleanup.callback(window.controller.shutdown)
             temp = Path(directory)
             source = QImage(640, 480, QImage.Format.Format_RGB32)
             source.fill(QColor('#63758a'))
